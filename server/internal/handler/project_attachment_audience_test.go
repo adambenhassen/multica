@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/multica-ai/multica/server/internal/testutil"
@@ -295,4 +296,58 @@ func TestAttachLabelToAgent_AudienceLabelRequiresAdmin(t *testing.T) {
 	attach(memberID, plainLabel).Want(http.StatusOK)
 	attach(memberID, gatedLabel).Want(http.StatusForbidden)
 	attach(testUserID, gatedLabel).Want(http.StatusOK)
+}
+
+// The agent's Skills and MCP tabs show what reaches the agent from projects,
+// per each project's audience.
+func TestListAgentProjectItems_FollowsAudience(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	projectA := dbfx.Project(t, "Agent view A")
+	projectB := dbfx.Project(t, "Agent view B")
+	for _, p := range []string{projectA, projectB} {
+		dbfx.Cleanup(t, `DELETE FROM project_attachment_audience WHERE project_id = $1`, p)
+		dbfx.Cleanup(t, `DELETE FROM project_skill WHERE project_id = $1`, p)
+		dbfx.Cleanup(t, `DELETE FROM project_mcp_server WHERE project_id = $1`, p)
+	}
+	viewer := newAudienceAgent(t, ctx, "agent-view-viewer", projectA)
+	other := newAudienceAgent(t, ctx, "agent-view-other", projectA)
+
+	shared := insertProjectSkillFixtureSkill(t, testWorkspaceID, "agent-view-shared")
+	restricted := insertProjectSkillFixtureSkill(t, testWorkspaceID, "agent-view-restricted")
+	addProjectSkillCall(t, projectA, shared, restricted).Want(http.StatusOK)
+	addProjectSkillCall(t, projectB, shared).Want(http.StatusOK)
+	setAudienceCall(t, "skills", projectA, restricted, map[string]any{
+		"restricted": true, "agent_ids": []string{other.agentID},
+	}).Want(http.StatusOK)
+	serverID := createWorkspaceMcpServerForTest(t, "agent-view-mcp", `{"url":"https://agent-view.example"}`)
+	dbfx.Cleanup(t, `DELETE FROM project_attachment_audience WHERE item_id = $1`, serverID)
+	addProjectMcpServerCall(t, projectB, serverID).Want(http.StatusOK)
+
+	req := withURLParam(newRequest("GET", "/api/agents/"+viewer.agentID+"/project-skills", nil), "id", viewer.agentID)
+	var skills []AgentProjectSkillResponse
+	testutil.Call(t, testHandler.ListAgentProjectSkills, req).Want(http.StatusOK).JSON(&skills)
+	byID := map[string]AgentProjectSkillResponse{}
+	for _, s := range skills {
+		byID[s.ID] = s
+	}
+	if got := byID[shared]; len(got.Projects) != 2 {
+		t.Fatalf("shared skill should come from both projects, got %+v", got.Projects)
+	}
+	if _, ok := byID[restricted]; ok {
+		t.Fatal("a skill restricted to another agent was listed for this agent")
+	}
+
+	req = withURLParam(newRequest("GET", "/api/agents/"+viewer.agentID+"/project-mcp-servers", nil), "id", viewer.agentID)
+	resp := testutil.Call(t, testHandler.ListAgentProjectMcpServers, req).Want(http.StatusOK)
+	if strings.Contains(resp.Text(), "agent-view.example") {
+		t.Fatalf("project MCP list leaked the server config: %s", resp.Text())
+	}
+	var servers []AgentProjectMcpServerResponse
+	resp.JSON(&servers)
+	if len(servers) != 1 || servers[0].ID != serverID || len(servers[0].Projects) != 1 || servers[0].Projects[0].ID != projectB {
+		t.Fatalf("project MCP servers = %+v", servers)
+	}
 }

@@ -260,3 +260,91 @@ func uniqueUUIDs(ids []pgtype.UUID) []pgtype.UUID {
 	}
 	return out
 }
+
+// ProjectRef names a project an agent receives an item from.
+type ProjectRef struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// AgentProjectSkillResponse is a project skill that reaches an agent, with the
+// projects it comes from.
+type AgentProjectSkillResponse struct {
+	SkillSummaryResponse
+	Projects []ProjectRef `json:"projects"`
+}
+
+// AgentProjectMcpServerResponse is a project MCP server that reaches an agent
+// (secret-free inventory), with the projects it comes from.
+type AgentProjectMcpServerResponse struct {
+	WorkspaceMcpServerResponse
+	Projects []ProjectRef `json:"projects"`
+}
+
+// ListAgentProjectSkills returns the project skills that reach this agent in
+// tasks of each project, per the projects' audiences. Read-only: they are
+// managed on the project page.
+func (h *Handler) ListAgentProjectSkills(w http.ResponseWriter, r *http.Request) {
+	agent, ok := h.loadAgentForUser(w, r, chi.URLParam(r, "id"))
+	if !ok {
+		return
+	}
+	rows, err := h.Queries.ListAgentProjectSkills(r.Context(), db.ListAgentProjectSkillsParams{
+		WorkspaceID: agent.WorkspaceID, AgentID: agent.ID,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list project skills")
+		return
+	}
+	resp := []AgentProjectSkillResponse{}
+	index := map[string]int{}
+	for _, row := range rows {
+		id := uuidToString(row.ID)
+		i, seen := index[id]
+		if !seen {
+			i = len(resp)
+			index[id] = i
+			resp = append(resp, AgentProjectSkillResponse{
+				SkillSummaryResponse: skillSummaryToResponse(
+					row.ID, row.WorkspaceID, row.Name, row.Description, row.Config,
+					row.CreatedBy, row.CreatedAt, row.UpdatedAt,
+				),
+				Projects: []ProjectRef{},
+			})
+		}
+		resp[i].Projects = append(resp[i].Projects, ProjectRef{ID: uuidToString(row.ProjectID), Title: row.ProjectTitle})
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// ListAgentProjectMcpServers returns the project MCP servers that reach this
+// agent, per the projects' audiences. Configs never leave the server.
+func (h *Handler) ListAgentProjectMcpServers(w http.ResponseWriter, r *http.Request) {
+	agent, ok := h.loadAgentForUser(w, r, chi.URLParam(r, "id"))
+	if !ok {
+		return
+	}
+	rows, err := h.Queries.ListAgentProjectMcpServers(r.Context(), db.ListAgentProjectMcpServersParams{
+		WorkspaceID: agent.WorkspaceID, AgentID: agent.ID,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list project MCP servers")
+		return
+	}
+	resp := []AgentProjectMcpServerResponse{}
+	index := map[string]int{}
+	for _, row := range rows {
+		id := uuidToString(row.WorkspaceMcpServer.ID)
+		i, seen := index[id]
+		if !seen {
+			i = len(resp)
+			index[id] = i
+			resp = append(resp, AgentProjectMcpServerResponse{
+				WorkspaceMcpServerResponse: workspaceMcpServerToResponse(row.WorkspaceMcpServer),
+				Projects:                   []ProjectRef{},
+			})
+		}
+		resp[i].Projects = append(resp[i].Projects, ProjectRef{ID: uuidToString(row.ProjectID), Title: row.ProjectTitle})
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
