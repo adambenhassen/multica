@@ -90,6 +90,8 @@ import type {
   SkillSummary,
   Squad,
   TimelineEntry,
+  WorkspaceActivityEntry,
+  WorkspaceActivityResponse,
   User,
   WebhookDelivery,
   WorkspaceMcpServer,
@@ -1089,6 +1091,28 @@ const TimelineEntrySchema = z.object({
 export const TimelineEntriesSchema = z.array(TimelineEntrySchema);
 
 export const EMPTY_TIMELINE_ENTRIES: TimelineEntry[] = [];
+
+const WorkspaceActivityEntrySchema = TimelineEntrySchema.extend({
+  issue: z.object({
+    id: z.string(),
+    identifier: z.string(),
+    title: z.string(),
+    status: z.string(),
+  }).loose(),
+});
+
+// GET /api/activity — the Dashboard's workspace feed. A malformed row is
+// dropped instead of blanking the whole feed.
+export const WorkspaceActivityResponseSchema = z.object({
+  entries: z.array(z.unknown()).transform((entries) =>
+    entries.flatMap((entry) => {
+      const parsed = WorkspaceActivityEntrySchema.safeParse(entry);
+      return parsed.success ? [parsed.data as WorkspaceActivityEntry] : [];
+    }),
+  ),
+}).loose();
+
+export const EMPTY_WORKSPACE_ACTIVITY: WorkspaceActivityResponse = { entries: [] };
 
 const OptionalStringSchema = z.preprocess(
   (value) => (typeof value === "string" ? value : undefined),

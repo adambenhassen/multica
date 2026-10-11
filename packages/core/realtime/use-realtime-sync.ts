@@ -21,6 +21,7 @@ import { labelKeys } from "../labels/queries";
 import { propertyKeys } from "../properties/queries";
 import { issueStatusKeys } from "../issue-statuses/queries";
 import { issueWorkflowKeys } from "../issue-workflows/queries";
+import { overviewKeys } from "../overview/queries";
 import {
   agentTaskSnapshotKeys,
   workspaceWorkingAgentsKeys,
@@ -672,6 +673,7 @@ function invalidateWorkspaceScopedQueries(qc: QueryClient): void {
     // archived, or to keep painting its old name.
     qc.invalidateQueries({ queryKey: issueStatusKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: issueWorkflowKeys.all(wsId) });
+    qc.invalidateQueries({ queryKey: overviewKeys.all(wsId) });
   }
   // Cross-workspace, so outside the wsId guard: a reconnect may have missed
   // inbox events from any workspace, so re-pull the switcher-dot summary.
@@ -1047,6 +1049,18 @@ export function useRealtimeSync(
       }, 1_000));
     };
 
+    // The Dashboard activity feed refetches once per second at most. Like the
+    // working-agent refresh, it flushes one second after the FIRST event so a
+    // busy workspace's continuous activity cannot starve it.
+    const overviewActivityTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    const scheduleOverviewActivityRefresh = (wsId: string) => {
+      if (overviewActivityTimers.has(wsId)) return;
+      overviewActivityTimers.set(wsId, setTimeout(() => {
+        overviewActivityTimers.delete(wsId);
+        qc.invalidateQueries({ queryKey: overviewKeys.activityAll(wsId) });
+      }, 1_000));
+    };
+
     const timers = new Map<string, ReturnType<typeof setTimeout>>();
     const debouncedRefresh = (prefix: string, fn: () => void) => {
       const existing = timers.get(prefix);
@@ -1140,6 +1154,9 @@ export function useRealtimeSync(
       if (wsId) {
         onIssueDeleted(qc, wsId, issue_id);
         void onInboxIssueDeleted(qc, wsId, issue_id);
+        // The feed joins activity to its issue, so the deleted issue's rows
+        // are gone server-side.
+        scheduleOverviewActivityRefresh(wsId);
       }
     });
 
@@ -1288,6 +1305,8 @@ export function useRealtimeSync(
     const unsubActivityCreated = ws.on("activity:created", (p) => {
       const { issue_id } = p as ActivityCreatedPayload;
       if (issue_id) invalidateTimeline(issue_id);
+      const wsId = getCurrentWsId();
+      if (wsId) scheduleOverviewActivityRefresh(wsId);
     });
 
     const unsubReactionAdded = ws.on("reaction:added", (p) => {
@@ -1892,6 +1911,8 @@ export function useRealtimeSync(
       workingAgentTimers.forEach(clearTimeout);
       workingAgentTimers.clear();
       workingAgentDirty.clear();
+      overviewActivityTimers.forEach(clearTimeout);
+      overviewActivityTimers.clear();
     };
   }, [ws, qc, authStore, onToast]);
 
