@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { projectKeys } from "./queries";
 import { issueKeys } from "../issues/queries";
+import { workspaceKeys } from "../workspace/queries";
 import { useWorkspaceId } from "../hooks";
 import { useRecentContextStore } from "../chat/recent-context-store";
 import { clearIssueSurfaceViewState } from "../issues/stores/surface-view-store";
@@ -90,6 +91,9 @@ export function useDeleteProject() {
       // event invalidates too, but a delivery gap must not leave the window
       // wrong forever — the global staleTime is Infinity.
       qc.invalidateQueries({ queryKey: issueKeys.tableAll(wsId) });
+      // The delete also detaches the project's MCP servers, and the library
+      // list reports each entry's project_count.
+      qc.invalidateQueries({ queryKey: workspaceKeys.mcpServers(wsId) });
     },
   });
 }
