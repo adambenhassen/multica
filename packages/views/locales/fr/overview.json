@@ -34,7 +34,8 @@
     "filters": {
       "all": "Tout",
       "comments": "Commentaires",
-      "status": "Changements de statut"
+      "status": "Changements de statut",
+      "failures": "Échecs"
     },
     "empty_filtered": "Rien pour le moment",
     "today": "Aujourd'hui",
@@ -43,7 +44,8 @@
     "replied": "a répondu",
     "marked": "l'a marquée {{status}}",
     "moved": "l'a déplacée vers {{status}}",
-    "with_excerpt": "{{phrase}} : « {{excerpt}} »"
+    "with_excerpt": "{{phrase}} : « {{excerpt}} »",
+    "run_failed": "a eu une exécution en échec"
   },
   "issues": {
     "heading": "Tâches récentes",

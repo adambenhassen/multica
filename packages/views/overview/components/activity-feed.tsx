@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Activity, CirclePlus, MessageSquare, Pencil, UserRound } from "lucide-react";
+import { Activity, CirclePlus, CircleX, MessageSquare, Pencil, UserRound } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
@@ -21,7 +21,7 @@ import { useLocale, useT, useTimeAgo } from "../../i18n";
 import { coalesceFeed, commentExcerpt, groupFeedByDay } from "../utils";
 import { EmptyBox, ErrorBox, LIST_CLASS, ListSkeleton, SectionHeading } from "./section-parts";
 
-const FEED_KINDS: readonly WorkspaceActivityKind[] = ["all", "comments", "status"];
+const FEED_KINDS: readonly WorkspaceActivityKind[] = ["all", "comments", "status", "failures"];
 
 /**
  * What is happening across the workspace, issue first: each row names the
@@ -52,6 +52,7 @@ export function ActivityFeed() {
     all: t(($) => $.activity.filters.all),
     comments: t(($) => $.activity.filters.comments),
     status: t(($) => $.activity.filters.status),
+    failures: t(($) => $.activity.filters.failures),
   };
 
   return (
@@ -132,6 +133,9 @@ function FeedRow({ entry }: { entry: WorkspaceActivityEntry }) {
         className="size-4"
       />
     );
+  } else if (entry.action === "task_failed") {
+    phrase = t(($) => $.activity.run_failed);
+    lead = <CircleX className="size-4 text-destructive" />;
   } else {
     phrase = formatActivity(entry, tIssues, locale, getActorName, catalog.labelOf);
     lead =

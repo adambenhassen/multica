@@ -141,6 +141,16 @@ func TestListWorkspaceActivityMergesCommentsAndFiltersByKind(t *testing.T) {
 	if got := ids(read("?kind=all&limit=2")); !slices.Equal(got, []string{comment, assigned}) {
 		t.Fatalf("limit=2 = %v", got)
 	}
+	failed := dbfx.Insert(t, "activity_log", testutil.Cols{
+		"workspace_id": ws, "issue_id": issue, "actor_type": "agent", "actor_id": testUserID,
+		"action": "task_failed", "created_at": base.Add(3 * time.Minute),
+	})
+	if got := ids(read("")); slices.Contains(got, failed) {
+		t.Fatalf("all = %v, must not carry failed runs", got)
+	}
+	if got := ids(read("?kind=failures")); !slices.Equal(got, []string{failed}) {
+		t.Fatalf("kind=failures = %v, want only the failed run", got)
+	}
 	testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity?kind=runs", ws, testUserID)).
 		Want(http.StatusBadRequest)
 }

@@ -152,8 +152,9 @@ export function commentExcerpt(markdown: string): string {
     .trim();
 }
 
-// Description edits autosave, so one sitting writes a run of identical rows.
-const COALESCED_FEED_ACTIONS = new Set(["description_updated"]);
+// Description edits autosave and agents retry failed runs, so both write runs
+// of identical rows.
+const COALESCED_FEED_ACTIONS = new Set(["description_updated", "task_failed"]);
 
 /** Folds consecutive repeats of an autosaved edit into one row with a count. */
 export function coalesceFeed(entries: WorkspaceActivityEntry[]): WorkspaceActivityEntry[] {
