@@ -87,6 +87,19 @@ After creating or importing a skill, it still needs to be added to specific agen
 
 Only members who can modify the agent can add, remove, or disable its skills.
 
+## Attaching to a project
+
+Attach a skill to a [project](/projects) when every task in that project needs it, whichever agent runs the task. Open the project and use **Add skill** in its **Skills** section, or the CLI:
+
+```bash
+multica project skill add <project-id> --skill-ids <skill-id>
+```
+
+- Project skills are added to the running agent's own skills; a skill attached to both is delivered once.
+- They apply to every run tied to the project: its issues, chats and autopilots set to it, and quick-create tasks that pick it.
+- Any workspace member can attach or remove project skills.
+- Edits take effect from subsequent runs.
+
 ## Workspace skills and repository skills
 
 Workspace skills are stored in Multica — a fit for skills the team maintains together and adds to different agents.
@@ -99,7 +112,7 @@ Runtime-local skills already installed on a connected computer (Claude Code and 
 
 Any workspace member can create or import a skill. The creator and workspace `owner`s and `admin`s can modify or delete it; other members can view and use it, but cannot overwrite its content.
 
-Deletion is permanent and removes the skill from all agents at the same time.
+Deletion is permanent and removes the skill from all agents and projects at the same time.
 
 <Callout type="warning">
 Skills imported from external sources may contain scripts, commands, or unsafe instructions. Multica does not review, sign, or sandbox them for you. Imported content is handed to agents as-is, so the source needs to be trusted.
