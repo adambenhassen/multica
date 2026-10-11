@@ -648,6 +648,23 @@ func (q *Queries) ListSkillsByWorkspace(ctx context.Context, workspaceID pgtype.
 	return items, nil
 }
 
+const lockSkillForDelete = `-- name: LockSkillForDelete :exec
+SELECT id FROM skill WHERE id = $1 AND workspace_id = $2 FOR UPDATE
+`
+
+type LockSkillForDeleteParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// Taken before DeleteSkill in the same transaction. It waits out an in-flight
+// project skill attach (which holds FOR SHARE), so DeleteSkill's project_skill
+// cleanup runs with a snapshot that includes the attached row.
+func (q *Queries) LockSkillForDelete(ctx context.Context, arg LockSkillForDeleteParams) error {
+	_, err := q.db.Exec(ctx, lockSkillForDelete, arg.ID, arg.WorkspaceID)
+	return err
+}
+
 const removeAgentSkill = `-- name: RemoveAgentSkill :exec
 DELETE FROM agent_skill
 WHERE agent_id = $1 AND skill_id = $2

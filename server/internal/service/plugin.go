@@ -753,6 +753,9 @@ func (s *PluginService) Uninstall(ctx context.Context, installation db.PluginIns
 	// The skills this installation contributed go with it. Scoped by
 	// plugin_installation_id, so a skill a person wrote is untouched even if it
 	// happens to share a name with something the plugin once provided.
+	if err := queries.LockPluginSkillsForDelete(ctx, installation.ID); err != nil {
+		return &PluginError{Kind: PluginErrorUnavailable, Message: "lock plugin skills", Err: err}
+	}
 	if err := queries.DeletePluginSkillsByInstallation(ctx, installation.ID); err != nil {
 		return &PluginError{Kind: PluginErrorUnavailable, Message: "delete plugin skills", Err: err}
 	}

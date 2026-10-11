@@ -40,6 +40,9 @@ func (s *PluginService) InstallSkillResources(ctx context.Context, queries *db.Q
 	for _, resource := range resources {
 		keep = append(keep, resource.Key)
 	}
+	if err := queries.LockPluginSkillsForDelete(ctx, installation.ID); err != nil {
+		return &PluginError{Kind: PluginErrorUnavailable, Message: "lock plugin skills", Err: err}
+	}
 	if err := queries.DeletePluginSkillsNotIn(ctx, db.DeletePluginSkillsNotInParams{
 		PluginInstallationID: installation.ID,
 		KeepNames:            keep,

@@ -2,12 +2,16 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
+
+const maxProjectSkillsPerRequest = 100
 
 // AddProjectSkillsRequest attaches workspace skills to a project.
 type AddProjectSkillsRequest struct {
@@ -81,13 +85,23 @@ func (h *Handler) AddProjectSkills(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "skill_ids is required")
 		return
 	}
+	// Each id is a locked row and an insert inside one transaction; bound it.
+	if len(req.SkillIDs) > maxProjectSkillsPerRequest {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("skill_ids accepts at most %d ids", maxProjectSkillsPerRequest))
+		return
+	}
 	skillUUIDs, ok := parseUUIDSliceOrBadRequest(w, req.SkillIDs, "skill_ids")
 	if !ok {
 		return
 	}
 	unique := make(map[[16]byte]struct{}, len(skillUUIDs))
+	uniqueUUIDs := make([]pgtype.UUID, 0, len(skillUUIDs))
 	for _, id := range skillUUIDs {
+		if _, dup := unique[id.Bytes]; dup {
+			continue
+		}
 		unique[id.Bytes] = struct{}{}
+		uniqueUUIDs = append(uniqueUUIDs, id)
 	}
 
 	tx, err := h.TxStarter.Begin(r.Context())
@@ -112,7 +126,9 @@ func (h *Handler) AddProjectSkills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	creator, _ := h.parseUserUUIDOrZero(userID)
-	for _, skillID := range skillUUIDs {
+	skillIDStrs := make([]string, len(uniqueUUIDs))
+	for i, skillID := range uniqueUUIDs {
+		skillIDStrs[i] = uuidToString(skillID)
 		if err := qtx.AddProjectSkill(r.Context(), db.AddProjectSkillParams{
 			ProjectID:   project.ID,
 			SkillID:     skillID,
@@ -135,7 +151,7 @@ func (h *Handler) AddProjectSkills(w http.ResponseWriter, r *http.Request) {
 		userID,
 		map[string]any{
 			"project_id": uuidToString(project.ID),
-			"skill_ids":  req.SkillIDs,
+			"skill_ids":  skillIDStrs,
 		},
 	)
 	h.writeProjectSkills(w, r, project)
