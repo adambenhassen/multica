@@ -48,6 +48,10 @@ Project resources tell agents which code and working directories to use:
 
 See [Project resources](/project-resources) for how to choose and for the safety boundaries.
 
+## Add skills
+
+Skills attached to a project are delivered to every task in the project, in addition to the running agent's own skills. See [Attaching to a project](/skills#attaching-to-a-project).
+
 ## Project lead
 
 The lead can be a member or an agent, and marks who coordinates the project. It is not a permission setting: it does not auto-assign the project's issues, and making an agent the lead does not automatically run it. Starting a run still takes an issue assignment, an @mention, or an automation trigger.
@@ -61,7 +65,7 @@ A pinned project appears in your sidebar. Pinning is a personal preference and d
 Any workspace member can create and edit projects; only `owner` and `admin` can delete them.
 
 <Callout type="warning">
-Deleting a project does not delete its issues: they detach and stay in the workspace. The project's description, status, and resources are permanently deleted.
+Deleting a project does not delete its issues: they detach and stay in the workspace. The project's description, status, resources, and skill attachments are permanently deleted.
 </Callout>
 
 ## Next steps
