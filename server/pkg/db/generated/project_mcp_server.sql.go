@@ -72,7 +72,13 @@ func (q *Queries) CountWorkspaceMcpServerProjects(ctx context.Context, workspace
 }
 
 const deleteProjectMcpServersByServer = `-- name: DeleteProjectMcpServersByServer :exec
-DELETE FROM project_mcp_server WHERE server_id = $1 AND workspace_id = $2
+WITH deleted_audience AS (
+    DELETE FROM project_attachment_audience
+    WHERE project_attachment_audience.item_type = 'mcp_server'
+      AND project_attachment_audience.item_id = $1
+      AND project_attachment_audience.workspace_id = $2
+)
+DELETE FROM project_mcp_server WHERE project_mcp_server.server_id = $1 AND project_mcp_server.workspace_id = $2
 `
 
 type DeleteProjectMcpServersByServerParams struct {
@@ -80,15 +86,16 @@ type DeleteProjectMcpServersByServerParams struct {
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
-// project_mcp_server has no FK, so removing a library entry sweeps it in the
-// same transaction as the delete (after LockWorkspaceMcpServerForUpdate).
+// project_mcp_server and its audience have no FK, so removing a library entry
+// sweeps both in the same transaction as the delete (after
+// LockWorkspaceMcpServerForUpdate).
 func (q *Queries) DeleteProjectMcpServersByServer(ctx context.Context, arg DeleteProjectMcpServersByServerParams) error {
 	_, err := q.db.Exec(ctx, deleteProjectMcpServersByServer, arg.ServerID, arg.WorkspaceID)
 	return err
 }
 
 const listProjectMcpServers = `-- name: ListProjectMcpServers :many
-SELECT s.id, s.workspace_id, s.name, s.config, s.created_by, s.created_at, s.updated_at
+SELECT s.id, s.workspace_id, s.name, s.config, s.created_by, s.created_at, s.updated_at, pms.restricted
 FROM workspace_mcp_server s
 JOIN project_mcp_server pms ON pms.server_id = s.id
 WHERE pms.project_id = $1
@@ -102,25 +109,31 @@ type ListProjectMcpServersParams struct {
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
+type ListProjectMcpServersRow struct {
+	WorkspaceMcpServer WorkspaceMcpServer `json:"workspace_mcp_server"`
+	Restricted         bool               `json:"restricted"`
+}
+
 // Every server attached to the project, for the project page. Returns config
 // only for server-side projection; the HTTP layer never serializes it.
-func (q *Queries) ListProjectMcpServers(ctx context.Context, arg ListProjectMcpServersParams) ([]WorkspaceMcpServer, error) {
+func (q *Queries) ListProjectMcpServers(ctx context.Context, arg ListProjectMcpServersParams) ([]ListProjectMcpServersRow, error) {
 	rows, err := q.db.Query(ctx, listProjectMcpServers, arg.ProjectID, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []WorkspaceMcpServer{}
+	items := []ListProjectMcpServersRow{}
 	for rows.Next() {
-		var i WorkspaceMcpServer
+		var i ListProjectMcpServersRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.Name,
-			&i.Config,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
+			&i.WorkspaceMcpServer.ID,
+			&i.WorkspaceMcpServer.WorkspaceID,
+			&i.WorkspaceMcpServer.Name,
+			&i.WorkspaceMcpServer.Config,
+			&i.WorkspaceMcpServer.CreatedBy,
+			&i.WorkspaceMcpServer.CreatedAt,
+			&i.WorkspaceMcpServer.UpdatedAt,
+			&i.Restricted,
 		); err != nil {
 			return nil, err
 		}
@@ -140,6 +153,17 @@ JOIN project_mcp_server pms ON pms.server_id = s.id
 WHERE pms.project_id = $1
   AND pms.workspace_id = $2
   AND s.workspace_id = $2
+  AND (pms.restricted = FALSE
+    OR EXISTS (
+      SELECT 1 FROM project_attachment_audience paa
+      WHERE paa.project_id = pms.project_id
+        AND paa.workspace_id = pms.workspace_id
+        AND paa.item_type = 'mcp_server'
+        AND paa.item_id = s.id
+        AND ((paa.target_type = 'agent' AND paa.target_id = $3)
+          OR (paa.target_type = 'label' AND paa.target_id IN (
+                SELECT atl.label_id FROM agent_to_label atl WHERE atl.agent_id = $3)))
+    ))
   AND NOT EXISTS (
     SELECT 1 FROM agent_mcp_server ams
     WHERE ams.agent_id = $3
@@ -185,8 +209,15 @@ func (q *Queries) ListProjectMcpServersForAgent(ctx context.Context, arg ListPro
 }
 
 const removeProjectMcpServer = `-- name: RemoveProjectMcpServer :execrows
+WITH deleted_audience AS (
+    DELETE FROM project_attachment_audience
+    WHERE project_attachment_audience.project_id = $1
+      AND project_attachment_audience.item_type = 'mcp_server'
+      AND project_attachment_audience.item_id = $2
+      AND project_attachment_audience.workspace_id = $3
+)
 DELETE FROM project_mcp_server
-WHERE project_id = $1 AND server_id = $2 AND workspace_id = $3
+WHERE project_mcp_server.project_id = $1 AND project_mcp_server.server_id = $2 AND project_mcp_server.workspace_id = $3
 `
 
 type RemoveProjectMcpServerParams struct {
@@ -195,8 +226,34 @@ type RemoveProjectMcpServerParams struct {
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
+// The link's audience has no FK, so it goes in the same statement.
 func (q *Queries) RemoveProjectMcpServer(ctx context.Context, arg RemoveProjectMcpServerParams) (int64, error) {
 	result, err := q.db.Exec(ctx, removeProjectMcpServer, arg.ProjectID, arg.ServerID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setProjectMcpServerRestricted = `-- name: SetProjectMcpServerRestricted :execrows
+UPDATE project_mcp_server SET restricted = $1
+WHERE project_id = $2 AND server_id = $3 AND workspace_id = $4
+`
+
+type SetProjectMcpServerRestrictedParams struct {
+	Restricted  bool        `json:"restricted"`
+	ProjectID   pgtype.UUID `json:"project_id"`
+	ServerID    pgtype.UUID `json:"server_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) SetProjectMcpServerRestricted(ctx context.Context, arg SetProjectMcpServerRestrictedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setProjectMcpServerRestricted,
+		arg.Restricted,
+		arg.ProjectID,
+		arg.ServerID,
+		arg.WorkspaceID,
+	)
 	if err != nil {
 		return 0, err
 	}

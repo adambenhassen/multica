@@ -38,7 +38,7 @@ func (q *Queries) AddProjectSkill(ctx context.Context, arg AddProjectSkillParams
 }
 
 const listProjectSkillSummaries = `-- name: ListProjectSkillSummaries :many
-SELECT s.id, s.workspace_id, s.name, s.description, s.config, s.created_by, s.created_at, s.updated_at
+SELECT s.id, s.workspace_id, s.name, s.description, s.config, s.created_by, s.created_at, s.updated_at, ps.restricted
 FROM skill s
 JOIN project_skill ps ON ps.skill_id = s.id
 WHERE ps.project_id = $1
@@ -61,6 +61,7 @@ type ListProjectSkillSummariesRow struct {
 	CreatedBy   pgtype.UUID        `json:"created_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Restricted  bool               `json:"restricted"`
 }
 
 // Summary variant for the project skills list endpoint — omits `content`.
@@ -82,6 +83,7 @@ func (q *Queries) ListProjectSkillSummaries(ctx context.Context, arg ListProject
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Restricted,
 		); err != nil {
 			return nil, err
 		}
@@ -100,6 +102,17 @@ JOIN project_skill ps ON ps.skill_id = s.id
 WHERE ps.project_id = $1
   AND ps.workspace_id = $2
   AND s.workspace_id = $2
+  AND (ps.restricted = FALSE
+    OR EXISTS (
+      SELECT 1 FROM project_attachment_audience paa
+      WHERE paa.project_id = ps.project_id
+        AND paa.workspace_id = ps.workspace_id
+        AND paa.item_type = 'skill'
+        AND paa.item_id = s.id
+        AND ((paa.target_type = 'agent' AND paa.target_id = $3)
+          OR (paa.target_type = 'label' AND paa.target_id IN (
+                SELECT atl.label_id FROM agent_to_label atl WHERE atl.agent_id = $3)))
+    ))
   AND NOT EXISTS (
     SELECT 1 FROM agent_skill ask
     WHERE ask.agent_id = $3
@@ -120,6 +133,8 @@ type ListProjectSkillsForAgentParams struct {
 // so a corrupt project reference cannot lift another tenant's skill into a run.
 // A skill the agent has attached but disabled stays off: the agent owner's
 // opt-out wins over the project attachment.
+// A restricted link reaches only its audience (agents, or agents carrying a
+// listed label); unrestricted links reach every agent in the project.
 func (q *Queries) ListProjectSkillsForAgent(ctx context.Context, arg ListProjectSkillsForAgentParams) ([]Skill, error) {
 	rows, err := q.db.Query(ctx, listProjectSkillsForAgent, arg.ProjectID, arg.WorkspaceID, arg.AgentID)
 	if err != nil {
@@ -158,6 +173,17 @@ WHERE ps.project_id = $1
   AND ps.workspace_id = $2
   AND s.workspace_id = $2
   AND s.id = ANY($3::uuid[])
+  AND (ps.restricted = FALSE
+    OR EXISTS (
+      SELECT 1 FROM project_attachment_audience paa
+      WHERE paa.project_id = ps.project_id
+        AND paa.workspace_id = ps.workspace_id
+        AND paa.item_type = 'skill'
+        AND paa.item_id = s.id
+        AND ((paa.target_type = 'agent' AND paa.target_id = $4)
+          OR (paa.target_type = 'label' AND paa.target_id IN (
+                SELECT atl.label_id FROM agent_to_label atl WHERE atl.agent_id = $4)))
+    ))
   AND NOT EXISTS (
     SELECT 1 FROM agent_skill ask
     WHERE ask.agent_id = $4
@@ -275,8 +301,15 @@ func (q *Queries) LockSkillsInWorkspace(ctx context.Context, arg LockSkillsInWor
 }
 
 const removeProjectSkill = `-- name: RemoveProjectSkill :execrows
+WITH deleted_audience AS (
+    DELETE FROM project_attachment_audience
+    WHERE project_attachment_audience.project_id = $1
+      AND project_attachment_audience.item_type = 'skill'
+      AND project_attachment_audience.item_id = $2
+      AND project_attachment_audience.workspace_id = $3
+)
 DELETE FROM project_skill
-WHERE project_id = $1 AND skill_id = $2 AND workspace_id = $3
+WHERE project_skill.project_id = $1 AND project_skill.skill_id = $2 AND project_skill.workspace_id = $3
 `
 
 type RemoveProjectSkillParams struct {
@@ -285,8 +318,34 @@ type RemoveProjectSkillParams struct {
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
+// The link's audience has no FK, so it goes in the same statement.
 func (q *Queries) RemoveProjectSkill(ctx context.Context, arg RemoveProjectSkillParams) (int64, error) {
 	result, err := q.db.Exec(ctx, removeProjectSkill, arg.ProjectID, arg.SkillID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setProjectSkillRestricted = `-- name: SetProjectSkillRestricted :execrows
+UPDATE project_skill SET restricted = $1
+WHERE project_id = $2 AND skill_id = $3 AND workspace_id = $4
+`
+
+type SetProjectSkillRestrictedParams struct {
+	Restricted  bool        `json:"restricted"`
+	ProjectID   pgtype.UUID `json:"project_id"`
+	SkillID     pgtype.UUID `json:"skill_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) SetProjectSkillRestricted(ctx context.Context, arg SetProjectSkillRestrictedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setProjectSkillRestricted,
+		arg.Restricted,
+		arg.ProjectID,
+		arg.SkillID,
+		arg.WorkspaceID,
+	)
 	if err != nil {
 		return 0, err
 	}

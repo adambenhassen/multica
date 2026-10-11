@@ -157,6 +157,9 @@ cleared_project_mcp_bindings AS (
     -- project_mcp_server carries no FK either; every row is workspace-scoped.
     DELETE FROM project_mcp_server WHERE workspace_id = $1
 ),
+cleared_project_attachment_audience AS (
+    DELETE FROM project_attachment_audience WHERE workspace_id = $1
+),
 cleared_workspace_mcp_servers AS (
     DELETE FROM workspace_mcp_server WHERE workspace_id = $1
 ),
