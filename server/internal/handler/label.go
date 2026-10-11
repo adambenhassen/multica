@@ -599,6 +599,26 @@ func (h *Handler) AttachLabelToAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "agent label not found")
 		return
 	}
+	// A label in a project audience grants restricted project skills / MCP
+	// servers (MCP credentials included). Agent owners can label their own
+	// agents, so only human workspace admins may hand out such a label.
+	// Detaching only narrows access and stays with the agent's managers.
+	inAudience, err := h.Queries.IsLabelInProjectAudience(r.Context(), db.IsLabelInProjectAudienceParams{
+		TargetID: labelID, WorkspaceID: agent.WorkspaceID,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check agent label")
+		return
+	}
+	if inAudience {
+		if isMachineCredentialActor(r) {
+			writeError(w, http.StatusForbidden, "this label grants project access; only people can assign it")
+			return
+		}
+		if _, ok := h.requireWorkspaceRole(w, r, uuidToString(agent.WorkspaceID), "agent label not found", "owner", "admin"); !ok {
+			return
+		}
+	}
 	if err := h.Queries.AttachLabelToAgent(r.Context(), db.AttachLabelToAgentParams{
 		AgentID: agent.ID, LabelID: labelID, WorkspaceID: agent.WorkspaceID,
 	}); err != nil {
