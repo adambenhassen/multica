@@ -249,6 +249,7 @@ CLI の設定ファイルには、あなたとして Multica にアクセスで�
 | `project` | `list/get/create/update/delete` | プロジェクトを管理 | |
 | | `status <id> <status>` | プロジェクトのステータスを変更 | |
 | | `resource list/add/update/remove` | プロジェクトの追加リソースを管理 | `--type`、`--url`、`--local-path`、`--daemon-id`、`--execution-mode`（ローカルディレクトリの `in_place` / `worktree`） |
+| | `mcp list/add/remove` | ワークスペースの MCP Server をプロジェクトに追加 | `add`: `--server-ids`。書き込みは owner/admin のみで、エージェントの認証情報では拒否されます。プロジェクト内のすべてのタスクに提供されます。id は `workspace mcp list` で確認します |
 | `label` | `list/get/create/update/delete` | ワークスペースのラベルを管理 | `list`: `--resource-type`（`issue` または `skill`）、`--full-id`；`create`: `--name`、`--color`、`--resource-type`（`issue` または `skill`）、`--description` |
 | `property` | `list/get/create/update/archive/unarchive` | ワークスペースのカスタムプロパティを管理 | `create`: `--name`、`--type`（`text`、`number`、`select`、`multi_select`、`date`、`checkbox`、`url`、`actor`、`multi_actor`）、`--option`（繰り返し可、select 系のみ）；`list`: `--include-archived`；タイプは作成後に変更できません |
 | `agent` | `list/get/create/update/archive/restore` | エージェントを管理 | `--name`、`--runtime-id`（`create` では必須）、`--instructions`、`--conversation-starters`、`--model`、`--thinking-level`、`--mcp-config`、`--permission-mode`、`--max-concurrent-tasks` |
