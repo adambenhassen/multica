@@ -19,3 +19,9 @@ export {
   useUpdateProjectResource,
   useDeleteProjectResource,
 } from "./resource-queries";
+export {
+  projectSkillKeys,
+  projectSkillsOptions,
+  useAddProjectSkills,
+  useRemoveProjectSkill,
+} from "./skill-queries";
