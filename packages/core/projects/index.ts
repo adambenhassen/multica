@@ -25,3 +25,9 @@ export {
   useAddProjectSkills,
   useRemoveProjectSkill,
 } from "./skill-queries";
+export {
+  projectMcpServerKeys,
+  projectMcpServersOptions,
+  useAddProjectMcpServers,
+  useRemoveProjectMcpServer,
+} from "./mcp-server-queries";

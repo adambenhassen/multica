@@ -169,6 +169,17 @@
     "remove_aria": "Retirer {{name}}",
     "remove_failed_toast": "Échec du retrait du skill"
   },
+  "mcp": {
+    "section_header": "Serveurs MCP",
+    "empty": "Aucun serveur MCP rattaché.",
+    "hint": "Ajoutés aux serveurs MCP de chaque agent pour les exécutions dans ce projet, sauf si l'agent a désactivé le serveur. Leurs identifiants atteignent chaque runtime qui exécute le travail du projet.",
+    "add_button": "Ajouter un serveur MCP",
+    "add_empty": "Cet espace de travail n'a encore aucun serveur MCP. Ajoutez-en dans Paramètres de l'espace de travail → MCP.",
+    "add_empty_partial": "Tous les serveurs MCP de l'espace de travail sont déjà rattachés à ce projet.",
+    "add_failed_toast": "Échec de l'ajout du serveur MCP",
+    "remove_aria": "Retirer {{name}}",
+    "remove_failed_toast": "Échec du retrait du serveur MCP"
+  },
   "delete_dialog": {
     "title": "Supprimer le projet",
     "description": "Le projet sera supprimé. Les tâches ne seront pas supprimées, mais elles seront détachées.",

@@ -167,6 +167,17 @@
     "remove_aria": "{{name}} を削除",
     "remove_failed_toast": "スキルを削除できませんでした"
   },
+  "mcp": {
+    "section_header": "MCP Server",
+    "empty": "追加された MCP Server はありません。",
+    "hint": "このプロジェクトの実行では、各エージェントの MCP Server に追加されます。エージェントで無効化されている Server は除きます。認証情報はプロジェクトの作業を実行するすべてのランタイムに渡ります。",
+    "add_button": "MCP Server を追加",
+    "add_empty": "このワークスペースにはまだ MCP Server がありません。ワークスペースの設定 → MCP で追加してください。",
+    "add_empty_partial": "ワークスペースのすべての MCP Server がすでにこのプロジェクトに追加されています。",
+    "add_failed_toast": "MCP Server を追加できませんでした",
+    "remove_aria": "{{name}} を削除",
+    "remove_failed_toast": "MCP Server を削除できませんでした"
+  },
   "delete_dialog": {
     "title": "プロジェクトを削除",
     "description": "プロジェクトが削除されます。タスクは削除されませんが、リンクが解除されます。",

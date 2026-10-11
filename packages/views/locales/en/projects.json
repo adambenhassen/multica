@@ -169,6 +169,17 @@
     "remove_aria": "Remove {{name}}",
     "remove_failed_toast": "Failed to remove skill"
   },
+  "mcp": {
+    "section_header": "MCP servers",
+    "empty": "No MCP servers attached.",
+    "hint": "Added to each agent's MCP servers for runs in this project, unless the agent has disabled the server. Their credentials reach every runtime that runs project work.",
+    "add_button": "Add MCP server",
+    "add_empty": "This workspace has no MCP servers yet. Add them in workspace Settings → MCP.",
+    "add_empty_partial": "All workspace MCP servers are already attached to this project.",
+    "add_failed_toast": "Failed to add MCP server",
+    "remove_aria": "Remove {{name}}",
+    "remove_failed_toast": "Failed to remove MCP server"
+  },
   "delete_dialog": {
     "title": "Delete project",
     "description": "This will delete the project. Issues will not be deleted but will be unlinked.",

@@ -167,6 +167,17 @@
     "remove_aria": "{{name}} 제거",
     "remove_failed_toast": "스킬을 제거하지 못했습니다"
   },
+  "mcp": {
+    "section_header": "MCP Server",
+    "empty": "추가된 MCP Server가 없습니다.",
+    "hint": "이 프로젝트의 실행에서 각 에이전트의 MCP Server에 추가됩니다. 에이전트에서 비활성화한 Server는 제외됩니다. 인증 정보는 프로젝트 작업을 실행하는 모든 런타임에 전달됩니다.",
+    "add_button": "MCP Server 추가",
+    "add_empty": "이 워크스페이스에는 아직 MCP Server가 없습니다. 워크스페이스 설정 → MCP에서 추가하세요.",
+    "add_empty_partial": "모든 워크스페이스 MCP Server가 이미 이 프로젝트에 추가되어 있습니다.",
+    "add_failed_toast": "MCP Server를 추가하지 못했습니다",
+    "remove_aria": "{{name}} 제거",
+    "remove_failed_toast": "MCP Server를 제거하지 못했습니다"
+  },
   "delete_dialog": {
     "title": "프로젝트 삭제",
     "description": "프로젝트가 삭제됩니다. 태스크는 삭제되지 않지만 프로젝트 연결은 해제됩니다.",
