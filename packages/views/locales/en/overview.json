@@ -34,7 +34,8 @@
     "filters": {
       "all": "All",
       "comments": "Comments",
-      "status": "Status changes"
+      "status": "Status changes",
+      "failures": "Failures"
     },
     "empty_filtered": "Nothing here yet",
     "today": "Today",
@@ -43,7 +44,8 @@
     "replied": "replied",
     "marked": "marked it {{status}}",
     "moved": "moved it to {{status}}",
-    "with_excerpt": "{{phrase}}: “{{excerpt}}”"
+    "with_excerpt": "{{phrase}}: “{{excerpt}}”",
+    "run_failed": "had a failed run"
   },
   "issues": {
     "heading": "Recent issues",

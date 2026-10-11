@@ -32,8 +32,9 @@ var workspaceActivityExcludedActions = []string{
 }
 
 // workspaceActivityKinds narrows the feed: "comments" is comments only,
-// "status" is status changes only. An empty kind returns everything.
-var workspaceActivityKinds = map[string]bool{"": true, "all": true, "comments": true, "status": true}
+// "status" is status changes only, "failures" is failed agent runs only. An
+// empty kind returns everything except run outcomes.
+var workspaceActivityKinds = map[string]bool{"": true, "all": true, "comments": true, "status": true, "failures": true}
 
 // WorkspaceActivityIssueRef names the issue an activity entry belongs to, so
 // the feed renders without a per-row issue fetch.
@@ -74,14 +75,21 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 	}
 	kind := r.URL.Query().Get("kind")
 	if !workspaceActivityKinds[kind] {
-		writeError(w, http.StatusBadRequest, "kind must be all, comments or status")
+		writeError(w, http.StatusBadRequest, "kind must be all, comments, status or failures")
 		return
 	}
 	// Non-nil on purpose: pgx sends a nil slice as NULL, and
 	// cardinality(NULL) = 0 is not true, which would filter out every row.
 	onlyActions := []string{}
-	if kind == "status" {
+	excludedActions := workspaceActivityExcludedActions
+	switch kind {
+	case "status":
 		onlyActions = []string{"status_changed"}
+	case "failures":
+		// Failed runs are kept out of the main feed as noise, but a stuck
+		// agent has to be findable, so this tab opts back into them.
+		onlyActions = []string{"task_failed"}
+		excludedActions = []string{}
 	}
 
 	ctx := r.Context()
@@ -90,7 +98,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 	if kind != "comments" {
 		rows, err := h.Queries.ListRecentWorkspaceActivities(ctx, db.ListRecentWorkspaceActivitiesParams{
 			WorkspaceID:     wsUUID,
-			ExcludedActions: workspaceActivityExcludedActions,
+			ExcludedActions: excludedActions,
 			OnlyActions:     onlyActions,
 			RowLimit:        int32(limit),
 		})
@@ -101,7 +109,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 		activities = rows
 	}
 	var comments []db.ListRecentWorkspaceCommentsRow
-	if kind != "status" {
+	if kind != "status" && kind != "failures" {
 		rows, err := h.Queries.ListRecentWorkspaceComments(ctx, db.ListRecentWorkspaceCommentsParams{
 			WorkspaceID:   wsUUID,
 			ExcerptLength: workspaceActivityExcerptLength,

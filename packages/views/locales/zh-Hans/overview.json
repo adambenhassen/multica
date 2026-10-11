@@ -34,7 +34,8 @@
     "filters": {
       "all": "全部",
       "comments": "评论",
-      "status": "状态变更"
+      "status": "状态变更",
+      "failures": "失败"
     },
     "empty_filtered": "暂无内容",
     "today": "今天",
@@ -43,7 +44,8 @@
     "replied": "回复了评论",
     "marked": "标记为 {{status}}",
     "moved": "移至 {{status}}",
-    "with_excerpt": "{{phrase}}：“{{excerpt}}”"
+    "with_excerpt": "{{phrase}}：“{{excerpt}}”",
+    "run_failed": "运行失败"
   },
   "issues": {
     "heading": "最近任务",

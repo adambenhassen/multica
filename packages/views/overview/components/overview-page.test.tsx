@@ -208,6 +208,10 @@ describe("OverviewPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Comments" }));
     await screen.findAllByText(/commented/);
     expect(calls.at(-1)).toEqual({ limit: 50, kind: "comments" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Failures" }));
+    await screen.findAllByText(/commented/);
+    expect(calls.at(-1)).toEqual({ limit: 50, kind: "failures" });
   });
 
   it("hides a section chosen in Customize", async () => {
