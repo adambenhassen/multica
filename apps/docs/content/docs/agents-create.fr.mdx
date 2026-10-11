@@ -133,7 +133,7 @@ Les arguments personnalisés sont transmis à l'outil de codage IA sous forme de
 Ne placez pas d'identifiants ni d'autres secrets dans les arguments personnalisés. Ils restent dans l'argv du processus enfant et peuvent être visibles par d'autres processus locaux via `ps` ou `/proc` ; utilisez plutôt les variables d'environnement (`custom_env`). Les journaux du daemon masquent les valeurs des arguments, mais cela ne protège pas la liste des processus du système d'exploitation.
 </Callout>
 
-La configuration MCP peut contenir des jetons ; ses règles de stockage et d'affichage sont les mêmes que pour les variables d'environnement. Seuls les runtimes qui prennent en charge la configuration MCP gérée affichent cette section ; les outils sans prise en charge de MCP ne l'acquièrent pas simplement parce qu'une configuration est enregistrée.
+La configuration MCP peut contenir des jetons ; ses règles de stockage et d'affichage sont les mêmes que pour les variables d'environnement. Seuls les runtimes qui prennent en charge la configuration MCP gérée affichent cette section ; les outils sans prise en charge de MCP ne l'acquièrent pas simplement parce qu'une configuration est enregistrée. Un [projet](/projects#ajouter-des-serveurs-mcp) peut aussi fournir des serveurs MCP de l'espace de travail à chacune de ses tâches.
 
 ## Dupliquer un agent
 

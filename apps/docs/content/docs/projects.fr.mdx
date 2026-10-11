@@ -52,6 +52,19 @@ Voir [Ressources de projet](/project-resources) pour savoir comment choisir et c
 
 Les skills rattachés à un projet sont fournis à chaque tâche du projet, en plus des skills de l'agent qui s'exécute. Voir [Rattacher un skill à un projet](/skills#rattacher-un-skill-à-un-projet).
 
+## Ajouter des serveurs MCP
+
+Les `owner`s et `admin`s de l'espace de travail peuvent rattacher à un projet des serveurs de la bibliothèque MCP de l'espace de travail (Paramètres → MCP), ou exécuter `multica project mcp add <project-id> --server-ids <server-id>`. Chaque tâche du projet s'exécute alors avec eux, en plus des serveurs MCP de l'agent :
+
+- Si la configuration MCP de l'agent déclare un serveur du même nom, l'entrée de l'agent l'emporte.
+- Un serveur assigné à l'agent mais désactivé reste désactivé pour cet agent. Pour tenir un serveur du projet à l'écart d'un agent, assignez-le dans l'onglet **MCP** de cet agent, puis désactivez-le.
+- Un agent sans configuration MCP propre passe en MCP géré par Multica pour les exécutions du projet, comme lorsqu'un serveur lui est assigné directement.
+- Les agents ne peuvent pas modifier les serveurs MCP du projet, même lorsqu'ils s'exécutent pour un admin.
+
+<Callout type="warning">
+La configuration d'un serveur MCP de projet, y compris les jetons qu'elle contient, est écrite sur chaque runtime qui exécute le travail du projet, y compris les runtimes privés des membres. Ne rattachez que des serveurs dont les identifiants peuvent être confiés à toute personne travaillant sur le projet.
+</Callout>
+
 ## Responsable du projet
 
 Le responsable peut être un membre ou un agent, et indique qui coordonne le projet. Ce n'est pas un paramètre de permission : il n'assigne pas automatiquement les tâches du projet, et désigner un agent comme responsable ne le lance pas automatiquement. Démarrer une exécution nécessite toujours l'assignation d'une tâche, une @mention ou un déclencheur d'automatisation.
@@ -65,7 +78,7 @@ Un projet épinglé apparaît dans votre barre latérale. L'épinglage est une p
 Tout membre de l'espace de travail peut créer et modifier des projets ; seuls les rôles `owner` et `admin` peuvent les supprimer.
 
 <Callout type="warning">
-Supprimer un projet ne supprime pas ses tâches : elles sont détachées et restent dans l'espace de travail. La description, le statut, les ressources et les skills rattachés du projet sont définitivement supprimés.
+Supprimer un projet ne supprime pas ses tâches : elles sont détachées et restent dans l'espace de travail. La description, le statut, les ressources, les skills rattachés et les serveurs MCP rattachés du projet sont définitivement supprimés.
 </Callout>
 
 ## Étapes suivantes
