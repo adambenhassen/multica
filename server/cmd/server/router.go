@@ -2258,6 +2258,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/tasks", h.ListAgentTasks)
 					r.Get("/dingtalk/groups", h.ListDingTalkGroupsForAgent)
 					r.Get("/skills", h.ListAgentSkills)
+					r.Get("/project-skills", h.ListAgentProjectSkills)
+					r.Get("/project-mcp-servers", h.ListAgentProjectMcpServers)
 					r.Put("/skills", h.SetAgentSkills)
 					r.Post("/skills/add", h.AddAgentSkills)
 					r.Get("/labels", h.ListLabelsForAgent)
