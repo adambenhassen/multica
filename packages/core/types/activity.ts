@@ -49,3 +49,20 @@ export interface TimelineEntry {
   /** Set by frontend coalescing when consecutive identical activities are merged. */
   coalesced_count?: number;
 }
+
+/** The issue a workspace activity entry belongs to. */
+export interface WorkspaceActivityIssueRef {
+  id: string;
+  identifier: string;
+  title: string;
+  status: string;
+}
+
+/** One row of the workspace-wide activity feed (GET /api/activity). */
+export interface WorkspaceActivityEntry extends TimelineEntry {
+  issue: WorkspaceActivityIssueRef;
+}
+
+export interface WorkspaceActivityResponse {
+  entries: WorkspaceActivityEntry[];
+}
