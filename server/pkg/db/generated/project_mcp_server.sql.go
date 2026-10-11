@@ -37,6 +37,40 @@ func (q *Queries) AddProjectMcpServer(ctx context.Context, arg AddProjectMcpServ
 	return result.RowsAffected(), nil
 }
 
+const countWorkspaceMcpServerProjects = `-- name: CountWorkspaceMcpServerProjects :many
+SELECT server_id, COUNT(*)::bigint AS project_count
+FROM project_mcp_server
+WHERE workspace_id = $1
+GROUP BY server_id
+`
+
+type CountWorkspaceMcpServerProjectsRow struct {
+	ServerID     pgtype.UUID `json:"server_id"`
+	ProjectCount int64       `json:"project_count"`
+}
+
+// How many projects each library entry is attached to, for the workspace
+// settings list, so an entry used only by projects does not look unused.
+func (q *Queries) CountWorkspaceMcpServerProjects(ctx context.Context, workspaceID pgtype.UUID) ([]CountWorkspaceMcpServerProjectsRow, error) {
+	rows, err := q.db.Query(ctx, countWorkspaceMcpServerProjects, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountWorkspaceMcpServerProjectsRow{}
+	for rows.Next() {
+		var i CountWorkspaceMcpServerProjectsRow
+		if err := rows.Scan(&i.ServerID, &i.ProjectCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteProjectMcpServersByServer = `-- name: DeleteProjectMcpServersByServer :exec
 DELETE FROM project_mcp_server WHERE server_id = $1 AND workspace_id = $2
 `

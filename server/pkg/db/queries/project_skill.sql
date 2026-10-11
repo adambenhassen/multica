@@ -62,10 +62,11 @@ FOR SHARE;
 -- Taken in project skill and MCP server attach transactions. DeleteProject
 -- locks the row FOR UPDATE first (LockProjectForDelete), so a project deleted
 -- concurrently either waits for the attach and removes its links, or the
--- attach sees no project.
+-- attach sees no project. KEY SHARE is enough to conflict with that and does
+-- not block ordinary project edits (title, status, lead) during an attach.
 SELECT id FROM project
 WHERE id = $1 AND workspace_id = $2
-FOR SHARE;
+FOR KEY SHARE;
 
 -- name: AddProjectSkill :execrows
 INSERT INTO project_skill (project_id, skill_id, workspace_id, created_by)
