@@ -55,9 +55,18 @@ ORDER BY s.name ASC;
 SELECT id FROM skill
 WHERE id = ANY(sqlc.arg('skill_ids')::uuid[])
   AND workspace_id = sqlc.arg('workspace_id')
+ORDER BY id
 FOR SHARE;
 
--- name: AddProjectSkill :exec
+-- name: LockProjectForSkillAttach :one
+-- Taken in the attach transaction. DeleteProject locks the row FOR UPDATE
+-- first (LockProjectForDelete), so a project deleted concurrently either waits
+-- for the attach and removes its links, or the attach sees no project.
+SELECT id FROM project
+WHERE id = $1 AND workspace_id = $2
+FOR SHARE;
+
+-- name: AddProjectSkill :execrows
 INSERT INTO project_skill (project_id, skill_id, workspace_id, created_by)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING;

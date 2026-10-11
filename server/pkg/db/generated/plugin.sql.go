@@ -1246,7 +1246,7 @@ func (q *Queries) LockPluginPackageKey(ctx context.Context, dollar_1 string) err
 }
 
 const lockPluginSkillsForDelete = `-- name: LockPluginSkillsForDelete :exec
-SELECT id FROM skill WHERE plugin_installation_id = $1 FOR UPDATE
+SELECT id FROM skill WHERE plugin_installation_id = $1 ORDER BY id FOR UPDATE
 `
 
 // Taken before deleting or pruning an installation's skills, for the same
