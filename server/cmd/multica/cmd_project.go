@@ -1034,6 +1034,11 @@ func runProjectSkillAdd(cmd *cobra.Command, args []string) error {
 }
 
 func runProjectSkillRemove(cmd *cobra.Command, args []string) error {
+	skillID := strings.TrimSpace(args[1])
+	if skillID == "" {
+		return fmt.Errorf("skill id is required")
+	}
+
 	client, err := newAPIClient(cmd)
 	if err != nil {
 		return err
@@ -1047,7 +1052,6 @@ func runProjectSkillRemove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolve project: %w", err)
 	}
 
-	skillID := strings.TrimSpace(args[1])
 	if err := client.DeleteJSON(ctx, "/api/projects/"+projectRef.ID+"/skills/"+url.PathEscape(skillID)); err != nil {
 		return fmt.Errorf("remove project skill: %w", err)
 	}

@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const addProjectSkill = `-- name: AddProjectSkill :exec
+const addProjectSkill = `-- name: AddProjectSkill :execrows
 INSERT INTO project_skill (project_id, skill_id, workspace_id, created_by)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING
@@ -24,14 +24,17 @@ type AddProjectSkillParams struct {
 	CreatedBy   pgtype.UUID `json:"created_by"`
 }
 
-func (q *Queries) AddProjectSkill(ctx context.Context, arg AddProjectSkillParams) error {
-	_, err := q.db.Exec(ctx, addProjectSkill,
+func (q *Queries) AddProjectSkill(ctx context.Context, arg AddProjectSkillParams) (int64, error) {
+	result, err := q.db.Exec(ctx, addProjectSkill,
 		arg.ProjectID,
 		arg.SkillID,
 		arg.WorkspaceID,
 		arg.CreatedBy,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const listProjectSkillSummaries = `-- name: ListProjectSkillSummaries :many
@@ -211,10 +214,32 @@ func (q *Queries) ListProjectSkillsForAgentByIDs(ctx context.Context, arg ListPr
 	return items, nil
 }
 
+const lockProjectForSkillAttach = `-- name: LockProjectForSkillAttach :one
+SELECT id FROM project
+WHERE id = $1 AND workspace_id = $2
+FOR SHARE
+`
+
+type LockProjectForSkillAttachParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// Taken in the attach transaction. DeleteProject locks the row FOR UPDATE
+// first (LockProjectForDelete), so a project deleted concurrently either waits
+// for the attach and removes its links, or the attach sees no project.
+func (q *Queries) LockProjectForSkillAttach(ctx context.Context, arg LockProjectForSkillAttachParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockProjectForSkillAttach, arg.ID, arg.WorkspaceID)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const lockSkillsInWorkspace = `-- name: LockSkillsInWorkspace :many
 SELECT id FROM skill
 WHERE id = ANY($1::uuid[])
   AND workspace_id = $2
+ORDER BY id
 FOR SHARE
 `
 
