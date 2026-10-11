@@ -204,3 +204,72 @@ func (q *Queries) ListActivitiesForIssue(ctx context.Context, arg ListActivities
 	}
 	return items, nil
 }
+
+const listRecentWorkspaceActivities = `-- name: ListRecentWorkspaceActivities :many
+SELECT a.id, a.workspace_id, a.issue_id, a.actor_type, a.actor_id, a.action, a.details, a.created_at,
+       i.number AS issue_number, i.title AS issue_title, i.status AS issue_status
+FROM activity_log a
+JOIN issue i ON i.id = a.issue_id AND i.workspace_id = a.workspace_id
+WHERE a.workspace_id = $1
+  AND a.issue_id IS NOT NULL
+  AND NOT (a.action = ANY($2::text[]))
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT $3
+`
+
+type ListRecentWorkspaceActivitiesParams struct {
+	WorkspaceID     pgtype.UUID `json:"workspace_id"`
+	ExcludedActions []string    `json:"excluded_actions"`
+	RowLimit        int32       `json:"row_limit"`
+}
+
+type ListRecentWorkspaceActivitiesRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	IssueID     pgtype.UUID        `json:"issue_id"`
+	ActorType   pgtype.Text        `json:"actor_type"`
+	ActorID     pgtype.UUID        `json:"actor_id"`
+	Action      string             `json:"action"`
+	Details     []byte             `json:"details"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	IssueNumber int32              `json:"issue_number"`
+	IssueTitle  string             `json:"issue_title"`
+	IssueStatus string             `json:"issue_status"`
+}
+
+// The newest issue activity across a workspace, for the Dashboard feed.
+// Issue-less rows (agent env audit entries) are excluded on purpose: the feed
+// is visible to every member, the audit trail is not. The literal
+// `issue_id IS NOT NULL` predicate lets idx_activity_log_workspace_recent
+// (migration 573) serve the ORDER BY without a sort step.
+func (q *Queries) ListRecentWorkspaceActivities(ctx context.Context, arg ListRecentWorkspaceActivitiesParams) ([]ListRecentWorkspaceActivitiesRow, error) {
+	rows, err := q.db.Query(ctx, listRecentWorkspaceActivities, arg.WorkspaceID, arg.ExcludedActions, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecentWorkspaceActivitiesRow{}
+	for rows.Next() {
+		var i ListRecentWorkspaceActivitiesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.ActorType,
+			&i.ActorID,
+			&i.Action,
+			&i.Details,
+			&i.CreatedAt,
+			&i.IssueNumber,
+			&i.IssueTitle,
+			&i.IssueStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

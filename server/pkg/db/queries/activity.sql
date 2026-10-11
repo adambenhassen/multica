@@ -58,3 +58,19 @@ WHERE workspace_id = $1
   AND details->>'to_type' IS NOT NULL
   AND details->>'to_id' IS NOT NULL
 GROUP BY details->>'to_type', details->>'to_id';
+
+-- name: ListRecentWorkspaceActivities :many
+-- The newest issue activity across a workspace, for the Dashboard feed.
+-- Issue-less rows (agent env audit entries) are excluded on purpose: the feed
+-- is visible to every member, the audit trail is not. The literal
+-- `issue_id IS NOT NULL` predicate lets idx_activity_log_workspace_recent
+-- (migration 573) serve the ORDER BY without a sort step.
+SELECT a.id, a.workspace_id, a.issue_id, a.actor_type, a.actor_id, a.action, a.details, a.created_at,
+       i.number AS issue_number, i.title AS issue_title, i.status AS issue_status
+FROM activity_log a
+JOIN issue i ON i.id = a.issue_id AND i.workspace_id = a.workspace_id
+WHERE a.workspace_id = @workspace_id
+  AND a.issue_id IS NOT NULL
+  AND NOT (a.action = ANY(@excluded_actions::text[]))
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT @row_limit;
