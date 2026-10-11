@@ -103,6 +103,27 @@ func (q *Queries) DeleteProjectAttachmentAudience(ctx context.Context, arg Delet
 	return err
 }
 
+const isLabelInProjectAudience = `-- name: IsLabelInProjectAudience :one
+SELECT EXISTS (
+    SELECT 1 FROM project_attachment_audience
+    WHERE target_type = 'label' AND target_id = $1 AND workspace_id = $2
+)
+`
+
+type IsLabelInProjectAudienceParams struct {
+	TargetID    pgtype.UUID `json:"target_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// Agent owners may label their own agents, so attaching a label that grants a
+// restricted project skill / MCP server is gated to workspace admins.
+func (q *Queries) IsLabelInProjectAudience(ctx context.Context, arg IsLabelInProjectAudienceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isLabelInProjectAudience, arg.TargetID, arg.WorkspaceID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listProjectAttachmentAudience = `-- name: ListProjectAttachmentAudience :many
 
 SELECT item_type, item_id, target_type, target_id
