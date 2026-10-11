@@ -39,3 +39,48 @@ SELECT EXISTS (
     SELECT 1 FROM project_attachment_audience
     WHERE target_type = 'label' AND target_id = $1 AND workspace_id = $2
 );
+
+-- name: ListAgentProjectSkills :many
+-- Every project skill that reaches this agent (one row per skill + project),
+-- for the agent's Skills tab. Same audience rule as the claim path; the
+-- agent's own disabled toggle is applied by the caller so the UI can show it.
+SELECT s.id, s.workspace_id, s.name, s.description, s.config, s.created_by, s.created_at, s.updated_at,
+       p.id AS project_id, p.title AS project_title
+FROM project_skill ps
+JOIN skill s ON s.id = ps.skill_id AND s.workspace_id = ps.workspace_id
+JOIN project p ON p.id = ps.project_id AND p.workspace_id = ps.workspace_id
+WHERE ps.workspace_id = sqlc.arg('workspace_id')
+  AND (ps.restricted = FALSE
+    OR EXISTS (
+      SELECT 1 FROM project_attachment_audience paa
+      WHERE paa.project_id = ps.project_id
+        AND paa.workspace_id = ps.workspace_id
+        AND paa.item_type = 'skill'
+        AND paa.item_id = s.id
+        AND ((paa.target_type = 'agent' AND paa.target_id = sqlc.arg('agent_id'))
+          OR (paa.target_type = 'label' AND paa.target_id IN (
+                SELECT atl.label_id FROM agent_to_label atl WHERE atl.agent_id = sqlc.arg('agent_id'))))
+    ))
+ORDER BY s.name ASC, p.title ASC;
+
+-- name: ListAgentProjectMcpServers :many
+-- Every project MCP server that reaches this agent (one row per server +
+-- project), for the agent's MCP tab. Returns config only for server-side
+-- projection; the HTTP layer never serializes it.
+SELECT sqlc.embed(s), p.id AS project_id, p.title AS project_title
+FROM project_mcp_server pms
+JOIN workspace_mcp_server s ON s.id = pms.server_id AND s.workspace_id = pms.workspace_id
+JOIN project p ON p.id = pms.project_id AND p.workspace_id = pms.workspace_id
+WHERE pms.workspace_id = sqlc.arg('workspace_id')
+  AND (pms.restricted = FALSE
+    OR EXISTS (
+      SELECT 1 FROM project_attachment_audience paa
+      WHERE paa.project_id = pms.project_id
+        AND paa.workspace_id = pms.workspace_id
+        AND paa.item_type = 'mcp_server'
+        AND paa.item_id = s.id
+        AND ((paa.target_type = 'agent' AND paa.target_id = sqlc.arg('agent_id'))
+          OR (paa.target_type = 'label' AND paa.target_id IN (
+                SELECT atl.label_id FROM agent_to_label atl WHERE atl.agent_id = sqlc.arg('agent_id'))))
+    ))
+ORDER BY s.name ASC, p.title ASC;

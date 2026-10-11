@@ -124,6 +124,143 @@ func (q *Queries) IsLabelInProjectAudience(ctx context.Context, arg IsLabelInPro
 	return exists, err
 }
 
+const listAgentProjectMcpServers = `-- name: ListAgentProjectMcpServers :many
+SELECT s.id, s.workspace_id, s.name, s.config, s.created_by, s.created_at, s.updated_at, p.id AS project_id, p.title AS project_title
+FROM project_mcp_server pms
+JOIN workspace_mcp_server s ON s.id = pms.server_id AND s.workspace_id = pms.workspace_id
+JOIN project p ON p.id = pms.project_id AND p.workspace_id = pms.workspace_id
+WHERE pms.workspace_id = $1
+  AND (pms.restricted = FALSE
+    OR EXISTS (
+      SELECT 1 FROM project_attachment_audience paa
+      WHERE paa.project_id = pms.project_id
+        AND paa.workspace_id = pms.workspace_id
+        AND paa.item_type = 'mcp_server'
+        AND paa.item_id = s.id
+        AND ((paa.target_type = 'agent' AND paa.target_id = $2)
+          OR (paa.target_type = 'label' AND paa.target_id IN (
+                SELECT atl.label_id FROM agent_to_label atl WHERE atl.agent_id = $2)))
+    ))
+ORDER BY s.name ASC, p.title ASC
+`
+
+type ListAgentProjectMcpServersParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	AgentID     pgtype.UUID `json:"agent_id"`
+}
+
+type ListAgentProjectMcpServersRow struct {
+	WorkspaceMcpServer WorkspaceMcpServer `json:"workspace_mcp_server"`
+	ProjectID          pgtype.UUID        `json:"project_id"`
+	ProjectTitle       string             `json:"project_title"`
+}
+
+// Every project MCP server that reaches this agent (one row per server +
+// project), for the agent's MCP tab. Returns config only for server-side
+// projection; the HTTP layer never serializes it.
+func (q *Queries) ListAgentProjectMcpServers(ctx context.Context, arg ListAgentProjectMcpServersParams) ([]ListAgentProjectMcpServersRow, error) {
+	rows, err := q.db.Query(ctx, listAgentProjectMcpServers, arg.WorkspaceID, arg.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAgentProjectMcpServersRow{}
+	for rows.Next() {
+		var i ListAgentProjectMcpServersRow
+		if err := rows.Scan(
+			&i.WorkspaceMcpServer.ID,
+			&i.WorkspaceMcpServer.WorkspaceID,
+			&i.WorkspaceMcpServer.Name,
+			&i.WorkspaceMcpServer.Config,
+			&i.WorkspaceMcpServer.CreatedBy,
+			&i.WorkspaceMcpServer.CreatedAt,
+			&i.WorkspaceMcpServer.UpdatedAt,
+			&i.ProjectID,
+			&i.ProjectTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAgentProjectSkills = `-- name: ListAgentProjectSkills :many
+SELECT s.id, s.workspace_id, s.name, s.description, s.config, s.created_by, s.created_at, s.updated_at,
+       p.id AS project_id, p.title AS project_title
+FROM project_skill ps
+JOIN skill s ON s.id = ps.skill_id AND s.workspace_id = ps.workspace_id
+JOIN project p ON p.id = ps.project_id AND p.workspace_id = ps.workspace_id
+WHERE ps.workspace_id = $1
+  AND (ps.restricted = FALSE
+    OR EXISTS (
+      SELECT 1 FROM project_attachment_audience paa
+      WHERE paa.project_id = ps.project_id
+        AND paa.workspace_id = ps.workspace_id
+        AND paa.item_type = 'skill'
+        AND paa.item_id = s.id
+        AND ((paa.target_type = 'agent' AND paa.target_id = $2)
+          OR (paa.target_type = 'label' AND paa.target_id IN (
+                SELECT atl.label_id FROM agent_to_label atl WHERE atl.agent_id = $2)))
+    ))
+ORDER BY s.name ASC, p.title ASC
+`
+
+type ListAgentProjectSkillsParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	AgentID     pgtype.UUID `json:"agent_id"`
+}
+
+type ListAgentProjectSkillsRow struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	Name         string             `json:"name"`
+	Description  string             `json:"description"`
+	Config       []byte             `json:"config"`
+	CreatedBy    pgtype.UUID        `json:"created_by"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	ProjectID    pgtype.UUID        `json:"project_id"`
+	ProjectTitle string             `json:"project_title"`
+}
+
+// Every project skill that reaches this agent (one row per skill + project),
+// for the agent's Skills tab. Same audience rule as the claim path; the
+// agent's own disabled toggle is applied by the caller so the UI can show it.
+func (q *Queries) ListAgentProjectSkills(ctx context.Context, arg ListAgentProjectSkillsParams) ([]ListAgentProjectSkillsRow, error) {
+	rows, err := q.db.Query(ctx, listAgentProjectSkills, arg.WorkspaceID, arg.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAgentProjectSkillsRow{}
+	for rows.Next() {
+		var i ListAgentProjectSkillsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Description,
+			&i.Config,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProjectID,
+			&i.ProjectTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectAttachmentAudience = `-- name: ListProjectAttachmentAudience :many
 
 SELECT item_type, item_id, target_type, target_id
