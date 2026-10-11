@@ -155,7 +155,7 @@
   "skills": {
     "section_header": "Skills",
     "empty": "Aucun skill rattaché.",
-    "hint": "Ajoutés aux skills de chaque agent pour les exécutions dans ce projet, sauf si l'agent a désactivé le skill.",
+    "hint": "Ajoutés aux skills de chaque agent pour les exécutions dans ce projet. Utilisez les destinataires d'un skill pour limiter les agents qui le reçoivent.",
     "add_button": "Ajouter un skill",
     "add_dialog_title": "Ajouter des skills au projet",
     "add_dialog_cancel": "Annuler",
@@ -172,13 +172,28 @@
   "mcp": {
     "section_header": "Serveurs MCP",
     "empty": "Aucun serveur MCP rattaché.",
-    "hint": "Ajoutés aux serveurs MCP de chaque agent pour les exécutions dans ce projet, sauf si l'agent a désactivé le serveur. Leurs identifiants atteignent chaque runtime qui exécute le travail du projet.",
+    "hint": "Ajoutés aux serveurs MCP de chaque agent pour les exécutions dans ce projet ; utilisez les destinataires d'un serveur pour limiter les agents qui le reçoivent. Leurs identifiants atteignent chaque runtime qui exécute le travail de ces agents.",
     "add_button": "Ajouter un serveur MCP",
     "add_empty": "Cet espace de travail n'a encore aucun serveur MCP. Ajoutez-en dans Paramètres de l'espace de travail → MCP.",
     "add_empty_partial": "Tous les serveurs MCP de l'espace de travail sont déjà rattachés à ce projet.",
     "add_failed_toast": "Échec de l'ajout du serveur MCP",
     "remove_aria": "Retirer {{name}}",
     "remove_failed_toast": "Échec du retrait du serveur MCP"
+  },
+  "audience": {
+    "everyone": "Tous les agents",
+    "nobody": "Aucun agent",
+    "unknown_agent": "Agent inconnu",
+    "unknown_label": "libellé inconnu",
+    "edit_aria": "Modifier qui reçoit {{name}} (actuellement : {{audience}})",
+    "restrict_label": "Seulement les agents et libellés choisis",
+    "search_placeholder": "Rechercher des agents et libellés",
+    "labels_heading": "Libellés d'agent",
+    "agents_heading": "Agents",
+    "nobody_hint": "Aucun agent ne le reçoit tant que vous n'avez pas choisi d'agent ou de libellé.",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "save_failed_toast": "Échec de la mise à jour des destinataires"
   },
   "delete_dialog": {
     "title": "Supprimer le projet",

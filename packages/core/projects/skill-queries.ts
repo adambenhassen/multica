@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../api";
 import { projectKeys } from "./queries";
+import type { SetProjectAttachmentAudienceRequest } from "../types";
 
 export const projectSkillKeys = {
   all: (wsId: string) => [...projectKeys.all(wsId), "skills"] as const,
@@ -19,6 +20,17 @@ export function useAddProjectSkills(wsId: string, projectId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (skillIds: string[]) => api.addProjectSkills(projectId, skillIds),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: projectSkillKeys.list(wsId, projectId) });
+    },
+  });
+}
+
+export function useSetProjectSkillAudience(wsId: string, projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ skillId, audience }: { skillId: string; audience: SetProjectAttachmentAudienceRequest }) =>
+      api.setProjectSkillAudience(projectId, skillId, audience),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: projectSkillKeys.list(wsId, projectId) });
     },

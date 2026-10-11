@@ -155,7 +155,7 @@
   "skills": {
     "section_header": "Skills",
     "empty": "No skills attached.",
-    "hint": "Added to each agent's own skills for runs in this project, unless the agent has disabled the skill.",
+    "hint": "Added to each agent's own skills for runs in this project. Use a skill's audience to limit which agents get it.",
     "add_button": "Add skill",
     "add_dialog_title": "Add skills to project",
     "add_dialog_cancel": "Cancel",
@@ -172,13 +172,28 @@
   "mcp": {
     "section_header": "MCP servers",
     "empty": "No MCP servers attached.",
-    "hint": "Added to each agent's MCP servers for runs in this project, unless the agent has disabled the server. Their credentials reach every runtime that runs project work.",
+    "hint": "Added to each agent's MCP servers for runs in this project; use a server's audience to limit which agents get it. Their credentials reach every runtime that runs work for those agents.",
     "add_button": "Add MCP server",
     "add_empty": "This workspace has no MCP servers yet. Add them in workspace Settings → MCP.",
     "add_empty_partial": "All workspace MCP servers are already attached to this project.",
     "add_failed_toast": "Failed to add MCP server",
     "remove_aria": "Remove {{name}}",
     "remove_failed_toast": "Failed to remove MCP server"
+  },
+  "audience": {
+    "everyone": "All agents",
+    "nobody": "No agents",
+    "unknown_agent": "Unknown agent",
+    "unknown_label": "unknown label",
+    "edit_aria": "Change who gets {{name}} (now: {{audience}})",
+    "restrict_label": "Only selected agents and labels",
+    "search_placeholder": "Search agents and labels",
+    "labels_heading": "Agent labels",
+    "agents_heading": "Agents",
+    "nobody_hint": "No agent receives it until you pick an agent or label.",
+    "cancel": "Cancel",
+    "save": "Save",
+    "save_failed_toast": "Failed to update who gets it"
   },
   "delete_dialog": {
     "title": "Delete project",

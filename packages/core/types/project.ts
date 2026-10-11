@@ -1,3 +1,5 @@
+import type { SkillSummary } from "./agent";
+import type { WorkspaceMcpServer } from "./workspace";
 export type ProjectStatus = "planned" | "in_progress" | "paused" | "completed" | "cancelled";
 
 export type ProjectPriority = "urgent" | "high" | "medium" | "low" | "none";
@@ -136,3 +138,26 @@ export interface ListProjectResourcesResponse {
   resources: ProjectResource[];
   total: number;
 }
+
+/**
+ * Which agents a project skill / MCP server reaches. Unrestricted reaches every
+ * agent in the project; restricted reaches only the listed agents and agents
+ * carrying a listed agent label (nobody when both lists are empty).
+ */
+export interface ProjectAttachmentAudience {
+  restricted: boolean;
+  agent_ids: string[];
+  label_ids: string[];
+}
+
+/** A project skill. `audience` is absent on servers that predate audiences. */
+export interface ProjectSkill extends SkillSummary {
+  audience?: ProjectAttachmentAudience;
+}
+
+/** A project MCP server (secret-free inventory) with its audience. */
+export interface ProjectMcpServer extends WorkspaceMcpServer {
+  audience?: ProjectAttachmentAudience;
+}
+
+export type SetProjectAttachmentAudienceRequest = ProjectAttachmentAudience;
