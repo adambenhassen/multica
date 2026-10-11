@@ -1349,6 +1349,14 @@ type Project struct {
 	WorkflowID  pgtype.UUID        `json:"workflow_id"`
 }
 
+type ProjectMcpServer struct {
+	ProjectID   pgtype.UUID        `json:"project_id"`
+	ServerID    pgtype.UUID        `json:"server_id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type ProjectResource struct {
 	ID           pgtype.UUID        `json:"id"`
 	ProjectID    pgtype.UUID        `json:"project_id"`

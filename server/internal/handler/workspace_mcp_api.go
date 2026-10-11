@@ -324,6 +324,14 @@ func (h *Handler) DeleteWorkspaceMcpServer(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "failed to delete the MCP server")
 		return
 	}
+	if err := qtx.DeleteProjectMcpServersByServer(r.Context(), db.DeleteProjectMcpServersByServerParams{
+		ServerID:    serverUUID,
+		WorkspaceID: idUUID,
+	}); err != nil {
+		slog.Warn("sweep project mcp bindings failed", append(logger.RequestAttrs(r), "error", err, "workspace_id", workspaceID)...)
+		writeError(w, http.StatusInternalServerError, "failed to delete the MCP server")
+		return
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete the MCP server")
 		return
