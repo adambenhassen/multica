@@ -57,7 +57,8 @@ import { Callout } from "fumadocs-ui/components/callout";
 워크스페이스 `owner`와 `admin`은 워크스페이스 MCP 라이브러리(설정 → MCP)의 Server를 프로젝트에 추가할 수 있습니다. `multica project mcp add <project-id> --server-ids <server-id>`로도 추가할 수 있습니다. 프로젝트의 모든 태스크는 실행하는 에이전트 자체의 MCP Server와 함께 이 Server들로 실행됩니다.
 
 - 에이전트 자체 MCP 설정에 같은 이름의 Server가 있으면 에이전트의 설정이 우선합니다.
-- 에이전트에 할당되었지만 비활성화된 Server는 해당 에이전트에서 계속 꺼져 있습니다. 특정 에이전트에 프로젝트 Server를 주지 않으려면 그 에이전트의 **MCP** 탭에서 Server를 할당한 뒤 비활성화하세요.
+- 각 Server에는 받는 대상이 있습니다. **모든 에이전트**(기본값) 또는 선택한 에이전트와 에이전트 라벨만입니다. Server 행이나 `multica project mcp audience`로 변경하며, 모든 에이전트가 가지면 안 되는 인증 정보를 쓰는 Server는 제한하세요.
+- 에이전트에 할당되었지만 비활성화된 Server는 해당 에이전트에서 계속 꺼져 있습니다.
 - 자체 MCP 설정이 없는 에이전트는 Server를 직접 할당받을 때와 마찬가지로 프로젝트 실행에서 Multica 관리형 MCP로 전환됩니다.
 - `admin`을 대신해 실행되는 에이전트도 프로젝트 MCP Server를 변경할 수 없습니다.
 

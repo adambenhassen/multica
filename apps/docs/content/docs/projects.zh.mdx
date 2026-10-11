@@ -57,7 +57,8 @@ import { Callout } from "fumadocs-ui/components/callout";
 工作区 `owner` 和 `admin` 可以把工作区 MCP 库（设置 → MCP）中的 Server 添加到项目，也可以运行 `multica project mcp add <project-id> --server-ids <server-id>`。项目中的每个任务都会在执行任务的智能体自身的 MCP Server 之外使用它们：
 
 - 如果智能体自身的 MCP 配置声明了同名 Server，以智能体的配置为准。
-- 已分配给智能体但被停用的 Server，对该智能体仍保持停用。要让某个智能体不使用项目 Server，请在该智能体的 **MCP** 标签页分配该 Server，然后将其停用。
+- 每个 Server 都有接收对象：**所有智能体**（默认），或仅限所选智能体和智能体标签。可在 Server 行或通过 `multica project mcp audience` 修改；凭据不应交给所有智能体的 Server 请加以限制。
+- 已分配给智能体但被停用的 Server，对该智能体仍保持停用。
 - 没有自身 MCP 配置的智能体在项目运行中会切换为 Multica 托管的 MCP，与直接给它分配 Server 时相同。
 - 即使智能体代表 `admin` 运行，也不能修改项目 MCP Server。
 

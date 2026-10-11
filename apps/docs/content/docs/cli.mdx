@@ -272,7 +272,8 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | `project` | `list/get/create/update/delete` | Manage projects | |
 | | `status <id> <status>` | Change project status | |
 | | `resource list/add/update/remove` | Manage project resources | `--type`, `--url`, `--local-path`, `--daemon-id`, `--execution-mode` (`in_place` / `worktree` for a local directory) |
-| | `mcp list/add/remove` | Attach workspace MCP servers to the project | `add`: `--server-ids`. Writes are owner/admin and refused for agent credentials. Every task in the project gets them; take ids from `workspace mcp list` |
+| | `skill list/add/remove/audience` | Attach skills to the project and set who gets each | `add`: `--skill-ids`; `audience`: `--all`, `--nobody`, or `--agents` / `--labels`. Writes are owner/admin and refused for agent credentials |
+| | `mcp list/add/remove/audience` | Attach workspace MCP servers to the project | `add`: `--server-ids`. Writes are owner/admin and refused for agent credentials. Every task in the project gets them; take ids from `workspace mcp list` |
 | `label` | `list/get/create/update/delete` | Manage workspace labels | `list`: `--resource-type` (`issue` or `skill`), `--full-id`; `create`: `--name`, `--color`, `--resource-type` (`issue` or `skill`), `--description` |
 | `property` | `list/get/create/update/archive/unarchive` | Manage workspace custom properties | `create`: `--name`, `--type` (`text`, `number`, `select`, `multi_select`, `date`, `checkbox`, `url`, `actor`, `multi_actor`), `--option` (repeatable, select types only); `list`: `--include-archived`; the type cannot be changed after creation |
 | `agent` | `list/get/create/update/archive/restore` | Manage agents | `--name`, `--runtime-id` (required for `create`), `--instructions`, `--conversation-starters`, `--model`, `--thinking-level`, `--mcp-config`, `--permission-mode`, `--max-concurrent-tasks` |
