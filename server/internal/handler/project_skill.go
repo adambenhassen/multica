@@ -111,6 +111,17 @@ func (h *Handler) AddProjectSkills(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 	qtx := h.Queries.WithTx(tx)
+	if _, err := qtx.LockProjectForSkillAttach(r.Context(), db.LockProjectForSkillAttachParams{
+		ID:          project.ID,
+		WorkspaceID: project.WorkspaceID,
+	}); err != nil {
+		if isNotFound(err) {
+			writeError(w, http.StatusNotFound, "project not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to load project")
+		return
+	}
 	// Validate inside the transaction so a skill deleted concurrently cannot
 	// leave a link behind; project_skill has no foreign key to catch it.
 	found, err := qtx.LockSkillsInWorkspace(r.Context(), db.LockSkillsInWorkspaceParams{
@@ -126,17 +137,21 @@ func (h *Handler) AddProjectSkills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	creator, _ := h.parseUserUUIDOrZero(userID)
-	skillIDStrs := make([]string, len(uniqueUUIDs))
-	for i, skillID := range uniqueUUIDs {
-		skillIDStrs[i] = uuidToString(skillID)
-		if err := qtx.AddProjectSkill(r.Context(), db.AddProjectSkillParams{
+	// Only newly attached skills are announced; re-attaching is a no-op.
+	added := make([]string, 0, len(uniqueUUIDs))
+	for _, skillID := range uniqueUUIDs {
+		rows, err := qtx.AddProjectSkill(r.Context(), db.AddProjectSkillParams{
 			ProjectID:   project.ID,
 			SkillID:     skillID,
 			WorkspaceID: project.WorkspaceID,
 			CreatedBy:   creator,
-		}); err != nil {
+		})
+		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to add project skill")
 			return
+		}
+		if rows > 0 {
+			added = append(added, uuidToString(skillID))
 		}
 	}
 	if err := tx.Commit(r.Context()); err != nil {
@@ -144,16 +159,18 @@ func (h *Handler) AddProjectSkills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.publish(
-		protocol.EventProjectSkillCreated,
-		uuidToString(project.WorkspaceID),
-		"member",
-		userID,
-		map[string]any{
-			"project_id": uuidToString(project.ID),
-			"skill_ids":  skillIDStrs,
-		},
-	)
+	if len(added) > 0 {
+		h.publish(
+			protocol.EventProjectSkillCreated,
+			uuidToString(project.WorkspaceID),
+			"member",
+			userID,
+			map[string]any{
+				"project_id": uuidToString(project.ID),
+				"skill_ids":  added,
+			},
+		)
+	}
 	h.writeProjectSkills(w, r, project)
 }
 

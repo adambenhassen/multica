@@ -333,7 +333,7 @@ SELECT * FROM skill WHERE plugin_installation_id = $1 ORDER BY name ASC;
 -- name: LockPluginSkillsForDelete :exec
 -- Taken before deleting or pruning an installation's skills, for the same
 -- reason as LockSkillForDelete.
-SELECT id FROM skill WHERE plugin_installation_id = $1 FOR UPDATE;
+SELECT id FROM skill WHERE plugin_installation_id = $1 ORDER BY id FOR UPDATE;
 
 -- name: DeletePluginSkillsByInstallation :exec
 -- project_skill has no foreign key, so links to the deleted skills go too.
