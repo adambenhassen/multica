@@ -1422,7 +1422,8 @@
   },
   "mcp_usage": {
     "agent_count_other": "{{count}} 個のエージェントが使用中",
-    "none": "どのエージェントにも割り当てられていません"
+    "project_count_other": "{{count}} 件のプロジェクト",
+    "none": "どのエージェントにもプロジェクトにも割り当てられていません"
   },
   "mcp_sources": {
     "title": "エージェントにツールを与える方法",

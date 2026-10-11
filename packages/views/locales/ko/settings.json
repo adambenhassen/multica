@@ -1422,7 +1422,8 @@
   },
   "mcp_usage": {
     "agent_count_other": "에이전트 {{count}}개가 사용 중",
-    "none": "어떤 에이전트에도 할당되지 않음"
+    "project_count_other": "프로젝트 {{count}}개",
+    "none": "어떤 에이전트나 프로젝트에도 할당되지 않음"
   },
   "mcp_sources": {
     "title": "에이전트에 도구를 제공하는 방법",

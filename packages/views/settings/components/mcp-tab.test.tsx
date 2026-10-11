@@ -529,18 +529,23 @@ describe("McpTab", () => {
     ).toBeInTheDocument();
   });
 
-  it("says how many agents use each server, when the server reports it", () => {
+  it("says how many agents and projects use each server, when the server reports it", () => {
     data.servers = [
-      server({ id: "s1", name: "sentry", agent_count: 3 }),
-      server({ id: "s2", name: "figma", agent_count: 0 }),
+      server({ id: "s1", name: "sentry", agent_count: 3, project_count: 0 }),
+      server({ id: "s2", name: "figma", agent_count: 0, project_count: 0 }),
       server({ id: "s3", name: "legacy" }),
+      server({ id: "s4", name: "linear", agent_count: 0, project_count: 2 }),
+      server({ id: "s5", name: "github", agent_count: 1, project_count: 1 }),
     ];
     render(<McpTab />, { wrapper: Wrapper });
 
     expect(screen.getByText(/Used by 3 agents/)).toBeInTheDocument();
-    expect(screen.getByText(/Not assigned to any agent/)).toBeInTheDocument();
-    // An older server omits the count; say nothing rather than "0".
-    expect(screen.getAllByText(/Used by|Not assigned/)).toHaveLength(2);
+    expect(screen.getByText(/Not assigned to any agent or project/)).toBeInTheDocument();
+    // Attached only to projects: must not read as unused.
+    expect(screen.getByText(/2 projects/)).toBeInTheDocument();
+    expect(screen.getByText(/Used by 1 agent · 1 project/)).toBeInTheDocument();
+    // An older server omits the counts; say nothing rather than "0".
+    expect(screen.getAllByText(/Used by|Not assigned|\d projects?/)).toHaveLength(4);
   });
 
   it("renders an empty state when the library is empty", () => {

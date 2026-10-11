@@ -41,6 +41,8 @@ export interface WorkspaceMcpServer {
    * carries it, and servers older than this field omit it.
    */
   agent_count?: number;
+  /** Projects the entry is attached to; same availability as agent_count. */
+  project_count?: number;
   created_at: string;
   updated_at: string;
 }
