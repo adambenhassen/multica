@@ -96,8 +96,8 @@ func (d *skillReadDBTX) Query(_ context.Context, sql string, _ ...any) (pgx.Rows
 	case strings.Contains(sql, "ListSkillFiles"):
 		d.perSkillFileCall++
 		return &sliceRows{}, nil
-	case strings.Contains(sql, "ListProjectSkillsInWorkspace"):
-		if d.failQuery == "ListProjectSkillsInWorkspace" {
+	case strings.Contains(sql, "ListProjectSkillsForAgent"):
+		if d.failQuery == "ListProjectSkillsForAgent" {
 			return nil, errInjectedSkillRead
 		}
 		return &sliceRows{rows: d.projectSkills}, nil
@@ -201,7 +201,7 @@ func TestLoadAgentSkills_ReportsReadFailures(t *testing.T) {
 	}{
 		{name: "batch file query fails", failQuery: "ListSkillFilesBySkillIDs"},
 		{name: "agent skill query fails", failQuery: "ListAgentSkills"},
-		{name: "project skill query fails", failQuery: "ListProjectSkillsInWorkspace"},
+		{name: "project skill query fails", failQuery: "ListProjectSkillsForAgent"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

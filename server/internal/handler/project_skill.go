@@ -14,6 +14,21 @@ type AddProjectSkillsRequest struct {
 	SkillIDs []string `json:"skill_ids"`
 }
 
+// canManageProjectSkills limits attaching and detaching project skills to
+// human workspace owners and admins. A project skill reaches every agent that
+// runs in the project, including agents the caller could not edit directly.
+// Machine credentials are refused even when their owner is an admin: an agent
+// steered by a prompt injection must not be able to plant instructions in
+// every other agent's runs.
+func (h *Handler) canManageProjectSkills(w http.ResponseWriter, r *http.Request, project db.Project) bool {
+	if isMachineCredentialActor(r) {
+		writeError(w, http.StatusForbidden, "only people can change project skills")
+		return false
+	}
+	_, ok := h.requireWorkspaceRole(w, r, uuidToString(project.WorkspaceID), "project not found", "owner", "admin")
+	return ok
+}
+
 // ListProjectSkills returns the skills attached to a project. Every task that
 // runs in the project receives them alongside its agent's own skills.
 func (h *Handler) ListProjectSkills(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +65,9 @@ func (h *Handler) AddProjectSkills(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.canManageProjectSkills(w, r, project) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return
@@ -67,14 +85,9 @@ func (h *Handler) AddProjectSkills(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	for _, skillID := range skillUUIDs {
-		if _, err := h.Queries.GetSkillInWorkspace(r.Context(), db.GetSkillInWorkspaceParams{
-			ID:          skillID,
-			WorkspaceID: project.WorkspaceID,
-		}); err != nil {
-			writeError(w, http.StatusNotFound, "skill not found")
-			return
-		}
+	unique := make(map[[16]byte]struct{}, len(skillUUIDs))
+	for _, id := range skillUUIDs {
+		unique[id.Bytes] = struct{}{}
 	}
 
 	tx, err := h.TxStarter.Begin(r.Context())
@@ -84,6 +97,20 @@ func (h *Handler) AddProjectSkills(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 	qtx := h.Queries.WithTx(tx)
+	// Validate inside the transaction so a skill deleted concurrently cannot
+	// leave a link behind; project_skill has no foreign key to catch it.
+	found, err := qtx.LockSkillsInWorkspace(r.Context(), db.LockSkillsInWorkspaceParams{
+		SkillIds:    skillUUIDs,
+		WorkspaceID: project.WorkspaceID,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load skills")
+		return
+	}
+	if len(found) != len(unique) {
+		writeError(w, http.StatusNotFound, "skill not found")
+		return
+	}
 	creator, _ := h.parseUserUUIDOrZero(userID)
 	for _, skillID := range skillUUIDs {
 		if err := qtx.AddProjectSkill(r.Context(), db.AddProjectSkillParams{
@@ -118,6 +145,9 @@ func (h *Handler) AddProjectSkills(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RemoveProjectSkill(w http.ResponseWriter, r *http.Request) {
 	project, ok := h.loadProjectForResource(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.canManageProjectSkills(w, r, project) {
 		return
 	}
 	skillUUID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "skillId"), "skill id")

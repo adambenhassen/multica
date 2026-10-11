@@ -90,27 +90,35 @@ func (q *Queries) ListProjectSkillSummaries(ctx context.Context, arg ListProject
 	return items, nil
 }
 
-const listProjectSkillsByIDs = `-- name: ListProjectSkillsByIDs :many
+const listProjectSkillsForAgent = `-- name: ListProjectSkillsForAgent :many
+
 SELECT s.id, s.workspace_id, s.name, s.description, s.content, s.config, s.created_by, s.created_at, s.updated_at, s.plugin_installation_id FROM skill s
 JOIN project_skill ps ON ps.skill_id = s.id
 WHERE ps.project_id = $1
   AND ps.workspace_id = $2
   AND s.workspace_id = $2
-  AND s.id = ANY($3::uuid[])
+  AND NOT EXISTS (
+    SELECT 1 FROM agent_skill ask
+    WHERE ask.agent_id = $3
+      AND ask.skill_id = s.id
+      AND ask.enabled = FALSE
+  )
 ORDER BY s.name ASC
 `
 
-type ListProjectSkillsByIDsParams struct {
-	ProjectID   pgtype.UUID   `json:"project_id"`
-	WorkspaceID pgtype.UUID   `json:"workspace_id"`
-	SkillIds    []pgtype.UUID `json:"skill_ids"`
+type ListProjectSkillsForAgentParams struct {
+	ProjectID   pgtype.UUID `json:"project_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	AgentID     pgtype.UUID `json:"agent_id"`
 }
 
-// Scoped variant of ListProjectSkillsInWorkspace for the skill-bundle resolve
-// path. The junction predicate is the authorization: a skill not attached to
-// the project returns no row, which the caller reports as not-found.
-func (q *Queries) ListProjectSkillsByIDs(ctx context.Context, arg ListProjectSkillsByIDsParams) ([]Skill, error) {
-	rows, err := q.db.Query(ctx, listProjectSkillsByIDs, arg.ProjectID, arg.WorkspaceID, arg.SkillIds)
+// Project-Skill junction
+// Full skill rows for the daemon claim path. Both sides are workspace-scoped,
+// so a corrupt project reference cannot lift another tenant's skill into a run.
+// A skill the agent has attached but disabled stays off: the agent owner's
+// opt-out wins over the project attachment.
+func (q *Queries) ListProjectSkillsForAgent(ctx context.Context, arg ListProjectSkillsForAgentParams) ([]Skill, error) {
+	rows, err := q.db.Query(ctx, listProjectSkillsForAgent, arg.ProjectID, arg.WorkspaceID, arg.AgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -140,26 +148,40 @@ func (q *Queries) ListProjectSkillsByIDs(ctx context.Context, arg ListProjectSki
 	return items, nil
 }
 
-const listProjectSkillsInWorkspace = `-- name: ListProjectSkillsInWorkspace :many
-
+const listProjectSkillsForAgentByIDs = `-- name: ListProjectSkillsForAgentByIDs :many
 SELECT s.id, s.workspace_id, s.name, s.description, s.content, s.config, s.created_by, s.created_at, s.updated_at, s.plugin_installation_id FROM skill s
 JOIN project_skill ps ON ps.skill_id = s.id
 WHERE ps.project_id = $1
   AND ps.workspace_id = $2
   AND s.workspace_id = $2
+  AND s.id = ANY($3::uuid[])
+  AND NOT EXISTS (
+    SELECT 1 FROM agent_skill ask
+    WHERE ask.agent_id = $4
+      AND ask.skill_id = s.id
+      AND ask.enabled = FALSE
+  )
 ORDER BY s.name ASC
 `
 
-type ListProjectSkillsInWorkspaceParams struct {
-	ProjectID   pgtype.UUID `json:"project_id"`
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
+type ListProjectSkillsForAgentByIDsParams struct {
+	ProjectID   pgtype.UUID   `json:"project_id"`
+	WorkspaceID pgtype.UUID   `json:"workspace_id"`
+	SkillIds    []pgtype.UUID `json:"skill_ids"`
+	AgentID     pgtype.UUID   `json:"agent_id"`
 }
 
-// Project-Skill junction
-// Full skill rows for the daemon claim path. Both sides are workspace-scoped,
-// so a corrupt project reference cannot lift another tenant's skill into a run.
-func (q *Queries) ListProjectSkillsInWorkspace(ctx context.Context, arg ListProjectSkillsInWorkspaceParams) ([]Skill, error) {
-	rows, err := q.db.Query(ctx, listProjectSkillsInWorkspace, arg.ProjectID, arg.WorkspaceID)
+// Scoped variant of ListProjectSkillsForAgent for the skill-bundle resolve
+// path, with the same agent opt-out. The junction predicate is the
+// authorization: a skill not attached to the project returns no row, which the
+// caller reports as not-found.
+func (q *Queries) ListProjectSkillsForAgentByIDs(ctx context.Context, arg ListProjectSkillsForAgentByIDsParams) ([]Skill, error) {
+	rows, err := q.db.Query(ctx, listProjectSkillsForAgentByIDs,
+		arg.ProjectID,
+		arg.WorkspaceID,
+		arg.SkillIds,
+		arg.AgentID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -182,6 +204,41 @@ func (q *Queries) ListProjectSkillsInWorkspace(ctx context.Context, arg ListProj
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockSkillsInWorkspace = `-- name: LockSkillsInWorkspace :many
+SELECT id FROM skill
+WHERE id = ANY($1::uuid[])
+  AND workspace_id = $2
+FOR SHARE
+`
+
+type LockSkillsInWorkspaceParams struct {
+	SkillIds    []pgtype.UUID `json:"skill_ids"`
+	WorkspaceID pgtype.UUID   `json:"workspace_id"`
+}
+
+// Validates skills inside the attach transaction. FOR SHARE makes a concurrent
+// skill delete wait for the attach to commit (or the attach see the delete),
+// so a link is not inserted for a skill that is already gone.
+func (q *Queries) LockSkillsInWorkspace(ctx context.Context, arg LockSkillsInWorkspaceParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, lockSkillsInWorkspace, arg.SkillIds, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

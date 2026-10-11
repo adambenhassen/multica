@@ -33,7 +33,9 @@ into the agent's brief under `## Project Context` and written to
 project-wide rules/context that should apply to every task in the project.
 
 Workspace skills attached to a project are delivered to every task in the
-project in addition to the running agent's own skills.
+project in addition to the running agent's own skills, except skills the agent
+has disabled. Only workspace owners and admins can attach or remove them, from
+the app; agent credentials cannot change project skills.
 
 Common resource types:
 
@@ -64,8 +66,6 @@ multica project resource update <project-id> <resource-id> --url <new-github-url
 multica project resource update <project-id> <resource-id> --ref <branch-or-sha> --output json
 multica project resource remove <project-id> <resource-id> --output json
 multica project skill list <project-id> --output json
-multica project skill add <project-id> --skill-ids <skill-id>[,<skill-id>] --output json
-multica project skill remove <project-id> <skill-id>
 ```
 
 For `github_repo`, non-JSON `--ref` sets `resource_ref.ref`, the default

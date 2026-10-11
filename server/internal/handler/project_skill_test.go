@@ -2,11 +2,13 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/testutil"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
@@ -152,10 +154,14 @@ func TestClaimTask_DeliversProjectSkills(t *testing.T) {
 	agentSkillID := insertProjectSkillFixtureSkill(t, testWorkspaceID, "project-claim-agent-skill")
 	projectSkillID := insertProjectSkillFixtureSkill(t, testWorkspaceID, "project-claim-project-skill")
 	otherSkillID := insertProjectSkillFixtureSkill(t, testWorkspaceID, "project-claim-other-skill")
+	disabledSkillID := insertProjectSkillFixtureSkill(t, testWorkspaceID, "project-claim-disabled-skill")
 	dbfx.Cleanup(t, `DELETE FROM agent_skill WHERE agent_id = $1`, agentID)
 	dbfx.Exec(t, `INSERT INTO agent_skill (agent_id, skill_id) VALUES ($1, $2)`, agentID, agentSkillID)
+	// The agent owner disabled this skill; the project attaching it must not
+	// switch it back on.
+	dbfx.Exec(t, `INSERT INTO agent_skill (agent_id, skill_id, enabled) VALUES ($1, $2, FALSE)`, agentID, disabledSkillID)
 	// The agent's own skill is attached to the project too; it must arrive once.
-	addProjectSkillCall(t, projectID, agentSkillID, projectSkillID).Want(http.StatusOK)
+	addProjectSkillCall(t, projectID, agentSkillID, projectSkillID, disabledSkillID).Want(http.StatusOK)
 	addProjectSkillCall(t, otherProjectID, otherSkillID).Want(http.StatusOK)
 
 	taskID := dbfx.Task(t, agentID, testutil.Cols{
@@ -184,6 +190,9 @@ func TestClaimTask_DeliversProjectSkills(t *testing.T) {
 	if counts[otherSkillID] != 0 {
 		t.Fatalf("another project's skill reached the claim: %+v", claimResp.Task.Agent.SkillRefs)
 	}
+	if counts[disabledSkillID] != 0 {
+		t.Fatalf("a skill the agent disabled reached the claim through the project: %+v", claimResp.Task.Agent.SkillRefs)
+	}
 
 	var resolved struct {
 		Bundles []service.AgentSkillData `json:"bundles"`
@@ -195,4 +204,112 @@ func TestClaimTask_DeliversProjectSkills(t *testing.T) {
 	}
 	resolveBundles(t, testHandler, runtimeID, taskID, workspaceRef(otherSkillID)).
 		Want(http.StatusNotFound)
+	resolveBundles(t, testHandler, runtimeID, taskID, workspaceRef(disabledSkillID)).
+		Want(http.StatusNotFound)
+}
+
+// A project skill reaches agents the caller may not be able to edit, so only
+// human workspace owners and admins can attach or detach one.
+func TestProjectSkill_RequiresWorkspaceAdmin(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+
+	memberID := dbfx.User(t, "Project skill member", "project-skill-member@multica.test")
+	dbfx.Member(t, testWorkspaceID, memberID, "member")
+	projectID := dbfx.Project(t, "Project skill permissions")
+	skillID := insertProjectSkillFixtureSkill(t, testWorkspaceID, "project-skill-permissions")
+	dbfx.Cleanup(t, `DELETE FROM project_skill WHERE project_id = $1`, projectID)
+
+	req := withURLParam(newRequestAs(memberID, "POST", "/api/projects/"+projectID+"/skills", map[string]any{
+		"skill_ids": []string{skillID},
+	}), "id", projectID)
+	testutil.Call(t, testHandler.AddProjectSkills, req).Want(http.StatusForbidden)
+
+	addProjectSkillCall(t, projectID, skillID).Want(http.StatusOK)
+	req = withURLParams(newRequestAs(memberID, "DELETE", "/api/projects/"+projectID+"/skills/"+skillID, nil),
+		"id", projectID, "skillId", skillID)
+	testutil.Call(t, testHandler.RemoveProjectSkill, req).Want(http.StatusForbidden)
+
+	// An agent running on an admin's behalf is refused too.
+	req = withURLParam(newRequest("POST", "/api/projects/"+projectID+"/skills", map[string]any{
+		"skill_ids": []string{skillID},
+	}), "id", projectID)
+	req.Header.Set("X-Actor-Source", "task_token")
+	testutil.Call(t, testHandler.AddProjectSkills, req).Want(http.StatusForbidden)
+	req = withURLParams(newRequest("DELETE", "/api/projects/"+projectID+"/skills/"+skillID, nil),
+		"id", projectID, "skillId", skillID)
+	req.Header.Set("X-Actor-Source", "task_token")
+	testutil.Call(t, testHandler.RemoveProjectSkill, req).Want(http.StatusForbidden)
+
+	// Members can still read the list.
+	req = withURLParam(newRequestAs(memberID, "GET", "/api/projects/"+projectID+"/skills", nil), "id", projectID)
+	testutil.Call(t, testHandler.ListProjectSkills, req).Want(http.StatusOK)
+}
+
+// The resolve path re-derives a task's project. It must pick the project the
+// claim picked, or delivered project skills fail to resolve.
+func TestResolveTaskProjectID_MatchesClaimPrecedence(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+
+	ctx := context.Background()
+	runtimeID := createClaimReclaimRuntime(t, ctx, "Project precedence runtime")
+	agentID, issueID := createClaimReclaimAgentAndIssue(t, ctx, runtimeID, "Project precedence agent")
+
+	issueProjectID := dbfx.Project(t, "Precedence issue project")
+	chatProjectID := dbfx.Project(t, "Precedence chat project")
+	autopilotProjectID := dbfx.Project(t, "Precedence autopilot project")
+	quickProjectID := dbfx.Project(t, "Precedence quick-create project")
+	dbfx.Exec(t, `UPDATE issue SET project_id = $1 WHERE id = $2`, issueProjectID, issueID)
+	chatID := dbfx.ChatSession(t, agentID, testutil.Cols{"project_id": chatProjectID})
+	autopilotID := dbfx.Insert(t, "autopilot", testutil.Cols{
+		"workspace_id":    testWorkspaceID,
+		"title":           "precedence autopilot",
+		"assignee_id":     agentID,
+		"execution_mode":  "run_only",
+		"created_by_type": "member",
+		"created_by_id":   testUserID,
+		"project_id":      autopilotProjectID,
+	})
+	runID := dbfx.Insert(t, "autopilot_run", testutil.Cols{
+		"autopilot_id": autopilotID,
+		"source":       "manual",
+		"status":       "running",
+	})
+	quickContext, _ := json.Marshal(service.QuickCreateContext{
+		Type:        service.QuickCreateContextType,
+		WorkspaceID: testWorkspaceID,
+		ProjectID:   quickProjectID,
+	})
+
+	tests := []struct {
+		name string
+		task db.AgentTaskQueue
+		want string
+	}{
+		{"issue", db.AgentTaskQueue{IssueID: parseUUID(issueID)}, issueProjectID},
+		{"chat", db.AgentTaskQueue{ChatSessionID: parseUUID(chatID)}, chatProjectID},
+		{"autopilot", db.AgentTaskQueue{AutopilotRunID: parseUUID(runID)}, autopilotProjectID},
+		// The claim's chat branch runs after its issue branch and overwrites it.
+		{"chat over issue", db.AgentTaskQueue{IssueID: parseUUID(issueID), ChatSessionID: parseUUID(chatID)}, chatProjectID},
+		{"quick-create", db.AgentTaskQueue{Context: quickContext}, quickProjectID},
+		{"no link", db.AgentTaskQueue{}, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := testHandler.TaskService.ResolveTaskProjectID(ctx, tc.task)
+			if err != nil {
+				t.Fatalf("ResolveTaskProjectID: %v", err)
+			}
+			gotID := ""
+			if got.Valid {
+				gotID = uuidToString(got)
+			}
+			if gotID != tc.want {
+				t.Fatalf("project = %q, want %q", gotID, tc.want)
+			}
+		})
+	}
 }
