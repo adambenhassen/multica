@@ -91,6 +91,32 @@ var projectResourceRemoveCmd = &cobra.Command{
 	RunE:  runProjectResourceRemove,
 }
 
+var projectSkillCmd = &cobra.Command{
+	Use:   "skill",
+	Short: "Manage skills attached to a project (every task in the project gets them)",
+}
+
+var projectSkillListCmd = &cobra.Command{
+	Use:   "list <project-id>",
+	Short: "List skills attached to a project",
+	Args:  exactArgs(1),
+	RunE:  runProjectSkillList,
+}
+
+var projectSkillAddCmd = &cobra.Command{
+	Use:   "add <project-id>",
+	Short: "Attach workspace skills to a project",
+	Args:  exactArgs(1),
+	RunE:  runProjectSkillAdd,
+}
+
+var projectSkillRemoveCmd = &cobra.Command{
+	Use:   "remove <project-id> <skill-id>",
+	Short: "Detach a skill from a project",
+	Args:  exactArgs(2),
+	RunE:  runProjectSkillRemove,
+}
+
 var validProjectStatuses = []string{
 	"planned", "in_progress", "paused", "completed", "cancelled",
 }
@@ -120,6 +146,10 @@ func init() {
 	projectResourceCmd.AddCommand(projectResourceAddCmd)
 	projectResourceCmd.AddCommand(projectResourceUpdateCmd)
 	projectResourceCmd.AddCommand(projectResourceRemoveCmd)
+	projectCmd.AddCommand(projectSkillCmd)
+	projectSkillCmd.AddCommand(projectSkillListCmd)
+	projectSkillCmd.AddCommand(projectSkillAddCmd)
+	projectSkillCmd.AddCommand(projectSkillRemoveCmd)
 
 	// project list
 	projectListCmd.Flags().String("output", "table", "Output format: table or json")
@@ -175,6 +205,11 @@ func init() {
 
 	// project resource remove
 	projectResourceRemoveCmd.Flags().String("output", "table", "Output format: table or json")
+
+	// project skill list / add / remove
+	projectSkillListCmd.Flags().String("output", "table", "Output format: table or json")
+	projectSkillAddCmd.Flags().StringSlice("skill-ids", nil, "Comma-separated skill IDs to attach")
+	projectSkillAddCmd.Flags().String("output", "table", "Output format: table or json")
 
 	// project update
 	projectUpdateCmd.Flags().String("title", "", "New title")
@@ -943,6 +978,96 @@ func runProjectResourceRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "Resource %s removed from project %s.\n", resourceRef.Display, projectRef.Display)
+	return nil
+}
+
+func runProjectSkillList(cmd *cobra.Command, args []string) error {
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+
+	projectRef, err := resolveProjectID(ctx, client, args[0])
+	if err != nil {
+		return fmt.Errorf("resolve project: %w", err)
+	}
+
+	var skills []map[string]any
+	if err := client.GetJSON(ctx, "/api/projects/"+projectRef.ID+"/skills", &skills); err != nil {
+		return fmt.Errorf("list project skills: %w", err)
+	}
+	return printProjectSkills(cmd, skills)
+}
+
+func runProjectSkillAdd(cmd *cobra.Command, args []string) error {
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+
+	cleanIDs := cleanSkillIDsFlag(cmd)
+	if len(cleanIDs) == 0 {
+		return fmt.Errorf("--skill-ids must include at least one skill ID")
+	}
+
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+
+	projectRef, err := resolveProjectID(ctx, client, args[0])
+	if err != nil {
+		return fmt.Errorf("resolve project: %w", err)
+	}
+
+	var skills []map[string]any
+	body := map[string]any{"skill_ids": cleanIDs}
+	if err := client.PostJSON(ctx, "/api/projects/"+projectRef.ID+"/skills", body, &skills); err != nil {
+		return fmt.Errorf("add project skills: %w", err)
+	}
+	return printProjectSkills(cmd, skills)
+}
+
+func runProjectSkillRemove(cmd *cobra.Command, args []string) error {
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+
+	projectRef, err := resolveProjectID(ctx, client, args[0])
+	if err != nil {
+		return fmt.Errorf("resolve project: %w", err)
+	}
+
+	skillID := strings.TrimSpace(args[1])
+	if err := client.DeleteJSON(ctx, "/api/projects/"+projectRef.ID+"/skills/"+url.PathEscape(skillID)); err != nil {
+		return fmt.Errorf("remove project skill: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "Skill %s removed from project %s.\n", skillID, projectRef.Display)
+	return nil
+}
+
+func printProjectSkills(cmd *cobra.Command, skills []map[string]any) error {
+	output, _ := cmd.Flags().GetString("output")
+	if output == "json" {
+		return cli.PrintJSON(os.Stdout, skills)
+	}
+
+	headers := []string{"ID", "NAME", "DESCRIPTION"}
+	rows := make([][]string, 0, len(skills))
+	for _, s := range skills {
+		rows = append(rows, []string{
+			strVal(s, "id"),
+			strVal(s, "name"),
+			strVal(s, "description"),
+		})
+	}
+	cli.PrintTable(os.Stdout, headers, rows)
 	return nil
 }
 

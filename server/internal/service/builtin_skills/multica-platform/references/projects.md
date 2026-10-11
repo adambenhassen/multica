@@ -33,6 +33,9 @@ into the agent's brief under `## Project Context` and written to
 `.multica/project/resources.json` as `project_description`. Use it for
 project-wide rules/context that should apply to every task in the project.
 
+Workspace skills attached to a project are delivered to every task in the
+project in addition to the running agent's own skills.
+
 Common resource types:
 
 - `github_repo` — durable GitHub repo context, with `resource_ref.url`, optional
@@ -61,6 +64,9 @@ multica project resource update <project-id> <resource-id> --execution-mode in_p
 multica project resource update <project-id> <resource-id> --url <new-github-url> --output json
 multica project resource update <project-id> <resource-id> --ref <branch-or-sha> --output json
 multica project resource remove <project-id> <resource-id> --output json
+multica project skill list <project-id> --output json
+multica project skill add <project-id> --skill-ids <skill-id>[,<skill-id>] --output json
+multica project skill remove <project-id> <skill-id>
 ```
 
 For `github_repo`, non-JSON `--ref` sets `resource_ref.ref`, the default
