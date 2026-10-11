@@ -1,12 +1,12 @@
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { api } from "../api";
-import type { ListIssuesParams } from "../types";
+import type { ListIssuesParams, WorkspaceActivityKind } from "../types";
 
 export const overviewKeys = {
   all: (wsId: string) => ["overview", wsId] as const,
   activityAll: (wsId: string) => [...overviewKeys.all(wsId), "activity"] as const,
-  activity: (wsId: string, limit: number) =>
-    [...overviewKeys.activityAll(wsId), limit] as const,
+  activity: (wsId: string, kind: WorkspaceActivityKind) =>
+    [...overviewKeys.activityAll(wsId), kind] as const,
   issuesAll: (wsId: string) => [...overviewKeys.all(wsId), "issues"] as const,
   issues: (wsId: string, filter: RecentIssueFilter) =>
     [...overviewKeys.issuesAll(wsId), filter] as const,
@@ -30,12 +30,16 @@ export const RECENT_ISSUES_LIMIT = 50;
 
 // Live updates arrive through activity:created (see use-realtime-sync), so the
 // staleTime only bounds how old a remounted feed may be.
-export function workspaceActivityOptions(wsId: string, limit = 10) {
+// The feed endpoint caps a page at 50; the Dashboard list scrolls inside it.
+export const WORKSPACE_ACTIVITY_LIMIT = 50;
+
+export function workspaceActivityOptions(wsId: string, kind: WorkspaceActivityKind = "all") {
   return queryOptions({
-    queryKey: overviewKeys.activity(wsId, limit),
-    queryFn: () => api.listWorkspaceActivity({ limit }),
+    queryKey: overviewKeys.activity(wsId, kind),
+    queryFn: () => api.listWorkspaceActivity({ limit: WORKSPACE_ACTIVITY_LIMIT, kind }),
     select: (data) => data.entries,
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 

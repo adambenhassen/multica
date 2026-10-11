@@ -1250,6 +1250,8 @@ export function useRealtimeSync(
       const { comment, issue_revision: issueRevision } = p as CommentCreatedPayload;
       if (!comment?.issue_id) return;
       invalidateTimeline(comment.issue_id);
+      const feedWsId = getCurrentWsId();
+      if (feedWsId) scheduleOverviewRefresh(feedWsId, "activity");
       // A new comment bumps the parent issue's updated_at server-side
       // (MUL-5009), so any open board/list sorted by "Updated date" has
       // drifted. Refetch just those keys to re-sort the commented card into
@@ -1291,6 +1293,7 @@ export function useRealtimeSync(
       invalidateTimeline(issue_id);
       const wsId = getCurrentWsId();
       if (wsId) {
+        scheduleOverviewRefresh(wsId, "activity");
         invalidateLastActivitySortedIssueLists(qc, wsId);
         if (issue_revision) {
           onIssueAuxiliaryRevision(qc, wsId, issue_id, issue_revision);

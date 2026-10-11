@@ -4,7 +4,7 @@ import { overviewKeys, recentIssuesOptions, workspaceActivityOptions } from "./q
 
 describe("overview query keys", () => {
   it("scopes the activity feed by workspace under the shared prefix", () => {
-    expect(workspaceActivityOptions("ws-1", 10).queryKey).toEqual(["overview", "ws-1", "activity", 10]);
+    expect(workspaceActivityOptions("ws-1", "comments").queryKey).toEqual(["overview", "ws-1", "activity", "comments"]);
     expect(overviewKeys.activityAll("ws-2")).toEqual(["overview", "ws-2", "activity"]);
   });
 

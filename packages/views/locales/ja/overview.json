@@ -29,7 +29,21 @@
   },
   "activity": {
     "heading": "最近のアクティビティ",
-    "empty": "アクティビティはまだありません"
+    "empty": "アクティビティはまだありません",
+    "filter_label": "表示",
+    "filters": {
+      "all": "すべて",
+      "comments": "コメント",
+      "status": "ステータス変更"
+    },
+    "empty_filtered": "まだ何もありません",
+    "today": "今日",
+    "yesterday": "昨日",
+    "commented": "コメントしました",
+    "replied": "返信しました",
+    "marked": "{{status}} にしました",
+    "moved": "{{status}} に移動しました",
+    "with_excerpt": "{{phrase}}：「{{excerpt}}」"
   },
   "issues": {
     "heading": "最近のタスク",
@@ -43,5 +57,12 @@
       "done": "完了",
       "cancelled": "キャンセル済み"
     }
+  },
+  "customize": {
+    "button": "カスタマイズ",
+    "label": "ダッシュボードに表示",
+    "metrics": "指標",
+    "show_all": "すべて表示",
+    "all_hidden": "すべてのセクションが非表示です"
   }
 }

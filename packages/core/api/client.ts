@@ -91,6 +91,7 @@ import type {
   RuntimeLocalSkillImportRequest,
   TimelineEntry,
   AssigneeFrequencyEntry,
+  WorkspaceActivityKind,
   WorkspaceActivityResponse,
   TaskMessagePayload,
   Attachment,
@@ -1738,9 +1739,12 @@ export class ApiClient {
   }
 
   // Newest issue activity across the current workspace, for the Dashboard.
-  async listWorkspaceActivity(params: { limit?: number } = {}): Promise<WorkspaceActivityResponse> {
+  async listWorkspaceActivity(
+    params: { limit?: number; kind?: WorkspaceActivityKind } = {},
+  ): Promise<WorkspaceActivityResponse> {
     const search = new URLSearchParams();
     if (params.limit !== undefined) search.set("limit", String(params.limit));
+    if (params.kind && params.kind !== "all") search.set("kind", params.kind);
     const qs = search.toString();
     const raw = await this.fetch<unknown>(`/api/activity${qs ? `?${qs}` : ""}`);
     return parseWithFallback(raw, WorkspaceActivityResponseSchema, EMPTY_WORKSPACE_ACTIVITY, {
