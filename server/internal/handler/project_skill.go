@@ -18,15 +18,15 @@ type AddProjectSkillsRequest struct {
 	SkillIDs []string `json:"skill_ids"`
 }
 
-// canManageProjectSkills limits attaching and detaching project skills to
-// human workspace owners and admins. A project skill reaches every agent that
+// canManageProjectRunConfig limits attaching and detaching project skills and
+// MCP servers to human workspace owners and admins. Both reach every agent that
 // runs in the project, including agents the caller could not edit directly.
 // Machine credentials are refused even when their owner is an admin: an agent
 // steered by a prompt injection must not be able to plant instructions in
 // every other agent's runs.
-func (h *Handler) canManageProjectSkills(w http.ResponseWriter, r *http.Request, project db.Project) bool {
+func (h *Handler) canManageProjectRunConfig(w http.ResponseWriter, r *http.Request, project db.Project) bool {
 	if isMachineCredentialActor(r) {
-		writeError(w, http.StatusForbidden, "only people can change project skills")
+		writeError(w, http.StatusForbidden, "only people can change what a project gives its agents")
 		return false
 	}
 	_, ok := h.requireWorkspaceRole(w, r, uuidToString(project.WorkspaceID), "project not found", "owner", "admin")
@@ -69,7 +69,7 @@ func (h *Handler) AddProjectSkills(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !h.canManageProjectSkills(w, r, project) {
+	if !h.canManageProjectRunConfig(w, r, project) {
 		return
 	}
 	userID, ok := requireUserID(w, r)
@@ -111,7 +111,7 @@ func (h *Handler) AddProjectSkills(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 	qtx := h.Queries.WithTx(tx)
-	if _, err := qtx.LockProjectForSkillAttach(r.Context(), db.LockProjectForSkillAttachParams{
+	if _, err := qtx.LockProjectForAttach(r.Context(), db.LockProjectForAttachParams{
 		ID:          project.ID,
 		WorkspaceID: project.WorkspaceID,
 	}); err != nil {
@@ -180,7 +180,7 @@ func (h *Handler) RemoveProjectSkill(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !h.canManageProjectSkills(w, r, project) {
+	if !h.canManageProjectRunConfig(w, r, project) {
 		return
 	}
 	skillUUID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "skillId"), "skill id")

@@ -58,10 +58,11 @@ WHERE id = ANY(sqlc.arg('skill_ids')::uuid[])
 ORDER BY id
 FOR SHARE;
 
--- name: LockProjectForSkillAttach :one
--- Taken in the attach transaction. DeleteProject locks the row FOR UPDATE
--- first (LockProjectForDelete), so a project deleted concurrently either waits
--- for the attach and removes its links, or the attach sees no project.
+-- name: LockProjectForAttach :one
+-- Taken in project skill and MCP server attach transactions. DeleteProject
+-- locks the row FOR UPDATE first (LockProjectForDelete), so a project deleted
+-- concurrently either waits for the attach and removes its links, or the
+-- attach sees no project.
 SELECT id FROM project
 WHERE id = $1 AND workspace_id = $2
 FOR SHARE;

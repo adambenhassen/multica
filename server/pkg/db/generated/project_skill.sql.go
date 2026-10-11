@@ -214,22 +214,23 @@ func (q *Queries) ListProjectSkillsForAgentByIDs(ctx context.Context, arg ListPr
 	return items, nil
 }
 
-const lockProjectForSkillAttach = `-- name: LockProjectForSkillAttach :one
+const lockProjectForAttach = `-- name: LockProjectForAttach :one
 SELECT id FROM project
 WHERE id = $1 AND workspace_id = $2
 FOR SHARE
 `
 
-type LockProjectForSkillAttachParams struct {
+type LockProjectForAttachParams struct {
 	ID          pgtype.UUID `json:"id"`
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
-// Taken in the attach transaction. DeleteProject locks the row FOR UPDATE
-// first (LockProjectForDelete), so a project deleted concurrently either waits
-// for the attach and removes its links, or the attach sees no project.
-func (q *Queries) LockProjectForSkillAttach(ctx context.Context, arg LockProjectForSkillAttachParams) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, lockProjectForSkillAttach, arg.ID, arg.WorkspaceID)
+// Taken in project skill and MCP server attach transactions. DeleteProject
+// locks the row FOR UPDATE first (LockProjectForDelete), so a project deleted
+// concurrently either waits for the attach and removes its links, or the
+// attach sees no project.
+func (q *Queries) LockProjectForAttach(ctx context.Context, arg LockProjectForAttachParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockProjectForAttach, arg.ID, arg.WorkspaceID)
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
