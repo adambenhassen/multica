@@ -45,9 +45,17 @@ func (h *Handler) writeProjectMcpServers(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusInternalServerError, "failed to list project MCP servers")
 		return
 	}
-	resp := make([]WorkspaceMcpServerResponse, len(servers))
-	for i, server := range servers {
-		resp[i] = workspaceMcpServerToResponse(server)
+	targets, err := h.loadProjectAudienceTargets(r.Context(), project)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list project MCP servers")
+		return
+	}
+	resp := make([]ProjectMcpServerResponse, len(servers))
+	for i, row := range servers {
+		resp[i] = ProjectMcpServerResponse{
+			WorkspaceMcpServerResponse: workspaceMcpServerToResponse(row.WorkspaceMcpServer),
+			Audience:                   audienceFor(targets, projectAttachmentMcpServer, row.WorkspaceMcpServer.ID, row.Restricted),
+		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

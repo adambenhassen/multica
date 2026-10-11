@@ -431,11 +431,16 @@ const deletePluginSkillsByInstallation = `-- name: DeletePluginSkillsByInstallat
 WITH deleted_skills AS (
     DELETE FROM skill WHERE plugin_installation_id = $1
     RETURNING id
+),
+deleted_audience AS (
+    DELETE FROM project_attachment_audience
+    WHERE item_type = 'skill' AND item_id IN (SELECT id FROM deleted_skills)
 )
 DELETE FROM project_skill WHERE skill_id IN (SELECT id FROM deleted_skills)
 `
 
-// project_skill has no foreign key, so links to the deleted skills go too.
+// project_skill and its audience have no foreign key, so links to the deleted
+// skills go too.
 func (q *Queries) DeletePluginSkillsByInstallation(ctx context.Context, pluginInstallationID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deletePluginSkillsByInstallation, pluginInstallationID)
 	return err
@@ -446,6 +451,10 @@ WITH deleted_skills AS (
     DELETE FROM skill
     WHERE plugin_installation_id = $1 AND name <> ALL($2::text[])
     RETURNING id
+),
+deleted_audience AS (
+    DELETE FROM project_attachment_audience
+    WHERE item_type = 'skill' AND item_id IN (SELECT id FROM deleted_skills)
 )
 DELETE FROM project_skill WHERE skill_id IN (SELECT id FROM deleted_skills)
 `
@@ -457,7 +466,8 @@ type DeletePluginSkillsNotInParams struct {
 
 // Upgrade pruning: a skill this installation used to contribute but no longer
 // declares must go, or a renamed skill leaves its predecessor behind forever.
-// project_skill has no foreign key, so links to the pruned skills go too.
+// project_skill and its audience have no foreign key, so links to the pruned
+// skills go too.
 func (q *Queries) DeletePluginSkillsNotIn(ctx context.Context, arg DeletePluginSkillsNotInParams) error {
 	_, err := q.db.Exec(ctx, deletePluginSkillsNotIn, arg.PluginInstallationID, arg.KeepNames)
 	return err

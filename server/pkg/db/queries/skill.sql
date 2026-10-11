@@ -52,9 +52,16 @@ SELECT id FROM skill WHERE id = $1 AND workspace_id = $2 FOR UPDATE;
 
 -- name: DeleteSkill :exec
 -- Defense-in-depth: workspace_id is a SQL-layer tenant guard. See DeleteIssue.
--- project_skill has no foreign key, so its links go in the same statement.
+-- project_skill and its audience have no foreign key, so they go in the same
+-- statement.
 WITH deleted_project_skills AS (
     DELETE FROM project_skill WHERE project_skill.skill_id = $1 AND project_skill.workspace_id = $2
+),
+deleted_audience AS (
+    DELETE FROM project_attachment_audience
+    WHERE project_attachment_audience.item_type = 'skill'
+      AND project_attachment_audience.item_id = $1
+      AND project_attachment_audience.workspace_id = $2
 )
 DELETE FROM skill WHERE skill.id = $1 AND skill.workspace_id = $2;
 

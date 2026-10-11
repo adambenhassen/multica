@@ -240,9 +240,15 @@ func (q *Queries) DeleteIssueLabelAssignmentsByLabel(ctx context.Context, labelI
 }
 
 const deleteLabel = `-- name: DeleteLabel :one
+WITH deleted_audience AS (
+    DELETE FROM project_attachment_audience
+    WHERE project_attachment_audience.target_type = 'label'
+      AND project_attachment_audience.target_id = $1
+      AND project_attachment_audience.workspace_id = $2
+)
 DELETE FROM issue_label
-WHERE id = $1 AND workspace_id = $2
-RETURNING id
+WHERE issue_label.id = $1 AND issue_label.workspace_id = $2
+RETURNING issue_label.id
 `
 
 type DeleteLabelParams struct {
@@ -251,7 +257,9 @@ type DeleteLabelParams struct {
 }
 
 // :one RETURNING id so the handler distinguishes pgx.ErrNoRows (→ 404) from
-// infrastructure errors (→ 500), and avoids a TOCTOU precheck.
+// infrastructure errors (→ 500), and avoids a TOCTOU precheck. Project
+// attachment audiences have no FK, so label targets go in the same statement
+// (a restricted link losing its last target reaches nobody, never everyone).
 func (q *Queries) DeleteLabel(ctx context.Context, arg DeleteLabelParams) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, deleteLabel, arg.ID, arg.WorkspaceID)
 	var id pgtype.UUID

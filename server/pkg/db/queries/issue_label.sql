@@ -31,10 +31,18 @@ RETURNING *;
 
 -- name: DeleteLabel :one
 -- :one RETURNING id so the handler distinguishes pgx.ErrNoRows (→ 404) from
--- infrastructure errors (→ 500), and avoids a TOCTOU precheck.
+-- infrastructure errors (→ 500), and avoids a TOCTOU precheck. Project
+-- attachment audiences have no FK, so label targets go in the same statement
+-- (a restricted link losing its last target reaches nobody, never everyone).
+WITH deleted_audience AS (
+    DELETE FROM project_attachment_audience
+    WHERE project_attachment_audience.target_type = 'label'
+      AND project_attachment_audience.target_id = $1
+      AND project_attachment_audience.workspace_id = $2
+)
 DELETE FROM issue_label
-WHERE id = $1 AND workspace_id = $2
-RETURNING id;
+WHERE issue_label.id = $1 AND issue_label.workspace_id = $2
+RETURNING issue_label.id;
 
 -- The resource-label junctions deliberately have no foreign keys. Keeping
 -- their cleanup in the same application transaction as the owner deletion

@@ -52,12 +52,20 @@ func (h *Handler) writeProjectSkills(w http.ResponseWriter, r *http.Request, pro
 		writeError(w, http.StatusInternalServerError, "failed to list project skills")
 		return
 	}
-	resp := make([]SkillSummaryResponse, len(skills))
+	targets, err := h.loadProjectAudienceTargets(r.Context(), project)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list project skills")
+		return
+	}
+	resp := make([]ProjectSkillResponse, len(skills))
 	for i, s := range skills {
-		resp[i] = skillSummaryToResponse(
-			s.ID, s.WorkspaceID, s.Name, s.Description, s.Config,
-			s.CreatedBy, s.CreatedAt, s.UpdatedAt,
-		)
+		resp[i] = ProjectSkillResponse{
+			SkillSummaryResponse: skillSummaryToResponse(
+				s.ID, s.WorkspaceID, s.Name, s.Description, s.Config,
+				s.CreatedBy, s.CreatedAt, s.UpdatedAt,
+			),
+			Audience: audienceFor(targets, projectAttachmentSkill, s.ID, s.Restricted),
+		}
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
