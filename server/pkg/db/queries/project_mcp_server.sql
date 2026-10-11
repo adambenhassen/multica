@@ -29,6 +29,14 @@ WHERE pms.project_id = $1
   AND s.workspace_id = $2
 ORDER BY s.name ASC;
 
+-- name: CountWorkspaceMcpServerProjects :many
+-- How many projects each library entry is attached to, for the workspace
+-- settings list, so an entry used only by projects does not look unused.
+SELECT server_id, COUNT(*)::bigint AS project_count
+FROM project_mcp_server
+WHERE workspace_id = $1
+GROUP BY server_id;
+
 -- name: AddProjectMcpServer :execrows
 INSERT INTO project_mcp_server (project_id, server_id, workspace_id, created_by)
 VALUES ($1, $2, $3, $4)

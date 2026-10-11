@@ -217,7 +217,7 @@ func (q *Queries) ListProjectSkillsForAgentByIDs(ctx context.Context, arg ListPr
 const lockProjectForAttach = `-- name: LockProjectForAttach :one
 SELECT id FROM project
 WHERE id = $1 AND workspace_id = $2
-FOR SHARE
+FOR KEY SHARE
 `
 
 type LockProjectForAttachParams struct {
@@ -228,7 +228,8 @@ type LockProjectForAttachParams struct {
 // Taken in project skill and MCP server attach transactions. DeleteProject
 // locks the row FOR UPDATE first (LockProjectForDelete), so a project deleted
 // concurrently either waits for the attach and removes its links, or the
-// attach sees no project.
+// attach sees no project. KEY SHARE is enough to conflict with that and does
+// not block ordinary project edits (title, status, lead) during an attach.
 func (q *Queries) LockProjectForAttach(ctx context.Context, arg LockProjectForAttachParams) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, lockProjectForAttach, arg.ID, arg.WorkspaceID)
 	var id pgtype.UUID

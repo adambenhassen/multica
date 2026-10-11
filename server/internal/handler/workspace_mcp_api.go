@@ -30,8 +30,11 @@ type WorkspaceMcpServerResponse struct {
 	// AgentCount is how many live agents the entry is assigned to. Only the
 	// workspace library listing reports it; per-agent responses omit it.
 	AgentCount *int64 `json:"agent_count,omitempty"`
-	CreatedAt  string `json:"created_at"`
-	UpdatedAt  string `json:"updated_at"`
+	// ProjectCount is how many projects the entry is attached to. Only the
+	// workspace library listing reports it.
+	ProjectCount *int64 `json:"project_count,omitempty"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
 }
 
 // mcpTransportOf classifies a server entry for display, and — because the
@@ -110,11 +113,22 @@ func (h *Handler) ListWorkspaceMcpServers(w http.ResponseWriter, r *http.Request
 	for _, row := range counts {
 		agentCounts[uuidToString(row.ServerID)] = row.AgentCount
 	}
+	projectRows, err := h.Queries.CountWorkspaceMcpServerProjects(r.Context(), idUUID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list workspace MCP servers")
+		return
+	}
+	projectCounts := make(map[string]int64, len(projectRows))
+	for _, row := range projectRows {
+		projectCounts[uuidToString(row.ServerID)] = row.ProjectCount
+	}
 	resp := make([]WorkspaceMcpServerResponse, 0, len(servers))
 	for _, server := range servers {
 		item := workspaceMcpServerToResponse(server)
 		count := agentCounts[item.ID]
 		item.AgentCount = &count
+		projects := projectCounts[item.ID]
+		item.ProjectCount = &projects
 		resp = append(resp, item)
 	}
 	writeJSON(w, http.StatusOK, resp)
