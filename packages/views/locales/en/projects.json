@@ -155,7 +155,7 @@
   "skills": {
     "section_header": "Skills",
     "empty": "No skills attached.",
-    "hint": "Every agent gets these skills, in addition to its own, for runs in this project.",
+    "hint": "Added to each agent's own skills for runs in this project, unless the agent has disabled the skill.",
     "add_button": "Add skill",
     "add_dialog_title": "Add skills to project",
     "add_dialog_cancel": "Cancel",
