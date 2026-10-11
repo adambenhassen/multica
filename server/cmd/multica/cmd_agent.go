@@ -130,6 +130,27 @@ var agentSkillsAddCmd = &cobra.Command{
 	RunE:  runAgentSkillsAdd,
 }
 
+var agentSkillsRemoveCmd = &cobra.Command{
+	Use:   "remove <agent-id> <skill-id>",
+	Short: "Remove one skill from an agent, leaving its other assignments untouched",
+	Args:  exactArgs(2),
+	RunE:  runAgentSkillsRemove,
+}
+
+var agentSkillsEnableCmd = &cobra.Command{
+	Use:   "enable <agent-id> <skill-id>",
+	Short: "Turn an assigned skill back on for an agent",
+	Args:  exactArgs(2),
+	RunE:  func(cmd *cobra.Command, args []string) error { return runAgentSkillsSetEnabled(cmd, args, true) },
+}
+
+var agentSkillsDisableCmd = &cobra.Command{
+	Use:   "disable <agent-id> <skill-id>",
+	Short: "Keep a skill assigned but off for an agent (also blocks the same skill from its projects)",
+	Args:  exactArgs(2),
+	RunE:  func(cmd *cobra.Command, args []string) error { return runAgentSkillsSetEnabled(cmd, args, false) },
+}
+
 func init() {
 	agentCmd.AddCommand(agentListCmd)
 	agentCmd.AddCommand(agentGetCmd)
@@ -145,6 +166,9 @@ func init() {
 	agentSkillsCmd.AddCommand(agentSkillsListCmd)
 	agentSkillsCmd.AddCommand(agentSkillsSetCmd)
 	agentSkillsCmd.AddCommand(agentSkillsAddCmd)
+	agentSkillsCmd.AddCommand(agentSkillsRemoveCmd)
+	agentSkillsCmd.AddCommand(agentSkillsEnableCmd)
+	agentSkillsCmd.AddCommand(agentSkillsDisableCmd)
 
 	agentEnvCmd.AddCommand(agentEnvGetCmd)
 	agentEnvCmd.AddCommand(agentEnvSetCmd)
@@ -1109,6 +1133,51 @@ func cleanSkillIDsFlag(cmd *cobra.Command) []string {
 		}
 	}
 	return cleanIDs
+}
+
+func runAgentSkillsRemove(cmd *cobra.Command, args []string) error {
+	skillID := strings.TrimSpace(args[1])
+	if skillID == "" {
+		return fmt.Errorf("skill id is required")
+	}
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+
+	if err := client.DeleteJSON(ctx, "/api/agents/"+url.PathEscape(args[0])+"/skills/"+url.PathEscape(skillID)); err != nil {
+		return fmt.Errorf("remove agent skill: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Skill %s removed from agent %s.\n", skillID, args[0])
+	return nil
+}
+
+func runAgentSkillsSetEnabled(cmd *cobra.Command, args []string, enabled bool) error {
+	skillID := strings.TrimSpace(args[1])
+	if skillID == "" {
+		return fmt.Errorf("skill id is required")
+	}
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+
+	body := map[string]any{"enabled": enabled}
+	if err := client.PutJSON(ctx, "/api/agents/"+url.PathEscape(args[0])+"/skills/"+url.PathEscape(skillID)+"/enabled", body, nil); err != nil {
+		return fmt.Errorf("set agent skill enabled: %w", err)
+	}
+	state := "disabled"
+	if enabled {
+		state = "enabled"
+	}
+	fmt.Fprintf(os.Stderr, "Skill %s %s for agent %s.\n", skillID, state, args[0])
+	return nil
 }
 
 func printAgentSkillsMutationResult(cmd *cobra.Command, agentID string, result json.RawMessage) error {

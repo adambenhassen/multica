@@ -2299,3 +2299,55 @@ func TestParseConversationStarters(t *testing.T) {
 		}
 	})
 }
+
+func TestAgentSkillsRemoveAndToggleCallSingleSkillEndpoints(t *testing.T) {
+	type call struct {
+		method, path string
+		body         map[string]any
+	}
+	var calls []call
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c := call{method: r.Method, path: r.URL.Path}
+		if r.ContentLength > 0 {
+			if err := json.NewDecoder(r.Body).Decode(&c.body); err != nil {
+				t.Errorf("decode request body: %v", err)
+			}
+		}
+		calls = append(calls, c)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	t.Setenv("MULTICA_SERVER_URL", srv.URL)
+	t.Setenv("MULTICA_WORKSPACE_ID", "ws-1")
+	t.Setenv("MULTICA_TOKEN", "test-token")
+
+	cmd := &cobra.Command{Use: "skills"}
+	cmd.Flags().String("profile", "", "")
+
+	if err := runAgentSkillsSetEnabled(cmd, []string{"agent-123", "skill-a"}, false); err != nil {
+		t.Fatalf("disable: %v", err)
+	}
+	if err := runAgentSkillsSetEnabled(cmd, []string{"agent-123", "skill-a"}, true); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	if err := runAgentSkillsRemove(cmd, []string{"agent-123", "skill-a"}); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+
+	want := []call{
+		{http.MethodPut, "/api/agents/agent-123/skills/skill-a/enabled", map[string]any{"enabled": false}},
+		{http.MethodPut, "/api/agents/agent-123/skills/skill-a/enabled", map[string]any{"enabled": true}},
+		{http.MethodDelete, "/api/agents/agent-123/skills/skill-a", nil},
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("calls = %+v, want %+v", calls, want)
+	}
+	// Removing must never go through the replace-all endpoint, which resets
+	// every other skill's enabled toggle.
+	for _, c := range calls {
+		if c.method == http.MethodPut && c.path == "/api/agents/agent-123/skills" {
+			t.Fatal("remove used the replace-all endpoint")
+		}
+	}
+}
