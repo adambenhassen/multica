@@ -12,11 +12,11 @@
       },
       "used": {
         "label": "사용 중",
-        "description": "하나 이상의 에이전트에 할당된 스킬"
+        "description": "에이전트나 프로젝트 하나 이상에 할당된 스킬"
       },
       "unused": {
         "label": "미사용",
-        "description": "어떤 에이전트에도 할당되지 않은 스킬"
+        "description": "어떤 에이전트나 프로젝트에도 할당되지 않은 스킬"
       },
       "mine": {
         "label": "내가 만든 스킬",
@@ -62,7 +62,10 @@
     "source_runtime_unknown": "런타임에서 가져옴",
     "source_clawhub": "ClawHub에서 가져옴",
     "source_skills_sh": "Skills.sh에서 가져옴",
-    "source_github": "GitHub에서 가져옴"
+    "source_github": "GitHub에서 가져옴",
+    "section_project": "프로젝트 스킬",
+    "section_rest": "기타 스킬",
+    "plus_agents_other": "+에이전트 {{count}}개"
   },
   "actions": {
     "row_menu": "작업",
@@ -218,7 +221,9 @@
       "permissions_locked_creator": "작성자({{name}}) 또는 워크스페이스 관리자만 이 스킬을 편집할 수 있습니다.",
       "permissions_locked": "작성자 또는 워크스페이스 관리자만 이 스킬을 편집할 수 있습니다.",
       "properties_help": "skill 속성 정보",
-      "character_count": "{{count}}자"
+      "character_count": "{{count}}자",
+      "projects_title_other": "프로젝트 {{count}}개에 추가됨",
+      "projects_hint": "이 프로젝트에서 작업하는 에이전트는 각 프로젝트의 받는 대상 범위 안에서 이 스킬을 받습니다."
     },
     "files": {
       "list_aria": "스킬 파일",

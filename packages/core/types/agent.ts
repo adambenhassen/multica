@@ -872,6 +872,8 @@ export interface SkillSummary {
   enabled?: boolean;
   /** Present on workspace skill lists after a backend that bulk-attaches labels. */
   labels?: Label[];
+  /** Projects the skill is attached to; present on the workspace skill list. */
+  projects?: { id: string; title: string }[];
 }
 
 export interface Skill extends SkillSummary {

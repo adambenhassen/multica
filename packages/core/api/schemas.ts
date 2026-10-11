@@ -3524,6 +3524,11 @@ export const SkillSummarySchema = z.object({
   // whole skill (or the list it lives in). Older backends omit it; the
   // filter treats an empty array as "no labels".
   labels: z.array(LabelSchema).catch([]),
+  // Workspace list only; older backends omit it, malformed drops to undefined.
+  projects: z
+    .array(z.object({ id: z.string(), title: z.string().default("") }))
+    .optional()
+    .catch(undefined),
 }).loose();
 
 export const EMPTY_SKILL_SUMMARY: SkillSummary = {

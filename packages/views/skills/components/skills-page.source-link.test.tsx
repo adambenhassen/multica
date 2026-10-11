@@ -230,3 +230,28 @@ describe("SkillsPage docs link", () => {
     ).toHaveAttribute("href", "https://multica.ai/docs/fr/skills");
   });
 });
+
+describe("SkillsPage project skills", () => {
+  it("lists project skills in their own group with the projects they serve", async () => {
+    mocks.skills = [
+      importedSkill,
+      {
+        ...importedSkill,
+        id: "skill-2",
+        name: "project-conventions-lampahub",
+        config: {},
+        projects: [
+          { id: "p1", title: "lampahub.com" },
+          { id: "p2", title: "teagram-server" },
+        ],
+      },
+    ];
+    renderPage(makeAdapter());
+
+    expect(await screen.findByText("Project skills")).toBeTruthy();
+    expect(screen.getByText("Other skills")).toBeTruthy();
+    expect(screen.getByText("lampahub.com, teagram-server")).toBeTruthy();
+    // A project skill is in use even with no agent assigned.
+    expect(screen.queryAllByText("— unused")).toHaveLength(1);
+  });
+});

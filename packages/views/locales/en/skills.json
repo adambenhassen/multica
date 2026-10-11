@@ -12,11 +12,11 @@
       },
       "used": {
         "label": "In use",
-        "description": "Skills assigned to at least one agent"
+        "description": "Skills assigned to at least one agent or project"
       },
       "unused": {
         "label": "Unused",
-        "description": "Skills not assigned to any agent"
+        "description": "Skills not assigned to any agent or project"
       },
       "mine": {
         "label": "Created by me",
@@ -62,7 +62,11 @@
     "source_runtime_unknown": "From a runtime",
     "source_clawhub": "From ClawHub",
     "source_skills_sh": "From Skills.sh",
-    "source_github": "From GitHub"
+    "source_github": "From GitHub",
+    "section_project": "Project skills",
+    "section_rest": "Other skills",
+    "plus_agents_one": "+{{count}} agent",
+    "plus_agents_other": "+{{count}} agents"
   },
   "actions": {
     "row_menu": "Actions",
@@ -232,7 +236,10 @@
       "permissions_locked_creator": "Only the creator ({{name}}) or a workspace admin can edit this skill.",
       "permissions_locked": "Only the creator or a workspace admin can edit this skill.",
       "properties_help": "About skill properties",
-      "character_count": "{{count}} characters"
+      "character_count": "{{count}} characters",
+      "projects_title_one": "Attached to {{count}} project",
+      "projects_title_other": "Attached to {{count}} projects",
+      "projects_hint": "Every agent working in these projects gets this skill, within each project's audience."
     },
     "files": {
       "list_aria": "Skill files",
