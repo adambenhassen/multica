@@ -187,6 +187,18 @@ describe("ApiClient schema fallback", () => {
     });
   });
 
+  describe("listAgentProjectSkills / listAgentProjectMcpServers", () => {
+    it("keeps the source projects and falls back on malformed responses", async () => {
+      stubFetchJson([{ id: "s1", workspace_id: "ws-1", name: "deploy", projects: [{ id: "p1", title: "lampahub.com" }] }]);
+      const client = new ApiClient("https://api.example.test");
+      const skills = await client.listAgentProjectSkills("agent-1");
+      expect(skills[0]?.projects).toEqual([{ id: "p1", title: "lampahub.com" }]);
+
+      stubFetchJson({ servers: "nope" });
+      expect(await client.listAgentProjectMcpServers("agent-1")).toEqual([]);
+    });
+  });
+
   describe("listProjectMcpServers", () => {
     it("falls back to an empty list when the response is malformed", async () => {
       stubFetchJson({ servers: "not-an-array" });

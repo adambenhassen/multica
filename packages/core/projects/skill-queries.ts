@@ -16,6 +16,14 @@ export function projectSkillsOptions(wsId: string, projectId: string) {
   });
 }
 
+/** Project skills that reach one agent; refreshed with any project skill change. */
+export function agentProjectSkillsOptions(wsId: string, agentId: string) {
+  return queryOptions({
+    queryKey: [...projectSkillKeys.all(wsId), "agent", agentId] as const,
+    queryFn: () => api.listAgentProjectSkills(agentId),
+  });
+}
+
 export function useAddProjectSkills(wsId: string, projectId: string) {
   const qc = useQueryClient();
   return useMutation({
