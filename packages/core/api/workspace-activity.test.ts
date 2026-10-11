@@ -45,3 +45,21 @@ describe("workspace activity API", () => {
     },
   );
 });
+
+// The issue-list buckets depend on this filter reaching the server. Without it
+// every bucket returned the same unfiltered page, so each issue appeared once
+// per bucket wherever the buckets were flattened.
+describe("listIssues category filters", () => {
+  it("sends status_category and status_categories", async () => {
+    const fetch = vi.fn().mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ issues: [], total: 0 }), { status: 200 })),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const client = new ApiClient("https://api.example.test");
+    await client.listIssues({ status_category: "done" });
+    await client.listIssues({ status_categories: ["started", "closed"] });
+    const urls = fetch.mock.calls.map(([url]) => new URL(String(url)).searchParams);
+    expect(urls[0]?.get("status_category")).toBe("done");
+    expect(urls[1]?.get("status_categories")).toBe("started,closed");
+  });
+});
