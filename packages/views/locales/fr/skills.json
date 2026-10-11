@@ -12,11 +12,11 @@
       },
       "used": {
         "label": "Utilisés",
-        "description": "Skills assignés à au moins un agent"
+        "description": "Skills assignés à au moins un agent ou projet"
       },
       "unused": {
         "label": "Inutilisés",
-        "description": "Skills assignés à aucun agent"
+        "description": "Skills assignés à aucun agent ni projet"
       },
       "mine": {
         "label": "Créés par moi",
@@ -62,7 +62,11 @@
     "source_runtime_unknown": "Depuis un runtime",
     "source_clawhub": "Depuis ClawHub",
     "source_skills_sh": "Depuis Skills.sh",
-    "source_github": "Depuis GitHub"
+    "source_github": "Depuis GitHub",
+    "section_project": "Skills de projet",
+    "section_rest": "Autres skills",
+    "plus_agents_one": "+{{count}} agent",
+    "plus_agents_other": "+{{count}} agents"
   },
   "actions": {
     "row_menu": "Actions",
@@ -232,7 +236,10 @@
       "permissions_locked_creator": "Seuls le créateur ({{name}}) ou un administrateur de l'espace de travail peuvent modifier ce skill.",
       "permissions_locked": "Seuls le créateur ou un administrateur de l'espace de travail peuvent modifier ce skill.",
       "properties_help": "À propos des propriétés du skill",
-      "character_count": "{{count}} caractères"
+      "character_count": "{{count}} caractères",
+      "projects_title_one": "Rattaché à {{count}} projet",
+      "projects_title_other": "Rattaché à {{count}} projets",
+      "projects_hint": "Chaque agent travaillant dans ces projets reçoit ce skill, selon les destinataires de chaque projet."
     },
     "files": {
       "list_aria": "Fichiers du skill",

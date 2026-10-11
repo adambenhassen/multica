@@ -39,6 +39,7 @@ import {
   memberListOptions,
   selectSkillAssignments,
   skillDetailOptions,
+  skillListOptions,
   workspaceKeys,
 } from "@multica/core/workspace/queries";
 import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
@@ -411,6 +412,30 @@ function PropertyRow({
   );
 }
 
+function SkillProjectsSection({ projects }: { projects: { id: string; title: string }[] }) {
+  const { t } = useT("skills");
+  const paths = useWorkspacePaths();
+  return (
+    <section className="mt-10">
+      <h2 className="text-title-sm font-medium">
+        {t(($) => $.detail.overview.projects_title, { count: projects.length })}
+      </h2>
+      <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.detail.overview.projects_hint)}</p>
+      <ul className="mt-3 divide-y overflow-hidden rounded-lg border bg-card">
+        {projects.map((p) => (
+          <li key={p.id} className="px-3 py-2.5">
+            <AppLink href={paths.projectDetail(p.id)} className="text-body hover:underline">
+              {p.title}
+            </AppLink>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+const NO_PROJECTS: { id: string; title: string }[] = [];
+
 function UsedByList({ agents }: { agents: Agent[] }) {
   const { t } = useT("skills");
   if (agents.length === 0) {
@@ -452,6 +477,7 @@ function OverviewTab({
   canEdit,
   creatorName,
   skillAgents,
+  skillProjects,
   onNameChange,
   onDescriptionChange,
   onAddToAgents,
@@ -462,6 +488,7 @@ function OverviewTab({
   canEdit: boolean;
   creatorName: string | null;
   skillAgents: Agent[];
+  skillProjects: { id: string; title: string }[];
   onNameChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onAddToAgents: () => void;
@@ -541,9 +568,13 @@ function OverviewTab({
             </Button>
           </div>
           <div className="mt-3">
-            <UsedByList agents={skillAgents} />
+            {skillAgents.length > 0 || skillProjects.length === 0 ? (
+              <UsedByList agents={skillAgents} />
+            ) : null}
           </div>
         </section>
+
+        {skillProjects.length > 0 && <SkillProjectsSection projects={skillProjects} />}
 
         <p className="mt-10 rounded-lg bg-muted px-3 py-2.5 text-caption leading-relaxed text-muted-foreground">
           {canEdit
@@ -935,6 +966,12 @@ export function SkillDetailPage({ skillId }: { skillId: string }) {
     () => assignments.get(skillId) ?? [],
     [assignments, skillId],
   );
+  // The detail endpoint carries no project links; the workspace list does.
+  const { data: workspaceSkills } = useQuery(skillListOptions(wsId));
+  const skillProjects = useMemo(
+    () => workspaceSkills?.find((s) => s.id === skillId)?.projects ?? NO_PROJECTS,
+    [workspaceSkills, skillId],
+  );
 
   const fileMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1323,6 +1360,7 @@ export function SkillDetailPage({ skillId }: { skillId: string }) {
             canEdit={canEdit}
             creatorName={creator?.name ?? null}
             skillAgents={skillAgents}
+            skillProjects={skillProjects}
             onNameChange={setName}
             onDescriptionChange={setDescription}
             onAddToAgents={() => setShowAddToAgents(true)}

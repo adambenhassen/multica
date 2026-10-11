@@ -27,11 +27,18 @@ vi.mock("../../layout/page-header", async (importOriginal) => ({
 
 const skillRef = vi.hoisted(() => ({ current: null as unknown }));
 const agentsRef = vi.hoisted(() => ({ current: [] as unknown[] }));
+const skillListRef = vi.hoisted(() => ({
+  current: [] as Array<{ id: string; projects?: { id: string; title: string }[] }>,
+}));
 const membersRef = vi.hoisted(() => ({ current: [] as unknown[] }));
 const canEditRef = vi.hoisted(() => ({ current: true }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("@multica/core/workspace/queries", () => ({
+  skillListOptions: (wsId: string) => ({
+    queryKey: ["skills", wsId],
+    queryFn: () => Promise.resolve(skillListRef.current),
+  }),
   skillDetailOptions: (wsId: string, id: string) => ({
     queryKey: ["skill", wsId, id],
     queryFn: () => Promise.resolve(skillRef.current),
@@ -71,7 +78,10 @@ vi.mock("@multica/core/auth", () => {
 // SkillIcon, so the real module has to stay reachable.
 vi.mock("@multica/core/paths", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/paths")>()),
-  useWorkspacePaths: () => ({ skills: () => "/acme/skills" }),
+  useWorkspacePaths: () => ({
+    skills: () => "/acme/skills",
+    projectDetail: (id: string) => `/acme/projects/${id}`,
+  }),
 }));
 vi.mock("@multica/core/permissions", () => ({
   useSkillPermissions: () => ({ canEdit: { allowed: true, reason: null } }),
@@ -164,6 +174,7 @@ async function remoteUpdate(queryClient: QueryClient, next: Partial<Skill>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  skillListRef.current = [];
   skillRef.current = baseSkill;
   agentsRef.current = [];
   membersRef.current = [{ user_id: "user-1", role: "member" }];
@@ -196,6 +207,16 @@ describe("SkillDetailPage tabs", () => {
         "aria-selected",
       ),
     ).toBe("true");
+  });
+});
+
+describe("SkillDetailPage projects", () => {
+  it("shows the projects a skill is attached to instead of 'not assigned'", async () => {
+    skillListRef.current = [{ id: "skill-1", projects: [{ id: "p1", title: "lampahub.com" }] }];
+    renderPage();
+    expect(await screen.findByRole("link", { name: "lampahub.com" })).toBeTruthy();
+    expect(screen.getByText("Attached to 1 project")).toBeTruthy();
+    expect(screen.queryByText(/Not assigned to any agent yet/)).toBeNull();
   });
 });
 

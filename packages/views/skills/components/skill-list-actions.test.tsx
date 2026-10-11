@@ -40,6 +40,7 @@ function makeRow(id: string): SkillRow {
   return {
     skill,
     agents: [],
+    projects: [],
     creator: null,
     runtime: null,
     originType: "github",

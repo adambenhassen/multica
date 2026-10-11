@@ -12,11 +12,11 @@
       },
       "used": {
         "label": "使用中",
-        "description": "至少分配给一个智能体的 skill"
+        "description": "至少分配给一个智能体或项目的 skill"
       },
       "unused": {
         "label": "未使用",
-        "description": "未分配给任何智能体的 skill"
+        "description": "未分配给任何智能体或项目的 skill"
       },
       "mine": {
         "label": "我创建的",
@@ -62,7 +62,10 @@
     "source_runtime_unknown": "来自某个运行时",
     "source_clawhub": "来自 ClawHub",
     "source_skills_sh": "来自 Skills.sh",
-    "source_github": "来自 GitHub"
+    "source_github": "来自 GitHub",
+    "section_project": "项目 skill",
+    "section_rest": "其他 skill",
+    "plus_agents_other": "+{{count}} 个智能体"
   },
   "actions": {
     "row_menu": "操作",
@@ -218,7 +221,9 @@
       "permissions_locked_creator": "只有创建者（{{name}}）或工作区管理员可以编辑该技能。",
       "permissions_locked": "只有创建者或工作区管理员可以编辑该技能。",
       "properties_help": "关于 skill 属性",
-      "character_count": "{{count}} 个字符"
+      "character_count": "{{count}} 个字符",
+      "projects_title_other": "已关联到 {{count}} 个项目",
+      "projects_hint": "在这些项目中工作的智能体会获得这个 skill，范围以各项目的接收对象为准。"
     },
     "files": {
       "list_aria": "技能文件",

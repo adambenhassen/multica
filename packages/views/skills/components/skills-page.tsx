@@ -252,8 +252,29 @@ function NameCell({ row }: { row: SkillRow }) {
   );
 }
 
-function UsedByCell({ agents }: { agents: Agent[] }) {
+type ListItem =
+  | { kind: "row"; row: SkillRow }
+  | { kind: "header"; group: "project" | "other"; count: number };
+
+function UsedByCell({
+  agents,
+  projects,
+}: {
+  agents: Agent[];
+  projects: { id: string; title: string }[];
+}) {
   const { t } = useT("skills");
+  if (projects.length > 0) {
+    const titles = projects.map((p) => p.title).join(", ");
+    return (
+      <ListGridCell className="min-w-0 gap-1.5">
+        <span className="truncate text-caption text-muted-foreground" title={titles}>
+          {titles}
+          {agents.length > 0 && ` · ${t(($) => $.table.plus_agents, { count: agents.length })}`}
+        </span>
+      </ListGridCell>
+    );
+  }
   if (agents.length === 0) {
     return (
       <ListGridCell>
@@ -671,6 +692,7 @@ export default function SkillsPage() {
       return {
         skill,
         agents: assignments.get(skill.id) ?? [],
+        projects: skill.projects ?? [],
         creator: skill.created_by
           ? membersById.get(skill.created_by) ?? null
           : null,
@@ -695,6 +717,7 @@ export default function SkillsPage() {
       if (sortField === "usedBy") {
         return (
           (a.agents.length - b.agents.length) * dir ||
+          (a.projects.length - b.projects.length) * dir ||
           a.skill.name.localeCompare(b.skill.name)
         );
       }
@@ -719,8 +742,24 @@ export default function SkillsPage() {
   // scroller (both axes) — see ListGridBody's comment for why the split
   // scroll structure was retired.
   const listScrollRef = useRef<HTMLDivElement | null>(null);
+  // Project skills are listed apart from the rest. Group headers are
+  // interleaved with rows so the virtualizer keeps fixed-height items.
+  const items = useMemo<ListItem[]>(() => {
+    const projectRows = rows.filter((r) => r.projects.length > 0);
+    if (projectRows.length === 0) return rows.map((row) => ({ kind: "row", row }));
+    const otherRows = rows.filter((r) => r.projects.length === 0);
+    return [
+      { kind: "header", group: "project", count: projectRows.length },
+      ...projectRows.map((row): ListItem => ({ kind: "row", row })),
+      ...(otherRows.length > 0
+        ? [{ kind: "header", group: "other", count: otherRows.length } as ListItem]
+        : []),
+      ...otherRows.map((row): ListItem => ({ kind: "row", row })),
+    ];
+  }, [rows]);
+
   const rowVirtualizer = useVirtualizer({
-    count: rows.length,
+    count: items.length,
     getScrollElement: () => listScrollRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 10,
@@ -860,8 +899,23 @@ export default function SkillsPage() {
                 </div>
               )}
               {virtualItems.map((vi) => {
-                const row = rows[vi.index];
-                if (!row) return null;
+                const item = items[vi.index];
+                if (!item) return null;
+                if (item.kind === "header") {
+                  return (
+                    <div
+                      key={`group-${item.group}`}
+                      className="col-span-full flex items-end gap-2 px-4 pb-1.5 text-caption font-medium text-muted-foreground"
+                      style={{ height: ROW_HEIGHT }}
+                    >
+                      {item.group === "project"
+                        ? t(($) => $.table.section_project)
+                        : t(($) => $.table.section_rest)}
+                      <span className="tabular-nums text-faint-foreground">{item.count}</span>
+                    </div>
+                  );
+                }
+                const row = item.row;
                 return (
               <ListGridRow
                 key={row.skill.id}
@@ -876,7 +930,7 @@ export default function SkillsPage() {
                 />
                 <NameCell row={row} />
                 {isColVisible("usedBy") ? (
-                  <UsedByCell agents={row.agents} />
+                  <UsedByCell agents={row.agents} projects={row.projects} />
                 ) : (
                   <ListGridCell className="px-0" />
                 )}

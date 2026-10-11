@@ -145,7 +145,7 @@ export function SkillListToolbar({
 
   // Option lists with counts, derived from the unfiltered rows so toggling
   // one dimension doesn't make the others' options vanish.
-  const usedCount = allRows.filter((r) => r.agents.length > 0).length;
+  const usedCount = allRows.filter((r) => r.agents.length > 0 || r.projects.length > 0).length;
   const unusedCount = allRows.length - usedCount;
 
   const originCounts = new Map<OriginType, number>();

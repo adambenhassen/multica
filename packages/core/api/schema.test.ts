@@ -169,6 +169,17 @@ describe("ApiClient schema fallback", () => {
       expect(res[0]).not.toHaveProperty("files");
     });
 
+    it("keeps project links and drops malformed ones", async () => {
+      stubFetchJson([
+        { ...baseSkill, projects: [{ id: "p1", title: "lampahub.com" }] },
+        { ...baseSkill, id: "skill-2", projects: "nope" },
+      ]);
+      const client = new ApiClient("https://api.example.test");
+      const res = await client.listSkills();
+      expect(res[0]?.projects).toEqual([{ id: "p1", title: "lampahub.com" }]);
+      expect(res[1]?.projects).toBeUndefined();
+    });
+
     it("keeps a well-formed labels array", async () => {
       stubFetchJson([{ ...baseSkill, labels: [skillLabel] }]);
       const client = new ApiClient("https://api.example.test");
