@@ -1,5 +1,5 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api";
+import { api, ApiError } from "../api";
 import { projectKeys } from "./queries";
 
 export const projectSkillKeys = {
@@ -28,7 +28,13 @@ export function useAddProjectSkills(wsId: string, projectId: string) {
 export function useRemoveProjectSkill(wsId: string, projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (skillId: string) => api.removeProjectSkill(projectId, skillId),
+    // Removal is idempotent: a skill another tab or member already detached
+    // is the outcome the caller asked for, not an error.
+    mutationFn: (skillId: string) =>
+      api.removeProjectSkill(projectId, skillId).catch((err: unknown) => {
+        if (err instanceof ApiError && err.status === 404) return;
+        throw err;
+      }),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: projectSkillKeys.list(wsId, projectId) });
     },
