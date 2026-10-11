@@ -46,7 +46,11 @@ RETURNING *;
 
 -- name: DeleteSkill :exec
 -- Defense-in-depth: workspace_id is a SQL-layer tenant guard. See DeleteIssue.
-DELETE FROM skill WHERE id = $1 AND workspace_id = $2;
+-- project_skill has no foreign key, so its links go in the same statement.
+WITH deleted_project_skills AS (
+    DELETE FROM project_skill WHERE project_skill.skill_id = $1 AND project_skill.workspace_id = $2
+)
+DELETE FROM skill WHERE skill.id = $1 AND skill.workspace_id = $2;
 
 -- Skill File CRUD
 

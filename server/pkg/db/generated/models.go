@@ -1347,6 +1347,14 @@ type ProjectResource struct {
 	CreatedBy    pgtype.UUID        `json:"created_by"`
 }
 
+type ProjectSkill struct {
+	ProjectID   pgtype.UUID        `json:"project_id"`
+	SkillID     pgtype.UUID        `json:"skill_id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type QuickAction struct {
 	ID            pgtype.UUID        `json:"id"`
 	WorkspaceID   pgtype.UUID        `json:"workspace_id"`

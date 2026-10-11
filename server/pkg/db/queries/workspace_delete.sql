@@ -622,6 +622,9 @@ DELETE FROM vcs_connection WHERE vcs_connection.workspace_id = $1;
 -- name: DeleteWorkspaceSquadsAndSkills :exec
 WITH deleted_squads AS (
     DELETE FROM squad WHERE squad.workspace_id = $1
+),
+deleted_project_skills AS (
+    DELETE FROM project_skill WHERE project_skill.workspace_id = $1
 )
 DELETE FROM skill WHERE skill.workspace_id = $1;
 
