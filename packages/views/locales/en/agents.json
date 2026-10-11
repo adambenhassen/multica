@@ -622,7 +622,9 @@
       "save_failed_toast": "Failed to save MCP config",
       "redacted_title": "Configured — hidden from your view",
       "redacted_hint": "Only the agent owner or a workspace admin can read this config.",
-      "dialog_json_help": "Edit the full server configuration as JSON."
+      "dialog_json_help": "Edit the full server configuration as JSON.",
+      "from_projects_title": "From projects",
+      "from_projects_hint": "This agent gets these servers in tasks of the listed projects. Manage them on each project's page."
     },
     "composio_mcp": {
       "subtitle": "Check a toolkit to let this agent mount it as an MCP server — but only when you (its creator) are the one who triggered the run, directly or down a sub-agent chain.",
@@ -699,7 +701,9 @@
       "add_dialog_confirm_one": "Add {{count}} skill",
       "add_dialog_confirm_other": "Add {{count}} skills",
       "add_dialog_cancel": "Cancel",
-      "add_failed_toast": "Failed to add skill"
+      "add_failed_toast": "Failed to add skill",
+      "from_projects_title": "From projects",
+      "from_projects_hint": "This agent gets these skills in tasks of the listed projects. Manage them on each project's page."
     },
     "integrations": {
       "members_note": "Only workspace owners and admins can manage this connection. You can view connected bots in Settings → Integrations."
@@ -985,5 +989,10 @@
     "selected_one": "{{count}} selected",
     "selected_other": "{{count}} selected",
     "clear_selection": "Clear selection"
+  },
+  "project_source": {
+    "also_via_project": "Also via {{project}}",
+    "also_via_many_one": "Also via {{count}} project",
+    "also_via_many_other": "Also via {{count}} projects"
   }
 }

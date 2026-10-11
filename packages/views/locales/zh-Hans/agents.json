@@ -610,7 +610,9 @@
       "save_failed_toast": "无法保存 MCP 配置",
       "redacted_title": "已配置，但当前不可见",
       "redacted_hint": "只有智能体 owner 或工作区 admin 可以查看此配置。",
-      "dialog_json_help": "以 JSON 编辑完整的服务器配置。"
+      "dialog_json_help": "以 JSON 编辑完整的服务器配置。",
+      "from_projects_title": "来自项目",
+      "from_projects_hint": "该智能体在所列项目的任务中会获得这些 Server。请在各项目页面管理。"
     },
     "composio_mcp": {
       "subtitle": "勾选 toolkit，只在你自己（这个智能体的创建者）直接或通过下级智能体链路触发这个智能体时，才把它挂载为 MCP server。",
@@ -686,7 +688,9 @@
       "add_dialog_confirm_default": "添加",
       "add_dialog_confirm_other": "添加 {{count}} 个 skill",
       "add_dialog_cancel": "取消",
-      "add_failed_toast": "添加 skill 失败"
+      "add_failed_toast": "添加 skill 失败",
+      "from_projects_title": "来自项目",
+      "from_projects_hint": "该智能体在所列项目的任务中会获得这些 skill。请在各项目页面管理。"
     },
     "integrations": {
       "members_note": "只有工作区的所有者和管理员可以管理此连接。你可以在\"设置 → 集成\"中查看已连接的 Bot。"
@@ -963,5 +967,9 @@
   "actions": {
     "selected_other": "已选 {{count}} 项",
     "clear_selection": "清除选择"
+  },
+  "project_source": {
+    "also_via_project": "也来自 {{project}}",
+    "also_via_many_other": "也来自 {{count}} 个项目"
   }
 }

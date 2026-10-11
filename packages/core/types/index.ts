@@ -211,6 +211,9 @@ export type {
   ProjectSkill,
   ProjectMcpServer,
   SetProjectAttachmentAudienceRequest,
+  ProjectRef,
+  AgentProjectSkill,
+  AgentProjectMcpServer,
 } from "./project";
 export type { PinnedItem, PinnedItemType, CreatePinRequest, ReorderPinsRequest } from "./pin";
 export type {

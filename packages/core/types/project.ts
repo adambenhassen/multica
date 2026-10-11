@@ -168,3 +168,19 @@ export interface ProjectMcpServer extends WorkspaceMcpServer {
 }
 
 export type SetProjectAttachmentAudienceRequest = ProjectAttachmentAudience;
+
+/** A project an agent receives an item from. */
+export interface ProjectRef {
+  id: string;
+  title: string;
+}
+
+/** A project skill that reaches an agent, with the projects it comes from. */
+export interface AgentProjectSkill extends SkillSummary {
+  projects: ProjectRef[];
+}
+
+/** A project MCP server that reaches an agent, with the projects it comes from. */
+export interface AgentProjectMcpServer extends WorkspaceMcpServer {
+  projects: ProjectRef[];
+}

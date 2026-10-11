@@ -17,6 +17,14 @@ export function projectMcpServersOptions(wsId: string, projectId: string) {
   });
 }
 
+/** Project MCP servers that reach one agent; refreshed with any project MCP change. */
+export function agentProjectMcpServersOptions(wsId: string, agentId: string) {
+  return queryOptions({
+    queryKey: [...projectMcpServerKeys.all(wsId), "agent", agentId] as const,
+    queryFn: () => api.listAgentProjectMcpServers(agentId),
+  });
+}
+
 export function useAddProjectMcpServers(wsId: string, projectId: string) {
   const qc = useQueryClient();
   return useMutation({
