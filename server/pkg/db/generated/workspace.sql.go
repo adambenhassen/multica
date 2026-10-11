@@ -153,6 +153,10 @@ cleared_agent_mcp_bindings AS (
     WHERE server_id IN (SELECT id FROM ws_mcp_servers)
        OR agent_id IN (SELECT id FROM ws_agents)
 ),
+cleared_project_mcp_bindings AS (
+    -- project_mcp_server carries no FK either; every row is workspace-scoped.
+    DELETE FROM project_mcp_server WHERE workspace_id = $1
+),
 cleared_workspace_mcp_servers AS (
     DELETE FROM workspace_mcp_server WHERE workspace_id = $1
 ),

@@ -2137,6 +2137,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/skills", h.ListProjectSkills)
 					r.Post("/skills", h.AddProjectSkills)
 					r.Delete("/skills/{skillId}", h.RemoveProjectSkill)
+					r.Get("/mcp-servers", h.ListProjectMcpServers)
+					r.Post("/mcp-servers", h.AddProjectMcpServers)
+					r.Delete("/mcp-servers/{serverId}", h.RemoveProjectMcpServer)
 				})
 			})
 
