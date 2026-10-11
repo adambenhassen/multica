@@ -1245,6 +1245,17 @@ func (q *Queries) LockPluginPackageKey(ctx context.Context, dollar_1 string) err
 	return err
 }
 
+const lockPluginSkillsForDelete = `-- name: LockPluginSkillsForDelete :exec
+SELECT id FROM skill WHERE plugin_installation_id = $1 FOR UPDATE
+`
+
+// Taken before deleting or pruning an installation's skills, for the same
+// reason as LockSkillForDelete.
+func (q *Queries) LockPluginSkillsForDelete(ctx context.Context, pluginInstallationID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, lockPluginSkillsForDelete, pluginInstallationID)
+	return err
+}
+
 const reactivatePluginHookSchedule = `-- name: ReactivatePluginHookSchedule :one
 UPDATE plugin_hook_schedule
 SET enabled = TRUE,

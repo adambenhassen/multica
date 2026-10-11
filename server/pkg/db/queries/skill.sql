@@ -44,6 +44,12 @@ UPDATE skill SET
 WHERE id = $1
 RETURNING *;
 
+-- name: LockSkillForDelete :exec
+-- Taken before DeleteSkill in the same transaction. It waits out an in-flight
+-- project skill attach (which holds FOR SHARE), so DeleteSkill's project_skill
+-- cleanup runs with a snapshot that includes the attached row.
+SELECT id FROM skill WHERE id = $1 AND workspace_id = $2 FOR UPDATE;
+
 -- name: DeleteSkill :exec
 -- Defense-in-depth: workspace_id is a SQL-layer tenant guard. See DeleteIssue.
 -- project_skill has no foreign key, so its links go in the same statement.

@@ -730,6 +730,15 @@ func (h *Handler) DeleteSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 	qtx := h.Queries.WithTx(tx)
+	// Lock first so a concurrent project skill attach either commits before the
+	// delete's link cleanup runs or sees the skill gone.
+	if err := qtx.LockSkillForDelete(r.Context(), db.LockSkillForDeleteParams{
+		ID:          skill.ID,
+		WorkspaceID: skill.WorkspaceID,
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete skill")
+		return
+	}
 	if err := qtx.DeleteSkillLabelAssignmentsBySkill(r.Context(), skill.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to remove skill label assignments")
 		return
