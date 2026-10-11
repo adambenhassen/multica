@@ -97,7 +97,8 @@ multica project skill add <project-id> --skill-ids <skill-id>
 
 - Project skills are added to the running agent's own skills; a skill attached to both is delivered once.
 - They apply to every run tied to the project: its issues, chats and autopilots set to it, and quick-create tasks that pick it.
-- Any workspace member can attach or remove project skills.
+- If an agent has the skill attached but disabled, the project does not turn it back on for that agent.
+- Only workspace `owner`s and `admin`s can attach or remove project skills, because they reach every agent in the project. Agents cannot change project skills, even when they run for an admin.
 - Edits take effect from subsequent runs.
 
 ## Workspace skills and repository skills
