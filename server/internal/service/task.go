@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -6857,7 +6858,18 @@ func (s *TaskService) publishAgentStatus(agent db.Agent) {
 	})
 }
 
-// LoadAgentSkills loads an agent's skills with their files for task execution.
+// SkillProjectScope names the project whose attached skills a task receives in
+// addition to its agent's own. The zero value means the task has no project.
+// WorkspaceID scopes the project_skill read so a corrupt project reference
+// cannot lift another tenant's skill into a run.
+type SkillProjectScope struct {
+	ProjectID   pgtype.UUID
+	WorkspaceID pgtype.UUID
+}
+
+// LoadAgentSkills loads the skills a task runs with: the agent's enabled
+// skills plus the skills attached to the task's project, deduplicated by skill
+// id and ordered by name, with their files.
 //
 // A read failure is REPORTED, never swallowed into a shorter skill set. Both
 // reads are all-or-nothing for the agent's entire skill set — the file load
@@ -6868,15 +6880,46 @@ func (s *TaskService) publishAgentStatus(agent db.Agent) {
 // whatever did load, so the daemon's own validation passes and the agent
 // starts on rules it is missing. Callers must settle the failure (preserve the
 // claim for redelivery, or 5xx the resolve) instead of dispatching that.
-func (s *TaskService) LoadAgentSkills(ctx context.Context, agentID pgtype.UUID) ([]AgentSkillData, error) {
+func (s *TaskService) LoadAgentSkills(ctx context.Context, agentID pgtype.UUID, project SkillProjectScope) ([]AgentSkillData, error) {
 	skills, err := s.Queries.ListAgentSkills(ctx, agentID)
 	if err != nil {
 		return nil, fmt.Errorf("list agent skills: %w", err)
+	}
+	if project.ProjectID.Valid {
+		projectSkills, err := s.Queries.ListProjectSkillsInWorkspace(ctx, db.ListProjectSkillsInWorkspaceParams{
+			ProjectID:   project.ProjectID,
+			WorkspaceID: project.WorkspaceID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list project skills: %w", err)
+		}
+		skills = mergeTaskSkills(skills, projectSkills)
 	}
 	if len(skills) == 0 {
 		return nil, nil
 	}
 	return s.skillsWithFiles(ctx, skills)
+}
+
+// mergeTaskSkills unions agent and project skills. A skill attached to both is
+// delivered once; the result is ordered by name like each input.
+func mergeTaskSkills(agentSkills, projectSkills []db.Skill) []db.Skill {
+	if len(projectSkills) == 0 {
+		return agentSkills
+	}
+	merged := make([]db.Skill, 0, len(agentSkills)+len(projectSkills))
+	seen := make(map[[16]byte]struct{}, len(agentSkills)+len(projectSkills))
+	for _, list := range [][]db.Skill{agentSkills, projectSkills} {
+		for _, sk := range list {
+			if _, ok := seen[sk.ID.Bytes]; ok {
+				continue
+			}
+			seen[sk.ID.Bytes] = struct{}{}
+			merged = append(merged, sk)
+		}
+	}
+	sort.SliceStable(merged, func(i, j int) bool { return merged[i].Name < merged[j].Name })
+	return merged
 }
 
 // skillsWithFiles loads the files of every given skill in ONE round trip
@@ -6914,13 +6957,13 @@ func (s *TaskService) skillsWithFiles(ctx context.Context, skills []db.Skill) ([
 	return result, nil
 }
 
-// LoadAgentSkillBundles returns every skill visible to an agent, including
-// built-ins, with stable bundle hashes and lightweight refs for slim claims.
+// LoadAgentSkillBundles returns every skill visible to a task — the agent's,
+// its project's, and built-ins — with stable bundle hashes and lightweight refs for slim claims.
 // It fails closed on a workspace-skill read error for the reason in
 // LoadAgentSkills: a bundle set built from a partial read is indistinguishable
 // from a correct one.
-func (s *TaskService) LoadAgentSkillBundles(ctx context.Context, agentID pgtype.UUID, agentSystemKey string) ([]AgentSkillData, []AgentSkillRefData, error) {
-	skills, err := s.LoadAgentSkills(ctx, agentID)
+func (s *TaskService) LoadAgentSkillBundles(ctx context.Context, agentID pgtype.UUID, project SkillProjectScope, agentSystemKey string) ([]AgentSkillData, []AgentSkillRefData, error) {
+	skills, err := s.LoadAgentSkills(ctx, agentID, project)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -6948,8 +6991,8 @@ type AgentSkillBundleRef struct {
 
 // LoadRequestedAgentSkillBundles returns bundles for EXACTLY the refs given,
 // keyed by AgentSkillBundleKey. A ref the agent cannot see is simply absent
-// from the map — the junction predicate in ListAgentSkillsByIDs is the
-// authorization, so "no row" and "not allowed" are the same answer and the
+// from the map — the junction predicates in ListAgentSkillsByIDs and
+// ListProjectSkillsByIDs are the authorization, so "no row" and "not allowed" are the same answer and the
 // caller reports both as not-found.
 //
 // This exists because the daemon resolves one skill per request (GH #4505, so
@@ -6958,7 +7001,7 @@ type AgentSkillBundleRef struct {
 // whole agent on every request: N requests, each reading and hashing all N
 // skills to return one. Loading only what was asked for makes that linear,
 // which is why the resolve path must not reuse LoadAgentSkillBundles.
-func (s *TaskService) LoadRequestedAgentSkillBundles(ctx context.Context, agentID pgtype.UUID, refs []AgentSkillBundleRef) (map[string]AgentSkillData, error) {
+func (s *TaskService) LoadRequestedAgentSkillBundles(ctx context.Context, agentID pgtype.UUID, project SkillProjectScope, refs []AgentSkillBundleRef) (map[string]AgentSkillData, error) {
 	requestedIDs := make([]pgtype.UUID, 0, len(refs))
 	seenWorkspace := make(map[string]struct{}, len(refs))
 	wantBuiltin := make(map[string]struct{}, len(refs))
@@ -6992,6 +7035,17 @@ func (s *TaskService) LoadRequestedAgentSkillBundles(ctx context.Context, agentI
 		})
 		if err != nil {
 			return nil, fmt.Errorf("list agent skills by ids: %w", err)
+		}
+		if project.ProjectID.Valid {
+			projectSkills, err := s.Queries.ListProjectSkillsByIDs(ctx, db.ListProjectSkillsByIDsParams{
+				ProjectID:   project.ProjectID,
+				WorkspaceID: project.WorkspaceID,
+				SkillIds:    requestedIDs,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("list project skills by ids: %w", err)
+			}
+			skills = mergeTaskSkills(skills, projectSkills)
 		}
 		if len(skills) > 0 {
 			// Same fail-closed rule as LoadAgentSkills: a failed file read
@@ -7409,6 +7463,61 @@ func (s *TaskService) ResolveTaskWorkspaceIDChecked(ctx context.Context, task db
 		return "", fmt.Errorf("resolve task workspace: %w", lookupErr)
 	}
 	return "", nil
+}
+
+// ResolveTaskProjectID returns the project a task runs in, for the skill
+// bundle resolve path, which must authorize the same project skills the claim
+// delivered. Precedence mirrors buildClaimedTaskResponse, where each context
+// branch overwrites the previous one's project: autopilot, then chat, then
+// issue, then quick-create.
+//
+// A link that resolves to no row means no project (the claim degrades the same
+// way). A lookup that could not complete is an error so the caller can 5xx
+// instead of resolving with a smaller skill set.
+func (s *TaskService) ResolveTaskProjectID(ctx context.Context, task db.AgentTaskQueue) (pgtype.UUID, error) {
+	switch {
+	case task.AutopilotRunID.Valid:
+		run, err := s.Queries.GetAutopilotRun(ctx, task.AutopilotRunID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.UUID{}, nil
+		}
+		if err != nil {
+			return pgtype.UUID{}, fmt.Errorf("get autopilot run: %w", err)
+		}
+		ap, err := s.Queries.GetAutopilot(ctx, run.AutopilotID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.UUID{}, nil
+		}
+		if err != nil {
+			return pgtype.UUID{}, fmt.Errorf("get autopilot: %w", err)
+		}
+		return ap.ProjectID, nil
+	case task.ChatSessionID.Valid:
+		cs, err := s.Queries.GetChatSession(ctx, task.ChatSessionID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.UUID{}, nil
+		}
+		if err != nil {
+			return pgtype.UUID{}, fmt.Errorf("get chat session: %w", err)
+		}
+		return cs.ProjectID, nil
+	case task.IssueID.Valid:
+		issue, err := s.Queries.GetIssue(ctx, task.IssueID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.UUID{}, nil
+		}
+		if err != nil {
+			return pgtype.UUID{}, fmt.Errorf("get issue: %w", err)
+		}
+		return issue.ProjectID, nil
+	}
+	if qc, ok := s.parseQuickCreateContext(task); ok && qc.ProjectID != "" {
+		// An unparseable id is no project, as on the claim path.
+		if id, err := util.ParseUUID(qc.ProjectID); err == nil {
+			return id, nil
+		}
+	}
+	return pgtype.UUID{}, nil
 }
 
 func (s *TaskService) broadcastChatDone(ctx context.Context, task db.AgentTaskQueue, msg *db.ChatMessage, quickActionsPending bool) {

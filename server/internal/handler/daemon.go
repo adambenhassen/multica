@@ -2546,24 +2546,6 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	if agent.SystemKey.String == service.MikaSystemKey {
 		resp.Agent.Instructions = service.ComposeMikaInstructions(agent.Name, agent.Instructions)
 	}
-	if useSkillRefs {
-		_, skillRefs, err := h.TaskService.LoadAgentSkillBundles(r.Context(), task.AgentID, agent.SystemKey.String)
-		if err != nil {
-			return resp, deliveredCommentIDs, issueSnapshot, agentSkillCount, builtinSkillCount, h.rejectClaimSkillLoad(task, err)
-		}
-		agentSkillCount = len(skillRefs)
-		resp.Agent.SkillRefs = skillRefs
-	} else {
-		skills, err := h.TaskService.LoadAgentSkills(r.Context(), task.AgentID)
-		if err != nil {
-			return resp, deliveredCommentIDs, issueSnapshot, agentSkillCount, builtinSkillCount, h.rejectClaimSkillLoad(task, err)
-		}
-		agentSkillCount = len(skills)
-		builtinSkills := h.TaskService.BuiltinSkills(agent.SystemKey.String)
-		builtinSkillCount = len(builtinSkills)
-		skills = append(skills, builtinSkills...)
-		resp.Agent.Skills = skills
-	}
 	if !claimResponseAgentIdentityMatches(resp) {
 		responseAgentID := ""
 		if resp.Agent != nil {
@@ -3519,6 +3501,35 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		return resp, deliveredCommentIDs, issueSnapshot, agentSkillCount, builtinSkillCount, failure
 	}
 
+	// Skills load after the context branches because a task's project — set
+	// on resp only when it resolved inside the task's workspace — contributes
+	// its attached skills alongside the agent's own.
+	skillProject := service.SkillProjectScope{}
+	if resp.ProjectID != "" {
+		skillProject = service.SkillProjectScope{
+			ProjectID:   parseUUID(resp.ProjectID),
+			WorkspaceID: parseUUID(resp.WorkspaceID),
+		}
+	}
+	if useSkillRefs {
+		_, skillRefs, err := h.TaskService.LoadAgentSkillBundles(r.Context(), task.AgentID, skillProject, agent.SystemKey.String)
+		if err != nil {
+			return resp, deliveredCommentIDs, issueSnapshot, agentSkillCount, builtinSkillCount, h.rejectClaimSkillLoad(task, err)
+		}
+		agentSkillCount = len(skillRefs)
+		resp.Agent.SkillRefs = skillRefs
+	} else {
+		skills, err := h.TaskService.LoadAgentSkills(r.Context(), task.AgentID, skillProject)
+		if err != nil {
+			return resp, deliveredCommentIDs, issueSnapshot, agentSkillCount, builtinSkillCount, h.rejectClaimSkillLoad(task, err)
+		}
+		agentSkillCount = len(skills)
+		builtinSkills := h.TaskService.BuiltinSkills(agent.SystemKey.String)
+		builtinSkillCount = len(builtinSkills)
+		skills = append(skills, builtinSkills...)
+		resp.Agent.Skills = skills
+	}
+
 	// Workspace-level Context (workspace.context DB column) — the per-workspace
 	// system prompt that workspace owners set in Settings → General. Inject it
 	// into the brief regardless of task kind (issue / chat / autopilot /
@@ -3952,11 +3963,25 @@ func (h *Handler) ResolveTaskSkillBundles(w http.ResponseWriter, r *http.Request
 		wanted = append(wanted, service.AgentSkillBundleRef{ID: ref.ID, Source: ref.Source})
 	}
 
+	// Project skills the claim delivered must resolve too, so the task's
+	// project is re-derived the same way the claim derived it.
+	projectID, err := h.TaskService.ResolveTaskProjectID(r.Context(), task)
+	if err != nil {
+		slog.Error("resolve skill bundles: resolve task project failed",
+			"task_id", uuidToString(task.ID), "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to load skill bundles")
+		return
+	}
+	skillProject := service.SkillProjectScope{}
+	if projectID.Valid {
+		skillProject = service.SkillProjectScope{ProjectID: projectID, WorkspaceID: runtime.WorkspaceID}
+	}
+
 	// Load ONLY what was asked for. The daemon resolves one skill per request,
 	// so serving these out of the agent's full bundle set meant reading and
 	// hashing every skill the agent has, once per request, to return one of
 	// them — quadratic in skill count across a cold dispatch.
-	allowed, err := h.TaskService.LoadRequestedAgentSkillBundles(r.Context(), task.AgentID, wanted)
+	allowed, err := h.TaskService.LoadRequestedAgentSkillBundles(r.Context(), task.AgentID, skillProject, wanted)
 	if err != nil {
 		// 5xx, not a partial answer: the daemon's resolve retry can recover a
 		// transient read, and a bundle assembled from a failed read would pass
