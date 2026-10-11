@@ -139,6 +139,9 @@ export {
 export type {
   TimelineEntry,
   AssigneeFrequencyEntry,
+  WorkspaceActivityIssueRef,
+  WorkspaceActivityEntry,
+  WorkspaceActivityResponse,
 } from "./activity";
 export type { IssueSubscriber } from "./subscriber";
 export type * from "./events";
