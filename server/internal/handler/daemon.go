@@ -4038,17 +4038,24 @@ func (h *Handler) ResolveTaskSkillBundles(w http.ResponseWriter, r *http.Request
 	}
 
 	// Project skills the claim delivered must resolve too, so the task's
-	// project is re-derived the same way the claim derived it.
-	projectID, err := h.TaskService.ResolveTaskProjectID(r.Context(), task)
-	if err != nil {
-		slog.Error("resolve skill bundles: resolve task project failed",
-			"task_id", uuidToString(task.ID), "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to load skill bundles")
-		return
-	}
+	// project is re-derived the same way the claim derived it. Only workspace
+	// refs can be project skills; a builtin-only request skips the lookup.
 	skillProject := service.SkillProjectScope{}
-	if projectID.Valid {
-		skillProject = service.SkillProjectScope{ProjectID: projectID, WorkspaceID: runtime.WorkspaceID}
+	for _, ref := range wanted {
+		if ref.Source != skillbundle.SourceWorkspace {
+			continue
+		}
+		projectID, err := h.TaskService.ResolveTaskProjectID(r.Context(), task)
+		if err != nil {
+			slog.Error("resolve skill bundles: resolve task project failed",
+				"task_id", uuidToString(task.ID), "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to load skill bundles")
+			return
+		}
+		if projectID.Valid {
+			skillProject = service.SkillProjectScope{ProjectID: projectID, WorkspaceID: runtime.WorkspaceID}
+		}
+		break
 	}
 
 	// Load ONLY what was asked for. The daemon resolves one skill per request,
