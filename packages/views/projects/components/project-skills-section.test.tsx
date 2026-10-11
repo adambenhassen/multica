@@ -36,7 +36,7 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@multica/core/projects", () => ({
   projectSkillsOptions: () => ({ queryKey: ["project-skills"], queryFn: vi.fn() }),
   useAddProjectSkills: () => ({ mutateAsync: addMock, isPending: false }),
-  useRemoveProjectSkill: () => ({ mutateAsync: removeMock, isPending: false }),
+  useRemoveProjectSkill: () => ({ mutateAsync: removeMock, isPending: false, variables: undefined }),
 }));
 vi.mock("@multica/core/workspace/queries", () => ({
   skillListOptions: () => ({ queryKey: ["workspace-skills"], queryFn: vi.fn() }),
@@ -53,7 +53,7 @@ describe("ProjectSkillsSection", () => {
   });
 
   it("lists attached skills and removes one", async () => {
-    renderWithI18n(<ProjectSkillsSection projectId="p1" />);
+    renderWithI18n(<ProjectSkillsSection projectId="p1" canManage />);
     expect(screen.getByText("deploy-checklist")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Remove deploy-checklist" }));
@@ -61,7 +61,7 @@ describe("ProjectSkillsSection", () => {
   });
 
   it("offers only unattached skills and adds the selection", async () => {
-    renderWithI18n(<ProjectSkillsSection projectId="p1" />);
+    renderWithI18n(<ProjectSkillsSection projectId="p1" canManage />);
 
     fireEvent.click(screen.getByRole("button", { name: /add skill/i }));
     expect(screen.queryByRole("button", { name: /deploy-checklist/ , pressed: false })).toBeNull();
@@ -69,5 +69,12 @@ describe("ProjectSkillsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add 1 skill" }));
 
     await waitFor(() => expect(addMock).toHaveBeenCalledWith(["skill-2"]));
+  });
+
+  it("hides attach and detach controls from members who cannot manage them", () => {
+    renderWithI18n(<ProjectSkillsSection projectId="p1" canManage={false} />);
+    expect(screen.getByText("deploy-checklist")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /add skill/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove deploy-checklist" })).toBeNull();
   });
 });

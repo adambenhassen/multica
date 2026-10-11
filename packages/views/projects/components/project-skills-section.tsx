@@ -26,7 +26,14 @@ import { SkillPickerList } from "../../agents/components/skill-picker-list";
 import { SkillIcon } from "../../skills/lib/skill-icon";
 import { useT } from "../../i18n";
 
-export function ProjectSkillsSection({ projectId }: { projectId: string }) {
+export function ProjectSkillsSection({
+  projectId,
+  canManage,
+}: {
+  projectId: string;
+  /** Workspace owners and admins attach and detach project skills. */
+  canManage: boolean;
+}) {
   const { t } = useT("projects");
   const wsId = useWorkspaceId();
   const [open, setOpen] = useState(true);
@@ -67,20 +74,22 @@ export function ProjectSkillsSection({ projectId }: { projectId: string }) {
                 >
                   <SkillIcon className="size-3.5 shrink-0" />
                   <span className="min-w-0 flex-1 truncate text-foreground">{skill.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(skill)}
-                    disabled={removeSkill.isPending}
-                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity rounded-sm p-0.5 hover:bg-accent"
-                    aria-label={t(($) => $.skills.remove_aria, { name: skill.name })}
-                  >
-                    <Trash2 className="size-3" />
-                  </button>
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(skill)}
+                      disabled={removeSkill.isPending && removeSkill.variables === skill.id}
+                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity rounded-sm p-0.5 hover:bg-accent"
+                      aria-label={t(($) => $.skills.remove_aria, { name: skill.name })}
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
           )}
-          <ProjectSkillAddDialog projectId={projectId} attached={skills} />
+          {canManage && <ProjectSkillAddDialog projectId={projectId} attached={skills} />}
           <p className="text-caption text-muted-foreground">{t(($) => $.skills.hint)}</p>
         </div>
       )}
