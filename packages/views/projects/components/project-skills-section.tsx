@@ -130,17 +130,21 @@ function ProjectSkillAddDialog({
     });
   };
 
+  // A skill attached elsewhere while the dialog is open leaves the list; it
+  // must not stay counted or be sent.
+  const toAdd = availableSkills.filter((s) => selectedIds.has(s.id)).map((s) => s.id);
+
   const handleConfirm = async () => {
-    if (selectedIds.size === 0) return;
+    if (toAdd.length === 0) return;
     try {
-      await addSkills.mutateAsync([...selectedIds]);
+      await addSkills.mutateAsync(toAdd);
       handleOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t(($) => $.skills.add_failed_toast));
     }
   };
 
-  const count = selectedIds.size;
+  const count = toAdd.length;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
