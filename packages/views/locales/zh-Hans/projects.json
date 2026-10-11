@@ -154,7 +154,7 @@
   "skills": {
     "section_header": "Skills",
     "empty": "还没有关联 skill。",
-    "hint": "该项目下的每次运行，智能体都会在自身 skill 之外获得这些 skill。",
+    "hint": "该项目下的每次运行，这些 skill 会叠加到各智能体自身的 skill 上；智能体已停用的 skill 除外。",
     "add_button": "添加 skill",
     "add_dialog_title": "为项目添加 skill",
     "add_dialog_cancel": "取消",
