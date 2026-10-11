@@ -117,6 +117,32 @@ var projectSkillRemoveCmd = &cobra.Command{
 	RunE:  runProjectSkillRemove,
 }
 
+var projectMcpCmd = &cobra.Command{
+	Use:   "mcp",
+	Short: "Manage workspace MCP servers attached to a project (every task in the project gets them)",
+}
+
+var projectMcpListCmd = &cobra.Command{
+	Use:   "list <project-id>",
+	Short: "List MCP servers attached to a project",
+	Args:  exactArgs(1),
+	RunE:  runProjectMcpList,
+}
+
+var projectMcpAddCmd = &cobra.Command{
+	Use:   "add <project-id>",
+	Short: "Attach workspace MCP servers to a project",
+	Args:  exactArgs(1),
+	RunE:  runProjectMcpAdd,
+}
+
+var projectMcpRemoveCmd = &cobra.Command{
+	Use:   "remove <project-id> <server-id>",
+	Short: "Detach an MCP server from a project",
+	Args:  exactArgs(2),
+	RunE:  runProjectMcpRemove,
+}
+
 var validProjectStatuses = []string{
 	"planned", "in_progress", "paused", "completed", "cancelled",
 }
@@ -150,6 +176,10 @@ func init() {
 	projectSkillCmd.AddCommand(projectSkillListCmd)
 	projectSkillCmd.AddCommand(projectSkillAddCmd)
 	projectSkillCmd.AddCommand(projectSkillRemoveCmd)
+	projectCmd.AddCommand(projectMcpCmd)
+	projectMcpCmd.AddCommand(projectMcpListCmd)
+	projectMcpCmd.AddCommand(projectMcpAddCmd)
+	projectMcpCmd.AddCommand(projectMcpRemoveCmd)
 
 	// project list
 	projectListCmd.Flags().String("output", "table", "Output format: table or json")
@@ -210,6 +240,11 @@ func init() {
 	projectSkillListCmd.Flags().String("output", "table", "Output format: table or json")
 	projectSkillAddCmd.Flags().StringSlice("skill-ids", nil, "Comma-separated skill IDs to attach")
 	projectSkillAddCmd.Flags().String("output", "table", "Output format: table or json")
+
+	// project mcp list / add / remove
+	projectMcpListCmd.Flags().String("output", "table", "Output format: table or json")
+	projectMcpAddCmd.Flags().StringSlice("server-ids", nil, "Comma-separated workspace MCP server IDs to attach")
+	projectMcpAddCmd.Flags().String("output", "table", "Output format: table or json")
 
 	// project update
 	projectUpdateCmd.Flags().String("title", "", "New title")
@@ -1069,6 +1104,106 @@ func printProjectSkills(cmd *cobra.Command, skills []map[string]any) error {
 			strVal(s, "id"),
 			strVal(s, "name"),
 			strVal(s, "description"),
+		})
+	}
+	cli.PrintTable(os.Stdout, headers, rows)
+	return nil
+}
+
+func runProjectMcpList(cmd *cobra.Command, args []string) error {
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+
+	projectRef, err := resolveProjectID(ctx, client, args[0])
+	if err != nil {
+		return fmt.Errorf("resolve project: %w", err)
+	}
+
+	var servers []map[string]any
+	if err := client.GetJSON(ctx, "/api/projects/"+projectRef.ID+"/mcp-servers", &servers); err != nil {
+		return fmt.Errorf("list project mcp servers: %w", err)
+	}
+	return printProjectMcpServers(cmd, servers)
+}
+
+func runProjectMcpAdd(cmd *cobra.Command, args []string) error {
+	rawIDs, _ := cmd.Flags().GetStringSlice("server-ids")
+	serverIDs := make([]string, 0, len(rawIDs))
+	for _, id := range rawIDs {
+		if id = strings.TrimSpace(id); id != "" {
+			serverIDs = append(serverIDs, id)
+		}
+	}
+	if len(serverIDs) == 0 {
+		return fmt.Errorf("--server-ids must include at least one MCP server ID")
+	}
+
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+
+	projectRef, err := resolveProjectID(ctx, client, args[0])
+	if err != nil {
+		return fmt.Errorf("resolve project: %w", err)
+	}
+
+	var servers []map[string]any
+	body := map[string]any{"server_ids": serverIDs}
+	if err := client.PostJSON(ctx, "/api/projects/"+projectRef.ID+"/mcp-servers", body, &servers); err != nil {
+		return fmt.Errorf("add project mcp servers: %w", err)
+	}
+	return printProjectMcpServers(cmd, servers)
+}
+
+func runProjectMcpRemove(cmd *cobra.Command, args []string) error {
+	serverID := strings.TrimSpace(args[1])
+	if serverID == "" {
+		return fmt.Errorf("server id is required")
+	}
+
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+
+	projectRef, err := resolveProjectID(ctx, client, args[0])
+	if err != nil {
+		return fmt.Errorf("resolve project: %w", err)
+	}
+
+	if err := client.DeleteJSON(ctx, "/api/projects/"+projectRef.ID+"/mcp-servers/"+url.PathEscape(serverID)); err != nil {
+		return fmt.Errorf("remove project mcp server: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "MCP server %s removed from project %s.\n", serverID, projectRef.Display)
+	return nil
+}
+
+func printProjectMcpServers(cmd *cobra.Command, servers []map[string]any) error {
+	output, _ := cmd.Flags().GetString("output")
+	if output == "json" {
+		return cli.PrintJSON(os.Stdout, servers)
+	}
+
+	headers := []string{"ID", "NAME", "TRANSPORT"}
+	rows := make([][]string, 0, len(servers))
+	for _, s := range servers {
+		rows = append(rows, []string{
+			strVal(s, "id"),
+			strVal(s, "name"),
+			strVal(s, "transport"),
 		})
 	}
 	cli.PrintTable(os.Stdout, headers, rows)
