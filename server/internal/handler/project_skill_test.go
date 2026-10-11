@@ -71,6 +71,11 @@ func TestProjectSkillLifecycle(t *testing.T) {
 	// Attaching an attached skill is a no-op, not a conflict.
 	addProjectSkillCall(t, projectID, skillID).Want(http.StatusOK)
 	addProjectSkillCall(t, projectID).Want(http.StatusBadRequest)
+	tooMany := make([]string, maxProjectSkillsPerRequest+1)
+	for i := range tooMany {
+		tooMany[i] = skillID
+	}
+	addProjectSkillCall(t, projectID, tooMany...).Want(http.StatusBadRequest)
 
 	skills := listProjectSkillsCall(t, projectID)
 	if len(skills) != 1 || skills[0].ID != skillID {

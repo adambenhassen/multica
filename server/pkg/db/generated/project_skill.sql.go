@@ -223,9 +223,10 @@ type LockSkillsInWorkspaceParams struct {
 	WorkspaceID pgtype.UUID   `json:"workspace_id"`
 }
 
-// Validates skills inside the attach transaction. FOR SHARE makes a concurrent
-// skill delete wait for the attach to commit (or the attach see the delete),
-// so a link is not inserted for a skill that is already gone.
+// Validates skills inside the attach transaction. Skill deletes lock the row
+// FOR UPDATE before deleting (LockSkillForDelete, LockPluginSkillsForDelete),
+// so either the delete waits for this attach to commit and its link cleanup
+// sees the new row, or this lock waits for the delete and finds no skill.
 func (q *Queries) LockSkillsInWorkspace(ctx context.Context, arg LockSkillsInWorkspaceParams) ([]pgtype.UUID, error) {
 	rows, err := q.db.Query(ctx, lockSkillsInWorkspace, arg.SkillIds, arg.WorkspaceID)
 	if err != nil {

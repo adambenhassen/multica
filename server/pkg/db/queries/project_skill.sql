@@ -48,9 +48,10 @@ WHERE ps.project_id = $1
 ORDER BY s.name ASC;
 
 -- name: LockSkillsInWorkspace :many
--- Validates skills inside the attach transaction. FOR SHARE makes a concurrent
--- skill delete wait for the attach to commit (or the attach see the delete),
--- so a link is not inserted for a skill that is already gone.
+-- Validates skills inside the attach transaction. Skill deletes lock the row
+-- FOR UPDATE before deleting (LockSkillForDelete, LockPluginSkillsForDelete),
+-- so either the delete waits for this attach to commit and its link cleanup
+-- sees the new row, or this lock waits for the delete and finds no skill.
 SELECT id FROM skill
 WHERE id = ANY(sqlc.arg('skill_ids')::uuid[])
   AND workspace_id = sqlc.arg('workspace_id')
