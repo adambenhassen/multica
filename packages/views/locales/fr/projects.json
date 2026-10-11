@@ -155,7 +155,7 @@
   "skills": {
     "section_header": "Skills",
     "empty": "Aucun skill rattaché.",
-    "hint": "Chaque agent reçoit ces skills, en plus des siens, pour les exécutions dans ce projet.",
+    "hint": "Ajoutés aux skills de chaque agent pour les exécutions dans ce projet, sauf si l'agent a désactivé le skill.",
     "add_button": "Ajouter un skill",
     "add_dialog_title": "Ajouter des skills au projet",
     "add_dialog_cancel": "Annuler",
