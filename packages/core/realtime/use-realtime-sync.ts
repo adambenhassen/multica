@@ -12,6 +12,7 @@ import { defaultStorage } from "../platform/storage";
 import { getCurrentWsId, getCurrentSlug } from "../platform/workspace-storage";
 import { issueKeys } from "../issues/queries";
 import { projectKeys } from "../projects/queries";
+import { projectSkillKeys } from "../projects/skill-queries";
 import { pinKeys } from "../pins/queries";
 import { autopilotKeys } from "../autopilots/queries";
 import { runtimeKeys } from "../runtimes/queries";
@@ -821,7 +822,15 @@ export function useRealtimeSync(
       },
       skill: () => {
         const wsId = getCurrentWsId();
-        if (wsId) qc.invalidateQueries({ queryKey: workspaceKeys.skills(wsId) });
+        if (wsId) {
+          qc.invalidateQueries({ queryKey: workspaceKeys.skills(wsId) });
+          // A renamed or deleted skill changes every project list showing it.
+          qc.invalidateQueries({ queryKey: projectSkillKeys.all(wsId) });
+        }
+      },
+      project_skill: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: projectSkillKeys.all(wsId) });
       },
       project: () => {
         const wsId = getCurrentWsId();

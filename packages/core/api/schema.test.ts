@@ -187,6 +187,23 @@ describe("ApiClient schema fallback", () => {
     });
   });
 
+  describe("listProjectSkills", () => {
+    it("falls back to an empty list when the response is malformed", async () => {
+      stubFetchJson({ skills: "not-an-array" });
+      const client = new ApiClient("https://api.example.test");
+      expect(await client.listProjectSkills("project-1")).toEqual([]);
+    });
+
+    it("defaults optional fields on a minimal row", async () => {
+      stubFetchJson([{ id: "skill-1", workspace_id: "ws-1", name: "review-helper" }]);
+      const client = new ApiClient("https://api.example.test");
+      const res = await client.listProjectSkills("project-1");
+      expect(res).toHaveLength(1);
+      expect(res[0]?.description).toBe("");
+      expect(res[0]?.labels).toEqual([]);
+    });
+  });
+
   describe("getIssue", () => {
     // Unlike a list, a single issue has no safe-empty shape, and the bare
     // identifier autolink caches this result for 5 minutes. A malformed 2xx
