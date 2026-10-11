@@ -1,5 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../api";
+import { workspaceKeys } from "../workspace/queries";
 import { projectKeys } from "./queries";
 
 export const projectMcpServerKeys = {
@@ -21,6 +22,8 @@ export function useAddProjectMcpServers(wsId: string, projectId: string) {
     mutationFn: (serverIds: string[]) => api.addProjectMcpServers(projectId, serverIds),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: projectMcpServerKeys.list(wsId, projectId) });
+      // The library list reports each entry's project_count.
+      qc.invalidateQueries({ queryKey: workspaceKeys.mcpServers(wsId) });
     },
   });
 }
@@ -37,6 +40,8 @@ export function useRemoveProjectMcpServer(wsId: string, projectId: string) {
       }),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: projectMcpServerKeys.list(wsId, projectId) });
+      // The library list reports each entry's project_count.
+      qc.invalidateQueries({ queryKey: workspaceKeys.mcpServers(wsId) });
     },
   });
 }

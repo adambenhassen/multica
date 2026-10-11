@@ -5,6 +5,7 @@ import { api } from "../api";
 import { defaultStorage } from "../platform/storage";
 import { clearWorkspaceStorage } from "../platform/storage-cleanup";
 import { workspaceKeys } from "./queries";
+import { projectMcpServerKeys } from "../projects/mcp-server-queries";
 import {
   markWorkspaceDeletePending,
   unmarkWorkspaceDeletePending,
@@ -121,6 +122,8 @@ export function useUpdateWorkspaceMcpServer(wsId: string) {
         // Assignments include the library entry's name and transport, so every
         // agent's cached projection may change when the entry is updated.
         queryClient.invalidateQueries({ queryKey: ["agents"] }),
+        // Project MCP lists show the same entry name and transport.
+        queryClient.invalidateQueries({ queryKey: projectMcpServerKeys.all(wsId) }),
       ]),
   });
 }
@@ -134,6 +137,8 @@ export function useDeleteWorkspaceMcpServer(wsId: string) {
       // Deleting a library entry drops it from every agent that had it, so
       // no agent's assignment list can be trusted afterwards.
       queryClient.invalidateQueries({ queryKey: ["agents"] });
+      // The delete also detaches the entry from every project.
+      queryClient.invalidateQueries({ queryKey: projectMcpServerKeys.all(wsId) });
     },
   });
 }
