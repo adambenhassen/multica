@@ -80,5 +80,6 @@ JOIN issue i ON i.id = a.issue_id AND i.workspace_id = a.workspace_id
 WHERE a.workspace_id = @workspace_id
   AND a.issue_id IS NOT NULL
   AND NOT (a.action = ANY(@excluded_actions::text[]))
+  AND (cardinality(@only_actions::text[]) = 0 OR a.action = ANY(@only_actions::text[]))
 ORDER BY a.created_at DESC, a.id DESC
 LIMIT @row_limit;

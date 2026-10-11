@@ -1349,6 +1349,73 @@ func (q *Queries) ListRecentThreadCommentsForIssue(ctx context.Context, arg List
 	return items, nil
 }
 
+const listRecentWorkspaceComments = `-- name: ListRecentWorkspaceComments :many
+SELECT c.id, c.issue_id, c.author_type, c.author_id, c.parent_id, c.created_at,
+       LEFT(c.content, $1::int)::text AS excerpt,
+       i.number AS issue_number, i.title AS issue_title, i.status AS issue_status
+FROM comment c
+JOIN issue i ON i.id = c.issue_id AND i.workspace_id = c.workspace_id
+WHERE c.workspace_id = $2
+  AND c.type = 'comment'
+  AND c.deleted_at IS NULL
+ORDER BY c.created_at DESC, c.id DESC
+LIMIT $3
+`
+
+type ListRecentWorkspaceCommentsParams struct {
+	ExcerptLength int32       `json:"excerpt_length"`
+	WorkspaceID   pgtype.UUID `json:"workspace_id"`
+	RowLimit      int32       `json:"row_limit"`
+}
+
+type ListRecentWorkspaceCommentsRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	IssueID     pgtype.UUID        `json:"issue_id"`
+	AuthorType  string             `json:"author_type"`
+	AuthorID    pgtype.UUID        `json:"author_id"`
+	ParentID    pgtype.UUID        `json:"parent_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	Excerpt     string             `json:"excerpt"`
+	IssueNumber int32              `json:"issue_number"`
+	IssueTitle  string             `json:"issue_title"`
+	IssueStatus string             `json:"issue_status"`
+}
+
+// The newest user-written comments across a workspace, for the Dashboard feed.
+// Only an excerpt of the content is returned: the feed shows one line of it.
+// The literal type / deleted_at predicates let idx_comment_workspace_recent
+// (migration 582) serve the ORDER BY without a sort step.
+func (q *Queries) ListRecentWorkspaceComments(ctx context.Context, arg ListRecentWorkspaceCommentsParams) ([]ListRecentWorkspaceCommentsRow, error) {
+	rows, err := q.db.Query(ctx, listRecentWorkspaceComments, arg.ExcerptLength, arg.WorkspaceID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecentWorkspaceCommentsRow{}
+	for rows.Next() {
+		var i ListRecentWorkspaceCommentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.IssueID,
+			&i.AuthorType,
+			&i.AuthorID,
+			&i.ParentID,
+			&i.CreatedAt,
+			&i.Excerpt,
+			&i.IssueNumber,
+			&i.IssueTitle,
+			&i.IssueStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listReconcilableCommentsForIssueSince = `-- name: ListReconcilableCommentsForIssueSince :many
 SELECT c.id, c.issue_id, c.author_type, c.author_id, c.content, c.type, c.created_at, c.updated_at, c.parent_id, c.workspace_id, c.resolved_at, c.resolved_by_type, c.resolved_by_id, c.source_task_id, c.quick_action_id, c.via_plugin_id, c.revision, c.recovery_settled_at, c.deleted_at, c.suppressed_agent_ids FROM comment c
 WHERE c.issue_id = $1
