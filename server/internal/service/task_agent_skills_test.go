@@ -72,6 +72,7 @@ func (r *sliceRows) Scan(dest ...any) error {
 // a test can prove the N+1 loop is gone rather than just assuming it.
 type skillReadDBTX struct {
 	skills           [][]any
+	projectSkills    [][]any
 	files            [][]any
 	failQuery        string
 	perSkillFileCall int
@@ -95,6 +96,11 @@ func (d *skillReadDBTX) Query(_ context.Context, sql string, _ ...any) (pgx.Rows
 	case strings.Contains(sql, "ListSkillFiles"):
 		d.perSkillFileCall++
 		return &sliceRows{}, nil
+	case strings.Contains(sql, "ListProjectSkillsInWorkspace"):
+		if d.failQuery == "ListProjectSkillsInWorkspace" {
+			return nil, errInjectedSkillRead
+		}
+		return &sliceRows{rows: d.projectSkills}, nil
 	case strings.Contains(sql, "ListAgentSkills"):
 		if d.failQuery == "ListAgentSkills" {
 			return nil, errInjectedSkillRead
@@ -145,7 +151,7 @@ func TestLoadAgentSkills_GroupsBatchedFilesBySkillID(t *testing.T) {
 	}
 	svc := &TaskService{Queries: db.New(fake)}
 
-	got, err := svc.LoadAgentSkills(context.Background(), testUUID(9))
+	got, err := svc.LoadAgentSkills(context.Background(), testUUID(9), SkillProjectScope{})
 	if err != nil {
 		t.Fatalf("LoadAgentSkills: %v", err)
 	}
@@ -195,6 +201,7 @@ func TestLoadAgentSkills_ReportsReadFailures(t *testing.T) {
 	}{
 		{name: "batch file query fails", failQuery: "ListSkillFilesBySkillIDs"},
 		{name: "agent skill query fails", failQuery: "ListAgentSkills"},
+		{name: "project skill query fails", failQuery: "ListProjectSkillsInWorkspace"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -205,7 +212,7 @@ func TestLoadAgentSkills_ReportsReadFailures(t *testing.T) {
 			}
 			svc := &TaskService{Queries: db.New(fake)}
 
-			got, err := svc.LoadAgentSkills(context.Background(), testUUID(9))
+			got, err := svc.LoadAgentSkills(context.Background(), testUUID(9), testSkillProject)
 			if err == nil {
 				t.Fatalf("LoadAgentSkills returned nil error and %d skills; a failed read must not look like a smaller skill set", len(got))
 			}
@@ -230,7 +237,7 @@ func TestLoadAgentSkillBundles_FailsClosedOnReadFailure(t *testing.T) {
 	}
 	svc := &TaskService{Queries: db.New(fake)}
 
-	bundles, refs, err := svc.LoadAgentSkillBundles(context.Background(), testUUID(9), "", false)
+	bundles, refs, err := svc.LoadAgentSkillBundles(context.Background(), testUUID(9), SkillProjectScope{}, "", false)
 	if err == nil {
 		t.Fatalf("LoadAgentSkillBundles returned nil error with %d bundles / %d refs", len(bundles), len(refs))
 	}
@@ -239,5 +246,46 @@ func TestLoadAgentSkillBundles_FailsClosedOnReadFailure(t *testing.T) {
 	}
 	if bundles != nil || refs != nil {
 		t.Fatalf("returned %d bundles / %d refs alongside an error, want none", len(bundles), len(refs))
+	}
+}
+
+var testSkillProject = SkillProjectScope{ProjectID: testUUID(0xA0), WorkspaceID: testUUID(0xF0)}
+
+// TestLoadAgentSkills_MergesProjectSkills pins the per-project contract: a task
+// in a project gets its agent's skills plus the project's, a skill attached to
+// both arrives once, and the merged set is ordered by name.
+func TestLoadAgentSkills_MergesProjectSkills(t *testing.T) {
+	alpha, beta, gamma := testUUID(1), testUUID(2), testUUID(3)
+	fake := &skillReadDBTX{
+		skills: [][]any{
+			skillRow(beta, "beta", "agent", "beta body"),
+			skillRow(gamma, "gamma", "agent", "gamma body"),
+		},
+		projectSkills: [][]any{
+			skillRow(alpha, "alpha", "project", "alpha body"),
+			skillRow(gamma, "gamma", "agent", "gamma body"),
+		},
+	}
+	svc := &TaskService{Queries: db.New(fake)}
+
+	got, err := svc.LoadAgentSkills(context.Background(), testUUID(9), testSkillProject)
+	if err != nil {
+		t.Fatalf("LoadAgentSkills: %v", err)
+	}
+	var names []string
+	for _, skill := range got {
+		names = append(names, skill.Name)
+	}
+	if want := []string{"alpha", "beta", "gamma"}; !reflect.DeepEqual(names, want) {
+		t.Fatalf("skills = %v, want %v", names, want)
+	}
+
+	// Without a project the project query must not contribute.
+	got, err = svc.LoadAgentSkills(context.Background(), testUUID(9), SkillProjectScope{})
+	if err != nil {
+		t.Fatalf("LoadAgentSkills without project: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("loaded %d skills without a project, want the agent's 2", len(got))
 	}
 }
