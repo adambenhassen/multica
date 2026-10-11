@@ -112,3 +112,12 @@ WITH deleted_audience AS (
 )
 DELETE FROM project_skill
 WHERE project_skill.project_id = $1 AND project_skill.skill_id = $2 AND project_skill.workspace_id = $3;
+
+-- name: ListProjectSkillLinksByWorkspace :many
+-- Which projects each skill is attached to, for the workspace skills list, so
+-- project skills can be shown apart and never look unused.
+SELECT ps.skill_id, p.id AS project_id, p.title AS project_title
+FROM project_skill ps
+JOIN project p ON p.id = ps.project_id AND p.workspace_id = ps.workspace_id
+WHERE ps.workspace_id = $1
+ORDER BY p.title ASC;

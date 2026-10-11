@@ -87,6 +87,24 @@ func TestProjectSkillLifecycle(t *testing.T) {
 		t.Fatalf("listed %+v, want exactly skill %s", skills, skillID)
 	}
 
+	// The workspace skills list counts project attachments so a skill used
+	// only by projects does not look unused.
+	listReq := newRequest("GET", "/api/skills?workspace_id="+testWorkspaceID, nil)
+	var all []SkillSummaryResponse
+	testutil.Call(t, testHandler.ListSkills, listReq).Want(http.StatusOK).JSON(&all)
+	found := false
+	for _, s := range all {
+		if s.ID == skillID {
+			found = true
+			if s.Projects == nil || len(*s.Projects) != 1 || (*s.Projects)[0].ID != projectID {
+				t.Fatalf("projects = %v, want [%s]", s.Projects, projectID)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("skill missing from workspace list")
+	}
+
 	removeProjectSkillCall(t, projectID, skillID).Want(http.StatusNoContent)
 	removeProjectSkillCall(t, projectID, skillID).Want(http.StatusNotFound)
 	if skills := listProjectSkillsCall(t, projectID); len(skills) != 0 {
