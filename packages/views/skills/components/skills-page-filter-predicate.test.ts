@@ -37,6 +37,7 @@ function makeRow(
   return {
     skill: makeSkill(skillOverrides),
     agents: [],
+    projects: [],
     creator: null,
     runtime: null,
     originType: "manual",
@@ -120,5 +121,14 @@ describe("rowMatchesFilters — labels dimension", () => {
     const filters = withLabels(noFilters, "lab-1");
     expect(rowMatchesFilters(match, filters, "review")).toBe(true);
     expect(rowMatchesFilters(miss, filters, "review")).toBe(false);
+  });
+});
+
+describe("rowMatchesFilters — project usage", () => {
+  it("treats a skill attached only to projects as used", () => {
+    const projectOnly = makeRow({}, { projects: [{ id: "p1", title: "lampahub.com" }] });
+    const base: SkillListFilters = { ...EMPTY_FILTERS };
+    expect(rowMatchesFilters(projectOnly, { ...base, usage: ["used"] }, "")).toBe(true);
+    expect(rowMatchesFilters(projectOnly, { ...base, usage: ["unused"] }, "")).toBe(false);
   });
 });

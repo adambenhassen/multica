@@ -12,11 +12,11 @@
       },
       "used": {
         "label": "使用中",
-        "description": "1 つ以上のエージェントに割り当てられたスキル"
+        "description": "1 つ以上のエージェントまたはプロジェクトに割り当てられたスキル"
       },
       "unused": {
         "label": "未使用",
-        "description": "どのエージェントにも割り当てられていないスキル"
+        "description": "どのエージェントにもプロジェクトにも割り当てられていないスキル"
       },
       "mine": {
         "label": "自分が作成",
@@ -62,7 +62,10 @@
     "source_runtime_unknown": "ランタイムから",
     "source_clawhub": "ClawHub から",
     "source_skills_sh": "Skills.sh から",
-    "source_github": "GitHub から"
+    "source_github": "GitHub から",
+    "section_project": "プロジェクトのスキル",
+    "section_rest": "その他のスキル",
+    "plus_agents_other": "+エージェント {{count}} 件"
   },
   "actions": {
     "row_menu": "操作",
@@ -218,7 +221,9 @@
       "permissions_locked_creator": "作成者（{{name}}）またはワークスペース管理者のみがこのスキルを編集できます。",
       "permissions_locked": "作成者またはワークスペース管理者のみがこのスキルを編集できます。",
       "properties_help": "skill のプロパティについて",
-      "character_count": "{{count}} 文字"
+      "character_count": "{{count}} 文字",
+      "projects_title_other": "{{count}} 件のプロジェクトに追加済み",
+      "projects_hint": "これらのプロジェクトで作業するエージェントは、各プロジェクトの受け取る対象の範囲でこのスキルを受け取ります。"
     },
     "files": {
       "list_aria": "スキルのファイル",

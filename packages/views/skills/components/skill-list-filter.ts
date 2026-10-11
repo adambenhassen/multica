@@ -5,6 +5,8 @@ import type { OriginInfo } from "../lib/origin";
 export interface SkillRow {
   skill: SkillSummary;
   agents: Agent[];
+  /** Projects the skill is attached to. */
+  projects: { id: string; title: string }[];
   creator: MemberWithUser | null;
   runtime: AgentRuntime | null;
   originType: OriginInfo["type"];
@@ -24,7 +26,7 @@ export function rowMatchesFilters(
   const q = query.trim().toLowerCase();
   if (q && !row.skill.name.toLowerCase().includes(q)) return false;
   if (filters.usage.length > 0) {
-    const usage = row.agents.length > 0 ? "used" : "unused";
+    const usage = row.agents.length > 0 || row.projects.length > 0 ? "used" : "unused";
     if (!filters.usage.includes(usage)) return false;
   }
   if (
