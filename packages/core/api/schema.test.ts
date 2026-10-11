@@ -214,6 +214,24 @@ describe("ApiClient schema fallback", () => {
   });
 
   describe("listProjectSkills", () => {
+    it("keeps a well-formed audience and drops a malformed one", async () => {
+      stubFetchJson([
+        {
+          id: "skill-1",
+          workspace_id: "ws-1",
+          name: "deploy",
+          audience: { restricted: true, agent_ids: ["a1"], label_ids: ["l1"] },
+        },
+        { id: "skill-2", workspace_id: "ws-1", name: "broken", audience: "nope" },
+      ]);
+      const client = new ApiClient("https://api.example.test");
+      const res = await client.listProjectSkills("project-1");
+      expect(res[0]?.audience).toEqual({ restricted: true, agent_ids: ["a1"], label_ids: ["l1"] });
+      // Older servers send no audience; a malformed one is treated the same.
+      expect(res[1]?.audience).toBeUndefined();
+    });
+
+
     it("falls back to an empty list when the response is malformed", async () => {
       stubFetchJson({ skills: "not-an-array" });
       const client = new ApiClient("https://api.example.test");

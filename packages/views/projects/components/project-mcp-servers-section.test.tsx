@@ -20,6 +20,8 @@ vi.mock("@tanstack/react-query", () => ({
     const key = options?.queryKey?.[0];
     if (key === "project-mcp") return { data: [ATTACHED] };
     if (key === "workspace-mcp") return { data: library };
+    if (key === "agents") return { data: [] };
+    if (key === "agent-labels") return { data: [] };
     return { data: [] };
   },
 }));
@@ -28,9 +30,14 @@ vi.mock("@multica/core/projects", () => ({
   projectMcpServersOptions: () => ({ queryKey: ["project-mcp"], queryFn: vi.fn() }),
   useAddProjectMcpServers: () => ({ mutateAsync: addMock, isPending: false }),
   useRemoveProjectMcpServer: () => ({ mutateAsync: removeMock, isPending: false, variables: undefined }),
+  useSetProjectMcpServerAudience: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock("@multica/core/labels", () => ({
+  labelListOptions: () => ({ queryKey: ["agent-labels"], queryFn: vi.fn() }),
 }));
 vi.mock("@multica/core/workspace/queries", () => ({
   workspaceMcpServersOptions: () => ({ queryKey: ["workspace-mcp"], queryFn: vi.fn() }),
+  agentListOptions: () => ({ queryKey: ["agents"], queryFn: vi.fn() }),
 }));
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "workspace-1" }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));

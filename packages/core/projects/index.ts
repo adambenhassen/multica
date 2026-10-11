@@ -23,11 +23,13 @@ export {
   projectSkillKeys,
   projectSkillsOptions,
   useAddProjectSkills,
+  useSetProjectSkillAudience,
   useRemoveProjectSkill,
 } from "./skill-queries";
 export {
   projectMcpServerKeys,
   projectMcpServersOptions,
   useAddProjectMcpServers,
+  useSetProjectMcpServerAudience,
   useRemoveProjectMcpServer,
 } from "./mcp-server-queries";

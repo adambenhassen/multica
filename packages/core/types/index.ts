@@ -207,6 +207,10 @@ export type {
   CreateProjectResourceRequest,
   UpdateProjectResourceRequest,
   ListProjectResourcesResponse,
+  ProjectAttachmentAudience,
+  ProjectSkill,
+  ProjectMcpServer,
+  SetProjectAttachmentAudienceRequest,
 } from "./project";
 export type { PinnedItem, PinnedItemType, CreatePinRequest, ReorderPinsRequest } from "./pin";
 export type {

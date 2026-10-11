@@ -238,6 +238,9 @@ import type {
   CreateCommentSubIssueManualRequest,
   CreateCommentSubIssueAgentRequest,
   CreateCommentSubIssueRequest,
+  ProjectSkill,
+  ProjectMcpServer,
+  SetProjectAttachmentAudienceRequest,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -455,6 +458,8 @@ import {
   SkillSchema,
   EMPTY_SKILL,
   SkillSummaryListSchema,
+  ProjectSkillListSchema,
+  ProjectMcpServerListSchema,
   EMPTY_SKILL_SUMMARY_LIST,
   SkillImportResultSchema,
   EMPTY_SKILL_IMPORT_RESULT,
@@ -4095,10 +4100,22 @@ export class ApiClient {
 
   // Project skills: every task in the project runs with these in addition
   // to its agent's own skills.
-  async listProjectSkills(projectId: string): Promise<SkillSummary[]> {
+  async listProjectSkills(projectId: string): Promise<ProjectSkill[]> {
     const raw = await this.fetch<unknown>(`/api/projects/${projectId}/skills`);
-    return parseWithFallback(raw, SkillSummaryListSchema, EMPTY_SKILL_SUMMARY_LIST, {
+    return parseWithFallback(raw, ProjectSkillListSchema, [] as ProjectSkill[], {
       endpoint: "GET /api/projects/:id/skills",
+    });
+  }
+
+  // Replaces who a project skill reaches (restricted: false = every agent).
+  async setProjectSkillAudience(
+    projectId: string,
+    skillId: string,
+    audience: SetProjectAttachmentAudienceRequest,
+  ): Promise<void> {
+    await this.fetch(`/api/projects/${projectId}/skills/${skillId}/audience`, {
+      method: "PUT",
+      body: JSON.stringify(audience),
     });
   }
 
@@ -4118,10 +4135,22 @@ export class ApiClient {
 
   // Project MCP servers: workspace library entries every task in the project
   // runs with, alongside its agent's own. Configs never leave the server.
-  async listProjectMcpServers(projectId: string): Promise<WorkspaceMcpServer[]> {
+  async listProjectMcpServers(projectId: string): Promise<ProjectMcpServer[]> {
     const raw = await this.fetch<unknown>(`/api/projects/${projectId}/mcp-servers`);
-    return parseWithFallback(raw, WorkspaceMcpServerListSchema, [] as WorkspaceMcpServer[], {
+    return parseWithFallback(raw, ProjectMcpServerListSchema, [] as ProjectMcpServer[], {
       endpoint: "GET /api/projects/{id}/mcp-servers",
+    });
+  }
+
+  // Replaces who a project MCP server reaches (restricted: false = every agent).
+  async setProjectMcpServerAudience(
+    projectId: string,
+    serverId: string,
+    audience: SetProjectAttachmentAudienceRequest,
+  ): Promise<void> {
+    await this.fetch(`/api/projects/${projectId}/mcp-servers/${serverId}/audience`, {
+      method: "PUT",
+      body: JSON.stringify(audience),
     });
   }
 
