@@ -151,7 +151,7 @@ func TestLoadAgentSkills_GroupsBatchedFilesBySkillID(t *testing.T) {
 	}
 	svc := &TaskService{Queries: db.New(fake)}
 
-	got, err := svc.LoadAgentSkills(context.Background(), testUUID(9), SkillProjectScope{})
+	got, err := svc.LoadAgentSkills(context.Background(), testUUID(9), TaskProjectScope{})
 	if err != nil {
 		t.Fatalf("LoadAgentSkills: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestLoadAgentSkillBundles_FailsClosedOnReadFailure(t *testing.T) {
 	}
 	svc := &TaskService{Queries: db.New(fake)}
 
-	bundles, refs, err := svc.LoadAgentSkillBundles(context.Background(), testUUID(9), SkillProjectScope{}, "", false)
+	bundles, refs, err := svc.LoadAgentSkillBundles(context.Background(), testUUID(9), TaskProjectScope{}, "", false)
 	if err == nil {
 		t.Fatalf("LoadAgentSkillBundles returned nil error with %d bundles / %d refs", len(bundles), len(refs))
 	}
@@ -249,7 +249,7 @@ func TestLoadAgentSkillBundles_FailsClosedOnReadFailure(t *testing.T) {
 	}
 }
 
-var testSkillProject = SkillProjectScope{ProjectID: testUUID(0xA0), WorkspaceID: testUUID(0xF0)}
+var testSkillProject = TaskProjectScope{ProjectID: testUUID(0xA0), WorkspaceID: testUUID(0xF0)}
 
 // TestLoadAgentSkills_MergesProjectSkills pins the per-project contract: a task
 // in a project gets its agent's skills plus the project's, a skill attached to
@@ -281,7 +281,7 @@ func TestLoadAgentSkills_MergesProjectSkills(t *testing.T) {
 	}
 
 	// Without a project the project query must not contribute.
-	got, err = svc.LoadAgentSkills(context.Background(), testUUID(9), SkillProjectScope{})
+	got, err = svc.LoadAgentSkills(context.Background(), testUUID(9), TaskProjectScope{})
 	if err != nil {
 		t.Fatalf("LoadAgentSkills without project: %v", err)
 	}

@@ -6845,11 +6845,12 @@ func (s *TaskService) publishAgentStatus(agent db.Agent) {
 	})
 }
 
-// SkillProjectScope names the project whose attached skills a task receives in
-// addition to its agent's own. The zero value means the task has no project.
-// WorkspaceID scopes the project_skill read so a corrupt project reference
-// cannot lift another tenant's skill into a run.
-type SkillProjectScope struct {
+// TaskProjectScope names the project whose attached skills and MCP servers a
+// task receives in addition to its agent's own. The zero value means the task
+// has no project. WorkspaceID scopes the project_skill and project_mcp_server
+// reads so a corrupt project reference cannot lift another tenant's skill or
+// server into a run.
+type TaskProjectScope struct {
 	ProjectID   pgtype.UUID
 	WorkspaceID pgtype.UUID
 }
@@ -6868,7 +6869,7 @@ type SkillProjectScope struct {
 // whatever did load, so the daemon's own validation passes and the agent
 // starts on rules it is missing. Callers must settle the failure (preserve the
 // claim for redelivery, or 5xx the resolve) instead of dispatching that.
-func (s *TaskService) LoadAgentSkills(ctx context.Context, agentID pgtype.UUID, project SkillProjectScope) ([]AgentSkillData, error) {
+func (s *TaskService) LoadAgentSkills(ctx context.Context, agentID pgtype.UUID, project TaskProjectScope) ([]AgentSkillData, error) {
 	skills, err := s.Queries.ListAgentSkills(ctx, agentID)
 	if err != nil {
 		return nil, fmt.Errorf("list agent skills: %w", err)
@@ -6951,7 +6952,7 @@ func (s *TaskService) skillsWithFiles(ctx context.Context, skills []db.Skill) ([
 // It fails closed on a workspace-skill read error for the reason in
 // LoadAgentSkills: a bundle set built from a partial read is indistinguishable
 // from a correct one.
-func (s *TaskService) LoadAgentSkillBundles(ctx context.Context, agentID pgtype.UUID, project SkillProjectScope, agentSystemKey string, legacyRedirects bool) ([]AgentSkillData, []AgentSkillRefData, error) {
+func (s *TaskService) LoadAgentSkillBundles(ctx context.Context, agentID pgtype.UUID, project TaskProjectScope, agentSystemKey string, legacyRedirects bool) ([]AgentSkillData, []AgentSkillRefData, error) {
 	skills, err := s.LoadAgentSkills(ctx, agentID, project)
 	if err != nil {
 		return nil, nil, err
@@ -6994,7 +6995,7 @@ type AgentSkillBundleRef struct {
 // whole agent on every request: N requests, each reading and hashing all N
 // skills to return one. Loading only what was asked for makes that linear,
 // which is why the resolve path must not reuse LoadAgentSkillBundles.
-func (s *TaskService) LoadRequestedAgentSkillBundles(ctx context.Context, agentID pgtype.UUID, resolveProject func(context.Context) (SkillProjectScope, error), refs []AgentSkillBundleRef) (map[string]AgentSkillData, error) {
+func (s *TaskService) LoadRequestedAgentSkillBundles(ctx context.Context, agentID pgtype.UUID, resolveProject func(context.Context) (TaskProjectScope, error), refs []AgentSkillBundleRef) (map[string]AgentSkillData, error) {
 	requestedIDs := make([]pgtype.UUID, 0, len(refs))
 	seenWorkspace := make(map[string]struct{}, len(refs))
 	wantBuiltin := make(map[string]struct{}, len(refs))

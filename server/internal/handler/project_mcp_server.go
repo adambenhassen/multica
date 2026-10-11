@@ -221,7 +221,7 @@ func (h *Handler) RemoveProjectMcpServer(w http.ResponseWriter, r *http.Request)
 // the agent's next task with nothing to restart. Errors — including a failed
 // read — never fail the claim and never take away what the agent runs with
 // today: a broken shared entry falls back to the layers below it.
-func (h *Handler) claimMcpConfig(ctx context.Context, task *db.AgentTaskQueue, agent db.Agent, project service.SkillProjectScope, composioMCPEnabled bool) json.RawMessage {
+func (h *Handler) claimMcpConfig(ctx context.Context, task *db.AgentTaskQueue, agent db.Agent, project service.TaskProjectScope, composioMCPEnabled bool) json.RawMessage {
 	var mcpConfig json.RawMessage
 	if agent.McpConfig != nil {
 		mcpConfig = json.RawMessage(agent.McpConfig)
