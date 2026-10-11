@@ -6868,8 +6868,9 @@ type SkillProjectScope struct {
 }
 
 // LoadAgentSkills loads the skills a task runs with: the agent's enabled
-// skills plus the skills attached to the task's project, deduplicated by skill
-// id and ordered by name, with their files.
+// skills plus the skills attached to the task's project (except ones the agent
+// has disabled), deduplicated by skill id and ordered by name, with their
+// files.
 //
 // A read failure is REPORTED, never swallowed into a shorter skill set. Both
 // reads are all-or-nothing for the agent's entire skill set — the file load
@@ -6886,9 +6887,10 @@ func (s *TaskService) LoadAgentSkills(ctx context.Context, agentID pgtype.UUID, 
 		return nil, fmt.Errorf("list agent skills: %w", err)
 	}
 	if project.ProjectID.Valid {
-		projectSkills, err := s.Queries.ListProjectSkillsInWorkspace(ctx, db.ListProjectSkillsInWorkspaceParams{
+		projectSkills, err := s.Queries.ListProjectSkillsForAgent(ctx, db.ListProjectSkillsForAgentParams{
 			ProjectID:   project.ProjectID,
 			WorkspaceID: project.WorkspaceID,
+			AgentID:     agentID,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("list project skills: %w", err)
@@ -6992,7 +6994,7 @@ type AgentSkillBundleRef struct {
 // LoadRequestedAgentSkillBundles returns bundles for EXACTLY the refs given,
 // keyed by AgentSkillBundleKey. A ref the agent cannot see is simply absent
 // from the map — the junction predicates in ListAgentSkillsByIDs and
-// ListProjectSkillsByIDs are the authorization, so "no row" and "not allowed" are the same answer and the
+// ListProjectSkillsForAgentByIDs are the authorization, so "no row" and "not allowed" are the same answer and the
 // caller reports both as not-found.
 //
 // This exists because the daemon resolves one skill per request (GH #4505, so
@@ -7037,10 +7039,11 @@ func (s *TaskService) LoadRequestedAgentSkillBundles(ctx context.Context, agentI
 			return nil, fmt.Errorf("list agent skills by ids: %w", err)
 		}
 		if project.ProjectID.Valid {
-			projectSkills, err := s.Queries.ListProjectSkillsByIDs(ctx, db.ListProjectSkillsByIDsParams{
+			projectSkills, err := s.Queries.ListProjectSkillsForAgentByIDs(ctx, db.ListProjectSkillsForAgentByIDsParams{
 				ProjectID:   project.ProjectID,
 				WorkspaceID: project.WorkspaceID,
 				SkillIds:    requestedIDs,
+				AgentID:     agentID,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("list project skills by ids: %w", err)
@@ -7467,9 +7470,11 @@ func (s *TaskService) ResolveTaskWorkspaceIDChecked(ctx context.Context, task db
 
 // ResolveTaskProjectID returns the project a task runs in, for the skill
 // bundle resolve path, which must authorize the same project skills the claim
-// delivered. Precedence mirrors buildClaimedTaskResponse, where each context
-// branch overwrites the previous one's project: autopilot, then chat, then
-// issue, then quick-create.
+// delivered. It must pick the same project buildClaimedTaskResponse does. There
+// the issue, chat, and autopilot branches run in that order and each later one
+// overwrites the project, so the winner is checked here in reverse: autopilot
+// first, then chat, then issue. Quick-create applies only when none of those
+// links is set.
 //
 // A link that resolves to no row means no project (the claim degrades the same
 // way). A lookup that could not complete is an error so the caller can 5xx
