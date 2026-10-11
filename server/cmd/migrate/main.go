@@ -163,6 +163,7 @@ var concurrentIndexCleanups = map[string]string{
 	"570_channel_typing_quota_idx":                              "channel_typing_reaction_quota_idx",
 	"571_channel_typing_expiry_idx":                             "channel_typing_reaction_expiry_idx",
 	"572_channel_typing_abandoned_idx":                          "channel_typing_reaction_abandoned_idx",
+	"574_project_skill_skill_idx":                               "idx_project_skill_skill",
 	"510_wakeup_id":                                             "issue_wakeup_id_idx",
 	"511_wakeup_issue":                                          "issue_wakeup_issue_idx",
 	"512_wakeup_due":                                            "issue_wakeup_due_idx",

@@ -81,7 +81,10 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 }
 
 const deleteProject = `-- name: DeleteProject :exec
-DELETE FROM project WHERE id = $1 AND workspace_id = $2
+WITH deleted_project_skills AS (
+    DELETE FROM project_skill WHERE project_skill.project_id = $1 AND project_skill.workspace_id = $2
+)
+DELETE FROM project WHERE project.id = $1 AND project.workspace_id = $2
 `
 
 type DeleteProjectParams struct {
@@ -90,6 +93,7 @@ type DeleteProjectParams struct {
 }
 
 // Defense-in-depth: workspace_id is a SQL-layer tenant guard. See DeleteIssue.
+// project_skill has no foreign key, so its links go in the same statement.
 func (q *Queries) DeleteProject(ctx context.Context, arg DeleteProjectParams) error {
 	_, err := q.db.Exec(ctx, deleteProject, arg.ID, arg.WorkspaceID)
 	return err
