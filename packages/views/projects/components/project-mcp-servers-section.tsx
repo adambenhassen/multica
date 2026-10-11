@@ -54,6 +54,7 @@ export function ProjectMcpServersSection({
         type="button"
         className={`flex w-full items-center gap-1 rounded-md px-2 py-1 text-caption font-medium transition-colors mb-2 hover:bg-accent/70 ${open ? "" : "text-muted-foreground hover:text-foreground"}`}
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
       >
         {t(($) => $.mcp.section_header)}
         <ChevronRight
