@@ -234,6 +234,8 @@ import type {
   ProjectSkill,
   ProjectMcpServer,
   SetProjectAttachmentAudienceRequest,
+  AgentProjectSkill,
+  AgentProjectMcpServer,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -444,6 +446,8 @@ import {
   SkillSummaryListSchema,
   ProjectSkillListSchema,
   ProjectMcpServerListSchema,
+  AgentProjectSkillListSchema,
+  AgentProjectMcpServerListSchema,
   EMPTY_SKILL_SUMMARY_LIST,
   SkillImportResultSchema,
   EMPTY_SKILL_IMPORT_RESULT,
@@ -4083,6 +4087,21 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(`/api/projects/${projectId}/skills`);
     return parseWithFallback(raw, ProjectSkillListSchema, [] as ProjectSkill[], {
       endpoint: "GET /api/projects/:id/skills",
+    });
+  }
+
+  // Project skills / MCP servers that reach this agent, per project audiences.
+  async listAgentProjectSkills(agentId: string): Promise<AgentProjectSkill[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/project-skills`);
+    return parseWithFallback(raw, AgentProjectSkillListSchema, [] as AgentProjectSkill[], {
+      endpoint: "GET /api/agents/:id/project-skills",
+    });
+  }
+
+  async listAgentProjectMcpServers(agentId: string): Promise<AgentProjectMcpServer[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/project-mcp-servers`);
+    return parseWithFallback(raw, AgentProjectMcpServerListSchema, [] as AgentProjectMcpServer[], {
+      endpoint: "GET /api/agents/:id/project-mcp-servers",
     });
   }
 

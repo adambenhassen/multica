@@ -515,7 +515,9 @@
       "save_failed_toast": "MCP config를 저장하지 못했습니다",
       "redacted_title": "설정됨 — 보기에서 숨김",
       "redacted_hint": "에이전트 소유자 또는 워크스페이스 관리자만 이 config를 읽을 수 있습니다.",
-      "dialog_json_help": "전체 서버 설정을 JSON으로 편집합니다."
+      "dialog_json_help": "전체 서버 설정을 JSON으로 편집합니다.",
+      "from_projects_title": "프로젝트에서",
+      "from_projects_hint": "이 에이전트는 표시된 프로젝트의 태스크에서 이 Server를 받습니다. 각 프로젝트 페이지에서 관리하세요."
     },
     "composio_mcp": {
       "subtitle": "툴킷을 선택하면, 본인(이 에이전트의 생성자)이 직접 또는 하위 에이전트 체인을 통해 이 에이전트를 트리거할 때만 MCP 서버로 마운트됩니다.",
@@ -591,7 +593,9 @@
       "add_dialog_confirm_default": "추가",
       "add_dialog_confirm_other": "스킬 {{count}}개 추가",
       "add_dialog_cancel": "취소",
-      "add_failed_toast": "스킬을 추가하지 못했습니다"
+      "add_failed_toast": "스킬을 추가하지 못했습니다",
+      "from_projects_title": "프로젝트에서",
+      "from_projects_hint": "이 에이전트는 표시된 프로젝트의 태스크에서 이 스킬을 받습니다. 각 프로젝트 페이지에서 관리하세요."
     },
     "integrations": {
       "members_note": "이 연결을 관리할 수 있는 사람은 워크스페이스 소유자와 관리자뿐입니다. 연결된 봇은 설정 → 연동에서 확인할 수 있습니다."
@@ -961,5 +965,9 @@
   "actions": {
     "selected_other": "{{count}}개 선택됨",
     "clear_selection": "선택 해제"
+  },
+  "project_source": {
+    "also_via_project": "{{project}}에서도 제공",
+    "also_via_many_other": "프로젝트 {{count}}개에서도 제공"
   }
 }

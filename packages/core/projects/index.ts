@@ -22,6 +22,7 @@ export {
 export {
   projectSkillKeys,
   projectSkillsOptions,
+  agentProjectSkillsOptions,
   useAddProjectSkills,
   useSetProjectSkillAudience,
   useRemoveProjectSkill,
@@ -29,6 +30,7 @@ export {
 export {
   projectMcpServerKeys,
   projectMcpServersOptions,
+  agentProjectMcpServersOptions,
   useAddProjectMcpServers,
   useSetProjectMcpServerAudience,
   useRemoveProjectMcpServer,

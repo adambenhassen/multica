@@ -3526,6 +3526,16 @@ export const ProjectSkillSchema = SkillSummarySchema.extend({
 
 export const ProjectSkillListSchema = z.array(ProjectSkillSchema).default([]);
 
+const ProjectRefSchema = z.object({ id: z.string(), title: z.string().default("") });
+
+export const AgentProjectSkillListSchema = z
+  .array(SkillSummarySchema.extend({ projects: z.array(ProjectRefSchema).catch([]) }).loose())
+  .default([]);
+
+export const AgentProjectMcpServerListSchema = z.array(
+  WorkspaceMcpServerSchema.extend({ projects: z.array(ProjectRefSchema).catch([]) }),
+);
+
 export const EMPTY_WORKSPACE_MCP_SERVER: WorkspaceMcpServer = {
   id: "",
   workspace_id: "",

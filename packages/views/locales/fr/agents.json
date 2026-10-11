@@ -621,7 +621,9 @@
       "save_failed_toast": "Échec de l'enregistrement de la configuration MCP",
       "redacted_title": "Configuré — masqué pour vous",
       "redacted_hint": "Seul le propriétaire de l'agent ou un administrateur de l'espace de travail peut lire cette configuration.",
-      "dialog_json_help": "Modifiez la configuration complète du serveur en JSON."
+      "dialog_json_help": "Modifiez la configuration complète du serveur en JSON.",
+      "from_projects_title": "Depuis les projets",
+      "from_projects_hint": "Cet agent reçoit ces serveurs dans les tâches des projets indiqués. Gérez-les sur la page de chaque projet."
     },
     "composio_mcp": {
       "subtitle": "Cochez une boîte à outils pour permettre à cet agent de la monter comme serveur MCP — mais uniquement lorsque c'est vous (son créateur) qui avez déclenché l'exécution, directement ou via une chaîne de sous-agents.",
@@ -698,7 +700,9 @@
       "add_dialog_confirm_one": "Ajouter {{count}} skill",
       "add_dialog_confirm_other": "Ajouter {{count}} skills",
       "add_dialog_cancel": "Annuler",
-      "add_failed_toast": "Échec de l'ajout du skill"
+      "add_failed_toast": "Échec de l'ajout du skill",
+      "from_projects_title": "Depuis les projets",
+      "from_projects_hint": "Cet agent reçoit ces skills dans les tâches des projets indiqués. Gérez-les sur la page de chaque projet."
     },
     "integrations": {
       "members_note": "Seuls les propriétaires et administrateurs de l'espace de travail peuvent gérer cette connexion. Vous pouvez voir les bots connectés dans Paramètres → Intégrations."
@@ -983,5 +987,10 @@
     "selected_one": "{{count}} sélectionné",
     "selected_other": "{{count}} sélectionnés",
     "clear_selection": "Effacer la sélection"
+  },
+  "project_source": {
+    "also_via_project": "Aussi via {{project}}",
+    "also_via_many_one": "Aussi via {{count}} projet",
+    "also_via_many_other": "Aussi via {{count}} projets"
   }
 }

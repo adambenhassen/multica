@@ -9,7 +9,9 @@ import {
   Server,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import type { Agent, AgentRuntime, WorkspaceMcpServer } from "@multica/core/types";
+import type { Agent, AgentRuntime, ProjectRef, WorkspaceMcpServer } from "@multica/core/types";
+import { agentProjectMcpServersOptions } from "@multica/core/projects";
+import { ProjectSourceBadge, ProjectSourceList } from "../project-source";
 import { ApiError } from "@multica/core/api";
 import {
   isRuntimeUsableForUser,
@@ -98,6 +100,11 @@ export function McpConfigTab({
   const libraryQuery = useQuery(
     workspaceMcpServersOptions(agent.workspace_id ?? ""),
   );
+  // Project MCP servers that reach this agent, per each project's audience.
+  const projectServersQuery = useQuery(
+    agentProjectMcpServersOptions(agent.workspace_id ?? "", agent.id),
+  );
+
   const addServer = useAddAgentMcpServer(agent.id);
   const setServerEnabled = useSetAgentMcpServerEnabled(agent.id);
   const removeServer = useRemoveAgentMcpServer(agent.id);
@@ -111,6 +118,10 @@ export function McpConfigTab({
     [managedServers],
   );
   const assignedServers = assignedQuery.data ?? [];
+  const projectServers = projectServersQuery.data ?? [];
+  const projectsByServer = new Map(projectServers.map((s) => [s.id, s.projects]));
+  const assignedServerIds = new Set(assignedServers.map((s) => s.id));
+  const projectOnlyServers = projectServers.filter((s) => !assignedServerIds.has(s.id));
   const assignedIds = useMemo(
     () => new Set(assignedServers.map((server) => server.id)),
     [assignedServers],
@@ -425,6 +436,7 @@ export function McpConfigTab({
               <McpWorkspaceServerRow
                 key={server.id}
                 server={server}
+                projects={projectsByServer.get(server.id)}
                 overridden={managedNames.has(server.name)}
                 canEdit={canEdit}
                 busy={setServerEnabled.isPending || removeServer.isPending}
@@ -443,6 +455,20 @@ export function McpConfigTab({
           />
         )}
       </section>
+
+      {projectOnlyServers.length > 0 && (
+        <ProjectSourceList
+          title={t(($) => $.tab_body.mcp_config.from_projects_title)}
+          hint={t(($) => $.tab_body.mcp_config.from_projects_hint)}
+          icon={<Server className="h-4 w-4" aria-hidden="true" />}
+          items={projectOnlyServers.map((s) => ({
+            id: s.id,
+            name: s.name,
+            detail: mcpTransportLabel(s.transport),
+            projects: s.projects,
+          }))}
+        />
+      )}
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-4">
@@ -580,6 +606,7 @@ type McpServerView = {
  */
 function McpWorkspaceServerRow({
   server,
+  projects,
   overridden,
   canEdit,
   busy,
@@ -587,6 +614,7 @@ function McpWorkspaceServerRow({
   onRemove,
 }: {
   server: WorkspaceMcpServer;
+  projects: ProjectRef[] | undefined;
   overridden: boolean;
   canEdit: boolean;
   busy: boolean;
@@ -606,6 +634,7 @@ function McpWorkspaceServerRow({
               {t(($) => $.tab_body.mcp_config.workspace_overridden_badge)}
             </Badge>
           )}
+          <ProjectSourceBadge projects={projects} />
         </div>
         <p className="text-caption text-muted-foreground">
           {mcpTransportLabel(server.transport)}

@@ -19,6 +19,7 @@ import type {
 } from "@multica/core/types";
 import { api, ApiError } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { agentProjectSkillsOptions } from "@multica/core/projects";
 import {
   isRuntimeUsableForUser,
   runtimeCapabilitiesOptions,
@@ -41,6 +42,7 @@ import {
 import { Switch } from "@multica/ui/components/ui/switch";
 import { cn } from "@multica/ui/lib/utils";
 import { SkillAddDialog } from "../skill-add-dialog";
+import { ProjectSourceBadge, ProjectSourceList } from "../project-source";
 import { useT } from "../../../i18n";
 
 type SelectedSkill =
@@ -72,6 +74,7 @@ export function SkillsTab({
       ? runtime.id
       : null;
   const runtimeQuery = useQuery(runtimeCapabilitiesOptions(runtimeId));
+  const projectSkillsQuery = useQuery(agentProjectSkillsOptions(wsId, agent.id));
   const [busyId, setBusyId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [selected, setSelected] = useState<SelectedSkill>(null);
@@ -143,6 +146,10 @@ export function SkillsTab({
   };
 
   const runtimeSkills = runtimeQuery.data?.skills ?? [];
+  const projectSkills = projectSkillsQuery.data ?? [];
+  const projectsBySkill = new Map(projectSkills.map((s) => [s.id, s.projects]));
+  const assignedIds = new Set(agent.skills.map((s) => s.id));
+  const projectOnlySkills = projectSkills.filter((s) => !assignedIds.has(s.id));
 
   return (
     <div className="space-y-8">
@@ -190,8 +197,11 @@ export function SkillsTab({
                       <SkillIcon className="h-4 w-4" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className={cn("block text-body font-medium", !enabled && "text-muted-foreground")}>
-                        {skill.name}
+                      <span className="flex items-center gap-2">
+                        <span className={cn("text-body font-medium", !enabled && "text-muted-foreground")}>
+                          {skill.name}
+                        </span>
+                        <ProjectSourceBadge projects={projectsBySkill.get(skill.id)} />
                       </span>
                       <span className="block truncate text-caption text-muted-foreground">
                         {skill.description || t(($) => $.tab_body.skills.no_description)}
@@ -231,6 +241,20 @@ export function SkillsTab({
           </ul>
         )}
       </CapabilitySection>
+
+      {projectOnlySkills.length > 0 && (
+        <ProjectSourceList
+          title={t(($) => $.tab_body.skills.from_projects_title)}
+          hint={t(($) => $.tab_body.skills.from_projects_hint)}
+          icon={<SkillIcon className="h-4 w-4" />}
+          items={projectOnlySkills.map((s) => ({
+            id: s.id,
+            name: s.name,
+            detail: s.description || t(($) => $.tab_body.skills.no_description),
+            projects: s.projects,
+          }))}
+        />
+      )}
 
       <CapabilitySection
         title={t(($) => $.tab_body.skills.runtime_title)}

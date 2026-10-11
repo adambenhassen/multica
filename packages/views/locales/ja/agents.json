@@ -507,7 +507,9 @@
       "save_failed_toast": "MCP config を保存できませんでした",
       "redacted_title": "設定済み — あなたには非表示",
       "redacted_hint": "この config を読み取れるのは、エージェントのオーナーまたはワークスペースの admin のみです。",
-      "dialog_json_help": "サーバー設定全体を JSON で編集します。"
+      "dialog_json_help": "サーバー設定全体を JSON で編集します。",
+      "from_projects_title": "プロジェクトから",
+      "from_projects_hint": "このエージェントは、表示されたプロジェクトのタスクでこれらの Server を受け取ります。各プロジェクトのページで管理してください。"
     },
     "composio_mcp": {
       "subtitle": "ツールキットにチェックを入れると、あなた（この agent の作成者）が直接または下位 agent のチェーン経由でこの agent をトリガーしたときに限り、MCP サーバーとしてマウントされます。",
@@ -583,7 +585,9 @@
       "add_dialog_confirm_default": "追加",
       "add_dialog_confirm_other": "スキル {{count}} 件を追加",
       "add_dialog_cancel": "キャンセル",
-      "add_failed_toast": "スキルを追加できませんでした"
+      "add_failed_toast": "スキルを追加できませんでした",
+      "from_projects_title": "プロジェクトから",
+      "from_projects_hint": "このエージェントは、表示されたプロジェクトのタスクでこれらのスキルを受け取ります。各プロジェクトのページで管理してください。"
     },
     "integrations": {
       "members_note": "この接続を管理できるのはワークスペースのオーナーと管理者のみです。接続済みの Bot は「設定 → 連携」で確認できます。"
@@ -961,5 +965,9 @@
   "actions": {
     "selected_other": "{{count}} 件選択中",
     "clear_selection": "選択を解除"
+  },
+  "project_source": {
+    "also_via_project": "{{project}} からも提供",
+    "also_via_many_other": "{{count}} 件のプロジェクトからも提供"
   }
 }
