@@ -1416,7 +1416,8 @@
   },
   "mcp_usage": {
     "agent_count_other": "已分配给 {{count}} 个智能体",
-    "none": "未分配给任何智能体"
+    "project_count_other": "{{count}} 个项目",
+    "none": "未分配给任何智能体或项目"
   },
   "mcp_sources": {
     "title": "为智能体接入工具的方式",

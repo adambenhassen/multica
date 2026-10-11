@@ -3499,6 +3499,7 @@ export const WorkspaceMcpServerSchema = z.object({
   // Older servers omit it; a malformed value drops to "unknown" rather than
   // failing the whole list.
   agent_count: z.number().int().nonnegative().optional().catch(undefined),
+  project_count: z.number().int().nonnegative().optional().catch(undefined),
   created_at: z.string().default(""),
   updated_at: z.string().default(""),
 });
