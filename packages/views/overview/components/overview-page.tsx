@@ -70,7 +70,7 @@ export function OverviewPage() {
     <div className="flex h-full min-h-0 flex-col">
       <CollectionPageHeader icon={LayoutDashboard} title={t(($) => $.title)} />
       <div className="flex-1 overflow-y-auto">
-        <div className={cn("mx-auto max-w-6xl space-y-6 py-6", PAGE_GUTTER)}>
+        <div className={cn("space-y-6 py-6", PAGE_GUTTER)}>
           <AgentRunsPanel />
           <MetricCards />
           <ChartsRow />
