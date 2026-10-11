@@ -4116,6 +4116,29 @@ export class ApiClient {
     });
   }
 
+  // Project MCP servers: workspace library entries every task in the project
+  // runs with, alongside its agent's own. Configs never leave the server.
+  async listProjectMcpServers(projectId: string): Promise<WorkspaceMcpServer[]> {
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/mcp-servers`);
+    return parseWithFallback(raw, WorkspaceMcpServerListSchema, [] as WorkspaceMcpServer[], {
+      endpoint: "GET /api/projects/{id}/mcp-servers",
+    });
+  }
+
+  // Attaching an attached server is a no-op on the server.
+  async addProjectMcpServers(projectId: string, serverIds: string[]): Promise<void> {
+    await this.fetch(`/api/projects/${projectId}/mcp-servers`, {
+      method: "POST",
+      body: JSON.stringify({ server_ids: serverIds }),
+    });
+  }
+
+  async removeProjectMcpServer(projectId: string, serverId: string): Promise<void> {
+    await this.fetch(`/api/projects/${projectId}/mcp-servers/${serverId}`, {
+      method: "DELETE",
+    });
+  }
+
   // Labels
   async listLabels(resourceType: LabelResourceType = "issue"): Promise<ListLabelsResponse> {
     const raw = await this.fetch<unknown>(`/api/labels?resource_type=${resourceType}`);

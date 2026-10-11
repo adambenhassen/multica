@@ -1,0 +1,42 @@
+import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, ApiError } from "../api";
+import { projectKeys } from "./queries";
+
+export const projectMcpServerKeys = {
+  all: (wsId: string) => [...projectKeys.all(wsId), "mcp-servers"] as const,
+  list: (wsId: string, projectId: string) =>
+    [...projectMcpServerKeys.all(wsId), projectId] as const,
+};
+
+export function projectMcpServersOptions(wsId: string, projectId: string) {
+  return queryOptions({
+    queryKey: projectMcpServerKeys.list(wsId, projectId),
+    queryFn: () => api.listProjectMcpServers(projectId),
+  });
+}
+
+export function useAddProjectMcpServers(wsId: string, projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (serverIds: string[]) => api.addProjectMcpServers(projectId, serverIds),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: projectMcpServerKeys.list(wsId, projectId) });
+    },
+  });
+}
+
+export function useRemoveProjectMcpServer(wsId: string, projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    // Removal is idempotent: a server another tab or member already detached
+    // is the outcome the caller asked for, not an error.
+    mutationFn: (serverId: string) =>
+      api.removeProjectMcpServer(projectId, serverId).catch((err: unknown) => {
+        if (err instanceof ApiError && err.status === 404) return;
+        throw err;
+      }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: projectMcpServerKeys.list(wsId, projectId) });
+    },
+  });
+}

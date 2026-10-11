@@ -228,6 +228,10 @@ vi.mock("./project-skills-section", () => ({
   ProjectSkillsSection: () => null,
 }));
 
+vi.mock("./project-mcp-servers-section", () => ({
+  ProjectMcpServersSection: () => null,
+}));
+
 vi.mock("./project-start-date-picker", () => ({
   ProjectStartDatePicker: () => null,
 }));

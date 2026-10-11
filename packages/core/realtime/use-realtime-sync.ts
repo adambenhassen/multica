@@ -13,6 +13,7 @@ import { getCurrentWsId, getCurrentSlug } from "../platform/workspace-storage";
 import { issueKeys } from "../issues/queries";
 import { projectKeys } from "../projects/queries";
 import { projectSkillKeys } from "../projects/skill-queries";
+import { projectMcpServerKeys } from "../projects/mcp-server-queries";
 import { pinKeys } from "../pins/queries";
 import { autopilotKeys } from "../autopilots/queries";
 import { runtimeKeys } from "../runtimes/queries";
@@ -833,6 +834,10 @@ export function useRealtimeSync(
       project_skill: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: projectSkillKeys.all(wsId) });
+      },
+      project_mcp_server: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: projectMcpServerKeys.all(wsId) });
       },
       project: () => {
         const wsId = getCurrentWsId();
