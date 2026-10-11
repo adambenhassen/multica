@@ -8,10 +8,11 @@ import {
   projectSkillsOptions,
   useAddProjectSkills,
   useRemoveProjectSkill,
+  useSetProjectSkillAudience,
 } from "@multica/core/projects";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { skillListOptions } from "@multica/core/workspace/queries";
-import type { SkillSummary } from "@multica/core/types";
+import type { ProjectSkill, SkillSummary } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import {
   Dialog,
@@ -24,10 +25,12 @@ import {
 } from "@multica/ui/components/ui/dialog";
 import { SkillPickerList } from "../../agents/components/skill-picker-list";
 import { SkillIcon } from "../../skills/lib/skill-icon";
+import { ProjectAudienceControl } from "./project-audience-control";
 import { useT } from "../../i18n";
 
 // Stable fallbacks: a fresh `[]` default per render would re-run the memo below.
 const NO_SKILLS: SkillSummary[] = [];
+const NO_PROJECT_SKILLS: ProjectSkill[] = [];
 
 export function ProjectSkillsSection({
   projectId,
@@ -41,8 +44,9 @@ export function ProjectSkillsSection({
   const wsId = useWorkspaceId();
   const [open, setOpen] = useState(true);
 
-  const { data: skills = NO_SKILLS } = useQuery(projectSkillsOptions(wsId, projectId));
+  const { data: skills = NO_PROJECT_SKILLS } = useQuery(projectSkillsOptions(wsId, projectId));
   const removeSkill = useRemoveProjectSkill(wsId, projectId);
+  const setAudience = useSetProjectSkillAudience(wsId, projectId);
 
   const handleRemove = async (skill: SkillSummary) => {
     try {
@@ -78,6 +82,12 @@ export function ProjectSkillsSection({
                 >
                   <SkillIcon className="size-3.5 shrink-0" />
                   <span className="min-w-0 flex-1 truncate text-foreground">{skill.name}</span>
+                  <ProjectAudienceControl
+                    audience={skill.audience}
+                    itemName={skill.name}
+                    canManage={canManage}
+                    onSave={(audience) => setAudience.mutateAsync({ skillId: skill.id, audience })}
+                  />
                   {canManage && (
                     <button
                       type="button"

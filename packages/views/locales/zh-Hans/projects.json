@@ -154,7 +154,7 @@
   "skills": {
     "section_header": "Skills",
     "empty": "还没有关联 skill。",
-    "hint": "该项目下的每次运行，这些 skill 会叠加到各智能体自身的 skill 上；智能体已停用的 skill 除外。",
+    "hint": "该项目下的每次运行，这些 skill 会叠加到各智能体自身的 skill 上。可通过接收对象限制哪些智能体获得某个 skill。",
     "add_button": "添加 skill",
     "add_dialog_title": "为项目添加 skill",
     "add_dialog_cancel": "取消",
@@ -170,13 +170,28 @@
   "mcp": {
     "section_header": "MCP Server",
     "empty": "还没有关联 MCP Server。",
-    "hint": "该项目下的每次运行，这些 MCP Server 会叠加到各智能体自身的 MCP Server 上；智能体已停用的 Server 除外。其凭据会到达运行项目工作的每个运行时。",
+    "hint": "该项目下的每次运行，这些 MCP Server 会叠加到各智能体自身的 MCP Server 上；可通过接收对象限制哪些智能体获得某个 Server。其凭据会到达为这些智能体运行工作的每个运行时。",
     "add_button": "添加 MCP Server",
     "add_empty": "当前工作区还没有 MCP Server。请在工作区设置 → MCP 中添加。",
     "add_empty_partial": "全部工作区 MCP Server 都已关联到该项目。",
     "add_failed_toast": "添加 MCP Server 失败",
     "remove_aria": "移除 {{name}}",
     "remove_failed_toast": "移除 MCP Server 失败"
+  },
+  "audience": {
+    "everyone": "所有智能体",
+    "nobody": "无智能体",
+    "unknown_agent": "未知智能体",
+    "unknown_label": "未知标签",
+    "edit_aria": "更改 {{name}} 的接收对象（当前：{{audience}}）",
+    "restrict_label": "仅限所选智能体和标签",
+    "search_placeholder": "搜索智能体和标签",
+    "labels_heading": "智能体标签",
+    "agents_heading": "智能体",
+    "nobody_hint": "在选择智能体或标签之前，不会有智能体收到它。",
+    "cancel": "取消",
+    "save": "保存",
+    "save_failed_toast": "更新接收对象失败"
   },
   "delete_dialog": {
     "title": "删除项目",

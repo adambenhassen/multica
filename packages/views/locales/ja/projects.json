@@ -154,7 +154,7 @@
   "skills": {
     "section_header": "スキル",
     "empty": "添付されたスキルはありません。",
-    "hint": "このプロジェクトの実行では、各エージェント自身のスキルに追加されます。エージェントで無効化されているスキルは除きます。",
+    "hint": "このプロジェクトの実行では、各エージェント自身のスキルに追加されます。受け取る対象を設定すると、スキルを使うエージェントを限定できます。",
     "add_button": "スキルを追加",
     "add_dialog_title": "プロジェクトにスキルを追加",
     "add_dialog_cancel": "キャンセル",
@@ -170,13 +170,28 @@
   "mcp": {
     "section_header": "MCP Server",
     "empty": "追加された MCP Server はありません。",
-    "hint": "このプロジェクトの実行では、各エージェントの MCP Server に追加されます。エージェントで無効化されている Server は除きます。認証情報はプロジェクトの作業を実行するすべてのランタイムに渡ります。",
+    "hint": "このプロジェクトの実行では、各エージェントの MCP Server に追加されます。受け取る対象を設定すると、Server を使うエージェントを限定できます。認証情報は、それらのエージェントの作業を実行するすべてのランタイムに渡ります。",
     "add_button": "MCP Server を追加",
     "add_empty": "このワークスペースにはまだ MCP Server がありません。ワークスペースの設定 → MCP で追加してください。",
     "add_empty_partial": "ワークスペースのすべての MCP Server がすでにこのプロジェクトに追加されています。",
     "add_failed_toast": "MCP Server を追加できませんでした",
     "remove_aria": "{{name}} を削除",
     "remove_failed_toast": "MCP Server を削除できませんでした"
+  },
+  "audience": {
+    "everyone": "すべてのエージェント",
+    "nobody": "エージェントなし",
+    "unknown_agent": "不明なエージェント",
+    "unknown_label": "不明なラベル",
+    "edit_aria": "{{name}} を受け取る対象を変更（現在: {{audience}}）",
+    "restrict_label": "選択したエージェントとラベルのみ",
+    "search_placeholder": "エージェントとラベルを検索",
+    "labels_heading": "エージェントラベル",
+    "agents_heading": "エージェント",
+    "nobody_hint": "エージェントかラベルを選ぶまで、どのエージェントも受け取りません。",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "save_failed_toast": "受け取る対象を更新できませんでした"
   },
   "delete_dialog": {
     "title": "プロジェクトを削除",

@@ -154,7 +154,7 @@
   "skills": {
     "section_header": "스킬",
     "empty": "첨부된 스킬이 없습니다.",
-    "hint": "이 프로젝트의 실행에서 각 에이전트 자체 스킬에 추가됩니다. 에이전트에서 비활성화한 스킬은 제외됩니다.",
+    "hint": "이 프로젝트의 실행에서 각 에이전트 자체 스킬에 추가됩니다. 받는 대상을 설정해 스킬을 받을 에이전트를 제한할 수 있습니다.",
     "add_button": "스킬 추가",
     "add_dialog_title": "프로젝트에 스킬 추가",
     "add_dialog_cancel": "취소",
@@ -170,13 +170,28 @@
   "mcp": {
     "section_header": "MCP Server",
     "empty": "추가된 MCP Server가 없습니다.",
-    "hint": "이 프로젝트의 실행에서 각 에이전트의 MCP Server에 추가됩니다. 에이전트에서 비활성화한 Server는 제외됩니다. 인증 정보는 프로젝트 작업을 실행하는 모든 런타임에 전달됩니다.",
+    "hint": "이 프로젝트의 실행에서 각 에이전트의 MCP Server에 추가됩니다. 받는 대상을 설정해 Server를 받을 에이전트를 제한할 수 있습니다. 인증 정보는 해당 에이전트의 작업을 실행하는 모든 런타임에 전달됩니다.",
     "add_button": "MCP Server 추가",
     "add_empty": "이 워크스페이스에는 아직 MCP Server가 없습니다. 워크스페이스 설정 → MCP에서 추가하세요.",
     "add_empty_partial": "모든 워크스페이스 MCP Server가 이미 이 프로젝트에 추가되어 있습니다.",
     "add_failed_toast": "MCP Server를 추가하지 못했습니다",
     "remove_aria": "{{name}} 제거",
     "remove_failed_toast": "MCP Server를 제거하지 못했습니다"
+  },
+  "audience": {
+    "everyone": "모든 에이전트",
+    "nobody": "에이전트 없음",
+    "unknown_agent": "알 수 없는 에이전트",
+    "unknown_label": "알 수 없는 라벨",
+    "edit_aria": "{{name}}을(를) 받는 대상 변경 (현재: {{audience}})",
+    "restrict_label": "선택한 에이전트와 라벨만",
+    "search_placeholder": "에이전트와 라벨 검색",
+    "labels_heading": "에이전트 라벨",
+    "agents_heading": "에이전트",
+    "nobody_hint": "에이전트나 라벨을 선택할 때까지 어떤 에이전트도 받지 않습니다.",
+    "cancel": "취소",
+    "save": "저장",
+    "save_failed_toast": "받는 대상을 업데이트하지 못했습니다"
   },
   "delete_dialog": {
     "title": "프로젝트 삭제",

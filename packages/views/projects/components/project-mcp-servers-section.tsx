@@ -8,10 +8,11 @@ import {
   projectMcpServersOptions,
   useAddProjectMcpServers,
   useRemoveProjectMcpServer,
+  useSetProjectMcpServerAudience,
 } from "@multica/core/projects";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { workspaceMcpServersOptions } from "@multica/core/workspace/queries";
-import type { WorkspaceMcpServer } from "@multica/core/types";
+import type { ProjectMcpServer, WorkspaceMcpServer } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -20,10 +21,12 @@ import {
   DropdownMenuTrigger,
 } from "@multica/ui/components/ui/dropdown-menu";
 import { mcpTransportLabel } from "../../common/mcp-transport";
+import { ProjectAudienceControl } from "./project-audience-control";
 import { useT } from "../../i18n";
 
 // Stable fallback: a fresh `[]` default per render would re-run the memo below.
 const NO_SERVERS: WorkspaceMcpServer[] = [];
+const NO_PROJECT_SERVERS: ProjectMcpServer[] = [];
 
 export function ProjectMcpServersSection({
   projectId,
@@ -37,8 +40,9 @@ export function ProjectMcpServersSection({
   const wsId = useWorkspaceId();
   const [open, setOpen] = useState(true);
 
-  const { data: servers = NO_SERVERS } = useQuery(projectMcpServersOptions(wsId, projectId));
+  const { data: servers = NO_PROJECT_SERVERS } = useQuery(projectMcpServersOptions(wsId, projectId));
   const removeServer = useRemoveProjectMcpServer(wsId, projectId);
+  const setAudience = useSetProjectMcpServerAudience(wsId, projectId);
 
   const handleRemove = async (server: WorkspaceMcpServer) => {
     try {
@@ -74,6 +78,12 @@ export function ProjectMcpServersSection({
                 >
                   <span className="min-w-0 flex-1 truncate text-foreground">{server.name}</span>
                   <span className="shrink-0">{mcpTransportLabel(server.transport)}</span>
+                  <ProjectAudienceControl
+                    audience={server.audience}
+                    itemName={server.name}
+                    canManage={canManage}
+                    onSave={(audience) => setAudience.mutateAsync({ serverId: server.id, audience })}
+                  />
                   {canManage && (
                     <button
                       type="button"

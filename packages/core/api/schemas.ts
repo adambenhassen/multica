@@ -3506,6 +3506,26 @@ export const WorkspaceMcpServerSchema = z.object({
 
 export const WorkspaceMcpServerListSchema = z.array(WorkspaceMcpServerSchema);
 
+// Project attachments carry an audience. A malformed or missing audience drops
+// to undefined (older servers had none, which meant every agent).
+export const ProjectAttachmentAudienceSchema = z.object({
+  restricted: z.boolean().default(false),
+  agent_ids: z.array(z.string()).catch([]),
+  label_ids: z.array(z.string()).catch([]),
+});
+
+export const ProjectMcpServerSchema = WorkspaceMcpServerSchema.extend({
+  audience: ProjectAttachmentAudienceSchema.optional().catch(undefined),
+});
+
+export const ProjectMcpServerListSchema = z.array(ProjectMcpServerSchema);
+
+export const ProjectSkillSchema = SkillSummarySchema.extend({
+  audience: ProjectAttachmentAudienceSchema.optional().catch(undefined),
+}).loose();
+
+export const ProjectSkillListSchema = z.array(ProjectSkillSchema).default([]);
+
 export const EMPTY_WORKSPACE_MCP_SERVER: WorkspaceMcpServer = {
   id: "",
   workspace_id: "",
