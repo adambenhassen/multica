@@ -213,13 +213,15 @@ JOIN issue i ON i.id = a.issue_id AND i.workspace_id = a.workspace_id
 WHERE a.workspace_id = $1
   AND a.issue_id IS NOT NULL
   AND NOT (a.action = ANY($2::text[]))
+  AND (cardinality($3::text[]) = 0 OR a.action = ANY($3::text[]))
 ORDER BY a.created_at DESC, a.id DESC
-LIMIT $3
+LIMIT $4
 `
 
 type ListRecentWorkspaceActivitiesParams struct {
 	WorkspaceID     pgtype.UUID `json:"workspace_id"`
 	ExcludedActions []string    `json:"excluded_actions"`
+	OnlyActions     []string    `json:"only_actions"`
 	RowLimit        int32       `json:"row_limit"`
 }
 
@@ -243,7 +245,12 @@ type ListRecentWorkspaceActivitiesRow struct {
 // `issue_id IS NOT NULL` predicate lets idx_activity_log_workspace_recent
 // (migration 581) serve the ORDER BY without a sort step.
 func (q *Queries) ListRecentWorkspaceActivities(ctx context.Context, arg ListRecentWorkspaceActivitiesParams) ([]ListRecentWorkspaceActivitiesRow, error) {
-	rows, err := q.db.Query(ctx, listRecentWorkspaceActivities, arg.WorkspaceID, arg.ExcludedActions, arg.RowLimit)
+	rows, err := q.db.Query(ctx, listRecentWorkspaceActivities,
+		arg.WorkspaceID,
+		arg.ExcludedActions,
+		arg.OnlyActions,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

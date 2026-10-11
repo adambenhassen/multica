@@ -860,3 +860,19 @@ FROM comment c
 JOIN ancestor_ids path ON path.id = c.id
 ORDER BY c.id
 FOR UPDATE OF c;
+
+-- name: ListRecentWorkspaceComments :many
+-- The newest user-written comments across a workspace, for the Dashboard feed.
+-- Only an excerpt of the content is returned: the feed shows one line of it.
+-- The literal type / deleted_at predicates let idx_comment_workspace_recent
+-- (migration 582) serve the ORDER BY without a sort step.
+SELECT c.id, c.issue_id, c.author_type, c.author_id, c.parent_id, c.created_at,
+       LEFT(c.content, @excerpt_length::int)::text AS excerpt,
+       i.number AS issue_number, i.title AS issue_title, i.status AS issue_status
+FROM comment c
+JOIN issue i ON i.id = c.issue_id AND i.workspace_id = c.workspace_id
+WHERE c.workspace_id = @workspace_id
+  AND c.type = 'comment'
+  AND c.deleted_at IS NULL
+ORDER BY c.created_at DESC, c.id DESC
+LIMIT @row_limit;
