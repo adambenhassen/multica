@@ -48,7 +48,11 @@ RETURNING *;
 
 -- name: DeleteProject :exec
 -- Defense-in-depth: workspace_id is a SQL-layer tenant guard. See DeleteIssue.
-DELETE FROM project WHERE id = $1 AND workspace_id = $2;
+-- project_skill has no foreign key, so its links go in the same statement.
+WITH deleted_project_skills AS (
+    DELETE FROM project_skill WHERE project_skill.project_id = $1 AND project_skill.workspace_id = $2
+)
+DELETE FROM project WHERE project.id = $1 AND project.workspace_id = $2;
 
 -- name: CountIssuesByProject :one
 SELECT count(*) FROM issue

@@ -154,6 +154,7 @@ var concurrentIndexCleanups = map[string]string{
 	"556_wakeup_system_rule_index":                              "issue_wakeup_system_rule_idx",
 	"559_issue_child_event_id":                                  "issue_child_event_id_idx",
 	"560_issue_child_event_pending":                             "issue_child_event_pending_idx",
+	"574_project_skill_skill_idx":                               "idx_project_skill_skill",
 	"510_wakeup_id":                                             "issue_wakeup_id_idx",
 	"511_wakeup_issue":                                          "issue_wakeup_issue_idx",
 	"512_wakeup_due":                                            "issue_wakeup_due_idx",
