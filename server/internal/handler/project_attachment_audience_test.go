@@ -262,3 +262,37 @@ func projectAttachmentAudienceCount(t *testing.T, projectID string) int {
 	dbfx.QueryRow(t, `SELECT count(*) FROM project_attachment_audience WHERE project_id = $1`, projectID).Scan(&n)
 	return n
 }
+
+// Agent owners can label their own agents. A label that grants a restricted
+// project item must not be self-assignable, or any member could opt in.
+func TestAttachLabelToAgent_AudienceLabelRequiresAdmin(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	projectID := dbfx.Project(t, "Audience label gate")
+	dbfx.Cleanup(t, `DELETE FROM project_attachment_audience WHERE project_id = $1`, projectID)
+	dbfx.Cleanup(t, `DELETE FROM project_skill WHERE project_id = $1`, projectID)
+
+	memberID := dbfx.User(t, "Label gate member", "label-gate-member@multica.test")
+	dbfx.Member(t, testWorkspaceID, memberID, "member")
+	runtimeID := createClaimReclaimRuntime(t, ctx, "label gate runtime")
+	agentID := dbfx.Agent(t, "label gate agent", runtimeID, testutil.Cols{"owner_id": memberID})
+	dbfx.Cleanup(t, `DELETE FROM agent_to_label WHERE agent_id = $1`, agentID)
+
+	plainLabel := insertAgentLabel(t, "label-gate-plain")
+	gatedLabel := insertAgentLabel(t, "label-gate-ops")
+	skillID := insertProjectSkillFixtureSkill(t, testWorkspaceID, "label-gate-skill")
+	addProjectSkillCall(t, projectID, skillID).Want(http.StatusOK)
+	setAudienceCall(t, "skills", projectID, skillID, map[string]any{
+		"restricted": true, "label_ids": []string{gatedLabel},
+	}).Want(http.StatusOK)
+
+	attach := func(userID, labelID string) *testutil.Response {
+		req := withURLParam(newRequestAs(userID, "POST", "/api/agents/"+agentID+"/labels", map[string]any{"label_id": labelID}), "id", agentID)
+		return testutil.Call(t, testHandler.AttachLabelToAgent, req)
+	}
+	attach(memberID, plainLabel).Want(http.StatusOK)
+	attach(memberID, gatedLabel).Want(http.StatusForbidden)
+	attach(testUserID, gatedLabel).Want(http.StatusOK)
+}

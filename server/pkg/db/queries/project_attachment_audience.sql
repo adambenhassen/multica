@@ -31,3 +31,11 @@ SELECT count(*) FROM issue_label
 WHERE id = ANY(sqlc.arg('label_ids')::uuid[])
   AND workspace_id = sqlc.arg('workspace_id')
   AND resource_type = 'agent';
+
+-- name: IsLabelInProjectAudience :one
+-- Agent owners may label their own agents, so attaching a label that grants a
+-- restricted project skill / MCP server is gated to workspace admins.
+SELECT EXISTS (
+    SELECT 1 FROM project_attachment_audience
+    WHERE target_type = 'label' AND target_id = $1 AND workspace_id = $2
+);
