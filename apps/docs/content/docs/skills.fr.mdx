@@ -87,6 +87,19 @@ Après sa création ou son import, un skill doit encore être ajouté à des age
 
 Seuls les membres autorisés à modifier l'agent peuvent ajouter, retirer ou désactiver ses skills.
 
+## Rattacher un skill à un projet
+
+Rattachez un skill à un [projet](/projects) quand chaque tâche de ce projet en a besoin, quel que soit l'agent qui l'exécute. Ouvrez le projet et utilisez **Ajouter un skill** dans sa section **Skills**, ou la CLI :
+
+```bash
+multica project skill add <project-id> --skill-ids <skill-id>
+```
+
+- Les skills du projet s'ajoutent aux skills de l'agent qui s'exécute ; un skill rattaché aux deux n'est fourni qu'une fois.
+- Ils s'appliquent à chaque exécution liée au projet : ses tâches, les discussions et automatisations associées au projet, et les créations rapides qui le choisissent.
+- Tout membre de l'espace de travail peut rattacher ou retirer des skills de projet.
+- Les modifications s'appliquent aux exécutions suivantes.
+
 ## Skills de l'espace de travail et skills du dépôt
 
 Les skills de l'espace de travail sont stockés dans Multica — idéal pour les skills que l'équipe maintient ensemble et ajoute à différents agents.
@@ -99,7 +112,7 @@ Les skills locaux au runtime déjà installés sur un ordinateur connecté (Clau
 
 Tout membre de l'espace de travail peut créer ou importer un skill. Le créateur ainsi que les `owner` et `admin` de l'espace de travail peuvent le modifier ou le supprimer ; les autres membres peuvent le consulter et l'utiliser, mais pas écraser son contenu.
 
-La suppression est définitive et retire le skill de tous les agents en même temps.
+La suppression est définitive et retire le skill de tous les agents et projets en même temps.
 
 <Callout type="warning">
 Les skills importés depuis des sources externes peuvent contenir des scripts, des commandes ou des instructions dangereuses. Multica ne les vérifie pas, ne les signe pas et ne les isole pas dans un bac à sable à votre place. Le contenu importé est transmis tel quel aux agents : la source doit donc être digne de confiance.
