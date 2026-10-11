@@ -1,5 +1,6 @@
 {
   "nav": {
+    "dashboard": "대시보드",
     "inbox": "인박스",
     "chat": "채팅",
     "my_issues": "내 태스크",
