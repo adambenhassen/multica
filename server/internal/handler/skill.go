@@ -77,6 +77,9 @@ type SkillSummaryResponse struct {
 	// always sets a non-nil slice (empty when none). Other summary
 	// producers leave this nil so the field is omitted.
 	Labels *[]LabelResponse `json:"labels,omitempty"`
+	// Projects lists the projects the skill is attached to. Only the
+	// workspace skills list reports it (always non-nil there).
+	Projects *[]ProjectRef `json:"projects,omitempty"`
 }
 
 // AgentSkillSummary is the still-narrower shape used for skills embedded in
@@ -360,6 +363,16 @@ func (h *Handler) ListSkills(w http.ResponseWriter, r *http.Request) {
 		ids[i] = s.ID
 	}
 	labelsMap := h.labelsBySkill(r.Context(), wsUUID, ids)
+	projectRows, err := h.Queries.ListProjectSkillLinksByWorkspace(r.Context(), wsUUID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list skills")
+		return
+	}
+	projectsBySkill := make(map[string][]ProjectRef, len(projectRows))
+	for _, row := range projectRows {
+		key := uuidToString(row.SkillID)
+		projectsBySkill[key] = append(projectsBySkill[key], ProjectRef{ID: uuidToString(row.ProjectID), Title: row.ProjectTitle})
+	}
 
 	resp := make([]SkillSummaryResponse, len(skills))
 	for i, s := range skills {
@@ -371,6 +384,8 @@ func (h *Handler) ListSkills(w http.ResponseWriter, r *http.Request) {
 		// append(nil, xs...) keeps a nil header when xs is empty.
 		labels := append([]LabelResponse{}, labelsMap[resp[i].ID]...)
 		resp[i].Labels = &labels
+		projects := append([]ProjectRef{}, projectsBySkill[resp[i].ID]...)
+		resp[i].Projects = &projects
 	}
 
 	writeJSON(w, http.StatusOK, resp)

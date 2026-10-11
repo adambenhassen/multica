@@ -37,6 +37,42 @@ func (q *Queries) AddProjectSkill(ctx context.Context, arg AddProjectSkillParams
 	return result.RowsAffected(), nil
 }
 
+const listProjectSkillLinksByWorkspace = `-- name: ListProjectSkillLinksByWorkspace :many
+SELECT ps.skill_id, p.id AS project_id, p.title AS project_title
+FROM project_skill ps
+JOIN project p ON p.id = ps.project_id AND p.workspace_id = ps.workspace_id
+WHERE ps.workspace_id = $1
+ORDER BY p.title ASC
+`
+
+type ListProjectSkillLinksByWorkspaceRow struct {
+	SkillID      pgtype.UUID `json:"skill_id"`
+	ProjectID    pgtype.UUID `json:"project_id"`
+	ProjectTitle string      `json:"project_title"`
+}
+
+// Which projects each skill is attached to, for the workspace skills list, so
+// project skills can be shown apart and never look unused.
+func (q *Queries) ListProjectSkillLinksByWorkspace(ctx context.Context, workspaceID pgtype.UUID) ([]ListProjectSkillLinksByWorkspaceRow, error) {
+	rows, err := q.db.Query(ctx, listProjectSkillLinksByWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectSkillLinksByWorkspaceRow{}
+	for rows.Next() {
+		var i ListProjectSkillLinksByWorkspaceRow
+		if err := rows.Scan(&i.SkillID, &i.ProjectID, &i.ProjectTitle); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectSkillSummaries = `-- name: ListProjectSkillSummaries :many
 SELECT s.id, s.workspace_id, s.name, s.description, s.config, s.created_by, s.created_at, s.updated_at, ps.restricted
 FROM skill s
