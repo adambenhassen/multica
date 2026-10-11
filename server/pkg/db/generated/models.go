@@ -1315,12 +1315,23 @@ type Project struct {
 	DueDate     pgtype.Date        `json:"due_date"`
 }
 
+type ProjectAttachmentAudience struct {
+	ProjectID   pgtype.UUID        `json:"project_id"`
+	ItemType    string             `json:"item_type"`
+	ItemID      pgtype.UUID        `json:"item_id"`
+	TargetType  string             `json:"target_type"`
+	TargetID    pgtype.UUID        `json:"target_id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type ProjectMcpServer struct {
 	ProjectID   pgtype.UUID        `json:"project_id"`
 	ServerID    pgtype.UUID        `json:"server_id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`
 	CreatedBy   pgtype.UUID        `json:"created_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	Restricted  bool               `json:"restricted"`
 }
 
 type ProjectResource struct {
@@ -1341,6 +1352,7 @@ type ProjectSkill struct {
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`
 	CreatedBy   pgtype.UUID        `json:"created_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	Restricted  bool               `json:"restricted"`
 }
 
 type QuickAction struct {
