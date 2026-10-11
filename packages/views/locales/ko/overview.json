@@ -33,6 +33,15 @@
   },
   "issues": {
     "heading": "최근 태스크",
-    "empty": "아직 태스크 없음"
+    "empty": "아직 태스크 없음",
+    "empty_filtered": "이 상태의 태스크 없음",
+    "filter_label": "상태로 필터",
+    "filters": {
+      "all": "전체",
+      "in_progress": "진행 중",
+      "blocked": "막힘",
+      "done": "완료",
+      "cancelled": "취소됨"
+    }
   }
 }

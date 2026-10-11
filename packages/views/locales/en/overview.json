@@ -33,6 +33,15 @@
   },
   "issues": {
     "heading": "Recent issues",
-    "empty": "No issues yet"
+    "empty": "No issues yet",
+    "empty_filtered": "No issues with this status",
+    "filter_label": "Filter by status",
+    "filters": {
+      "all": "All",
+      "in_progress": "In progress",
+      "blocked": "Blocked",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    }
   }
 }

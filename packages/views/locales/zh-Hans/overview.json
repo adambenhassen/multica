@@ -33,6 +33,15 @@
   },
   "issues": {
     "heading": "最近任务",
-    "empty": "暂无任务"
+    "empty": "暂无任务",
+    "empty_filtered": "没有此状态的任务",
+    "filter_label": "按状态筛选",
+    "filters": {
+      "all": "全部",
+      "in_progress": "进行中",
+      "blocked": "已阻塞",
+      "done": "已完成",
+      "cancelled": "已取消"
+    }
   }
 }

@@ -142,4 +142,25 @@ describe("OverviewPage", () => {
     fireEvent.click(within(activity).getByRole("button", { name: "Try again" }));
     expect(await within(activity).findByText("No activity yet")).toBeTruthy();
   });
+
+  it("filters recent issues by status on the server", async () => {
+    const calls: unknown[] = [];
+    apiRef.current = {
+      listIssues: ((params: unknown) => {
+        calls.push(params);
+        return Promise.resolve({ issues: [], total: 0 });
+      }) as () => Promise<unknown>,
+    };
+    renderPage();
+
+    expect(await screen.findByText("No issues yet")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Blocked" }));
+    expect(await screen.findByText("No issues with this status")).toBeTruthy();
+    expect(calls.at(-1)).toEqual({
+      statuses: ["blocked"],
+      sort_by: "updated_at",
+      sort_direction: "desc",
+      limit: 50,
+    });
+  });
 });
