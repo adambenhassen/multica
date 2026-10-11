@@ -1038,15 +1038,18 @@ export function useRealtimeSync(
       }, 1_000));
     };
 
-    // The Dashboard activity feed refetches once per second at most. Like the
-    // working-agent refresh, it flushes one second after the FIRST event so a
+    // The Dashboard lists refetch once per second at most. Like the
+    // working-agent refresh, each flushes one second after the FIRST event so a
     // busy workspace's continuous activity cannot starve it.
-    const overviewActivityTimers = new Map<string, ReturnType<typeof setTimeout>>();
-    const scheduleOverviewActivityRefresh = (wsId: string) => {
-      if (overviewActivityTimers.has(wsId)) return;
-      overviewActivityTimers.set(wsId, setTimeout(() => {
-        overviewActivityTimers.delete(wsId);
-        qc.invalidateQueries({ queryKey: overviewKeys.activityAll(wsId) });
+    const overviewTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    const scheduleOverviewRefresh = (wsId: string, part: "activity" | "issues") => {
+      const timerKey = `${wsId}:${part}`;
+      if (overviewTimers.has(timerKey)) return;
+      overviewTimers.set(timerKey, setTimeout(() => {
+        overviewTimers.delete(timerKey);
+        qc.invalidateQueries({
+          queryKey: part === "activity" ? overviewKeys.activityAll(wsId) : overviewKeys.issuesAll(wsId),
+        });
       }, 1_000));
     };
 
@@ -1126,6 +1129,7 @@ export function useRealtimeSync(
         if (issue.status) {
           onInboxIssueStatusChanged(qc, wsId, issue.id, issue.status);
         }
+        scheduleOverviewRefresh(wsId, "issues");
       }
     });
 
@@ -1133,7 +1137,10 @@ export function useRealtimeSync(
       const { issue } = p as IssueCreatedPayload;
       if (!issue) return;
       const wsId = getCurrentWsId();
-      if (wsId) onIssueCreated(qc, wsId, issue);
+      if (wsId) {
+        onIssueCreated(qc, wsId, issue);
+        scheduleOverviewRefresh(wsId, "issues");
+      }
     });
 
     const unsubIssueDeleted = ws.on("issue:deleted", (p) => {
@@ -1145,7 +1152,8 @@ export function useRealtimeSync(
         void onInboxIssueDeleted(qc, wsId, issue_id);
         // The feed joins activity to its issue, so the deleted issue's rows
         // are gone server-side.
-        scheduleOverviewActivityRefresh(wsId);
+        scheduleOverviewRefresh(wsId, "activity");
+        scheduleOverviewRefresh(wsId, "issues");
       }
     });
 
@@ -1295,7 +1303,7 @@ export function useRealtimeSync(
       const { issue_id } = p as ActivityCreatedPayload;
       if (issue_id) invalidateTimeline(issue_id);
       const wsId = getCurrentWsId();
-      if (wsId) scheduleOverviewActivityRefresh(wsId);
+      if (wsId) scheduleOverviewRefresh(wsId, "activity");
     });
 
     const unsubReactionAdded = ws.on("reaction:added", (p) => {
@@ -1900,8 +1908,8 @@ export function useRealtimeSync(
       workingAgentTimers.forEach(clearTimeout);
       workingAgentTimers.clear();
       workingAgentDirty.clear();
-      overviewActivityTimers.forEach(clearTimeout);
-      overviewActivityTimers.clear();
+      overviewTimers.forEach(clearTimeout);
+      overviewTimers.clear();
     };
   }, [ws, qc, authStore, onToast]);
 

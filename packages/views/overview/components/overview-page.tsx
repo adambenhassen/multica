@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Bot, CircleDot, DollarSign, Inbox, LayoutDashboard, type LucideIcon } from "lucide-react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Button } from "@multica/ui/components/ui/button";
@@ -12,15 +12,18 @@ import { agentTaskSnapshotOptions, useWorkspacePresenceMap } from "@multica/core
 import { useActorName } from "@multica/core/workspace/hooks";
 import {
   issueDetailOptions,
-  issueListOptions,
   issueTableFacetsOptions,
-  type IssueSortParam,
 } from "@multica/core/issues/queries";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { useInboxUnreadCount } from "@multica/core/inbox/queries";
 import { dashboardRunTimeDailyOptions, dashboardUsageDailyOptions } from "@multica/core/dashboard";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
-import { workspaceActivityOptions } from "@multica/core/overview";
+import {
+  RECENT_ISSUE_FILTERS,
+  recentIssuesOptions,
+  workspaceActivityOptions,
+  type RecentIssueFilter,
+} from "@multica/core/overview";
 import type { AgentTask, Issue, IssueTableFacetsRequest } from "@multica/core/types";
 import { AppLink } from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
@@ -33,6 +36,7 @@ import { taskStatusConfig } from "../../agents/config";
 import { DailyTasksChart } from "../../runtimes/components/charts";
 import { addDaysIso, todayIso } from "../../runtimes/utils";
 import { computeDailyTotals } from "../../dashboard/utils";
+import { Segmented } from "../../dashboard/components/dashboard-shared";
 import { useLocale, useT, useTimeAgo } from "../../i18n";
 import {
   OVERVIEW_CHART_DAYS,
@@ -45,7 +49,8 @@ import {
 import { SuccessRateChart } from "./success-rate-chart";
 import { cn } from "@multica/ui/lib/utils";
 
-const LIST_LIMIT = 10;
+// The feed endpoint caps a page at 50; the list scrolls inside its card.
+const ACTIVITY_LIMIT = 50;
 const SPEND_DAYS = 30;
 
 const STATUS_FACET_REQUEST: IssueTableFacetsRequest = {
@@ -58,9 +63,8 @@ const STATUS_FACET_REQUEST: IssueTableFacetsRequest = {
   include_total: false,
 };
 
-const RECENT_ISSUES_SORT: IssueSortParam = { sort_by: "updated_at", sort_direction: "desc" };
 
-const LIST_CLASS = "divide-y overflow-hidden rounded-lg border bg-card";
+const LIST_CLASS = "max-h-[30rem] divide-y overflow-y-auto rounded-lg border bg-card";
 const LIST_ROW_CLASS =
   "flex min-h-12 items-center gap-3 px-4 py-3 text-label transition-colors hover:bg-accent/50";
 
@@ -86,7 +90,7 @@ export function OverviewPage() {
 
 function SectionHeading({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-2">
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
       <h2 className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
         {children}
       </h2>
@@ -425,7 +429,7 @@ function RecentActivityList() {
   const timeAgo = useTimeAgo();
   const catalog = useIssueStatuses(wsId);
   const { getActorName } = useActorName();
-  const { data: entries, isPending, isError, refetch } = useQuery(workspaceActivityOptions(wsId, LIST_LIMIT));
+  const { data: entries, isPending, isError, refetch } = useQuery(workspaceActivityOptions(wsId, ACTIVITY_LIMIT));
 
   return (
     <section>
@@ -477,26 +481,38 @@ function RecentIssuesList() {
   const paths = useWorkspacePaths();
   const timeAgo = useTimeAgo();
   const catalog = useIssueStatuses(wsId);
-  const { data, isPending, isError, refetch } = useQuery(issueListOptions(wsId, RECENT_ISSUES_SORT));
-  // The list cache is bucketed by status, each bucket sorted on its own; the
-  // newest across buckets has to be picked here.
-  const issues = useMemo(
-    () =>
-      (data ?? [])
-        .toSorted((a, b) => b.updated_at.localeCompare(a.updated_at))
-        .slice(0, LIST_LIMIT),
-    [data],
-  );
+  const [filter, setFilter] = useState<RecentIssueFilter>("all");
+  const { data: issues = [], isPending, isError, refetch } = useQuery(recentIssuesOptions(wsId, filter));
+  const filterLabels: Record<RecentIssueFilter, string> = {
+    all: t(($) => $.issues.filters.all),
+    in_progress: t(($) => $.issues.filters.in_progress),
+    blocked: t(($) => $.issues.filters.blocked),
+    done: t(($) => $.issues.filters.done),
+    cancelled: t(($) => $.issues.filters.cancelled),
+  };
 
   return (
     <section>
-      <SectionHeading>{t(($) => $.issues.heading)}</SectionHeading>
+      <SectionHeading
+        action={
+          <Segmented
+            label={t(($) => $.issues.filter_label)}
+            value={filter}
+            onChange={setFilter}
+            options={RECENT_ISSUE_FILTERS.map((value) => ({ value, label: filterLabels[value] }))}
+          />
+        }
+      >
+        {t(($) => $.issues.heading)}
+      </SectionHeading>
       {isPending ? (
         <ListSkeleton />
       ) : isError ? (
         <ErrorBox onRetry={() => void refetch()} />
       ) : issues.length === 0 ? (
-        <EmptyBox>{t(($) => $.issues.empty)}</EmptyBox>
+        <EmptyBox>
+          {filter === "all" ? t(($) => $.issues.empty) : t(($) => $.issues.empty_filtered)}
+        </EmptyBox>
       ) : (
         <div className={LIST_CLASS}>
           {issues.map((issue) => (

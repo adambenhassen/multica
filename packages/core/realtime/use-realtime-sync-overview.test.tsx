@@ -91,4 +91,17 @@ describe("useRealtimeSync — Dashboard activity feed", () => {
     vi.advanceTimersByTime(1_000);
     expect(qc.getQueryState(feedKey)?.isInvalidated).toBe(true);
   });
+
+  it("refreshes the recent-issues tabs once after a burst of issue events", () => {
+    const issuesKey = overviewKeys.issues("ws-1", "blocked");
+    qc.setQueryData(issuesKey, { issues: [], total: 0 });
+    const handlers = mount();
+
+    handlers["issue:created"]?.({ issue: { id: "issue-1" } });
+    handlers["issue:updated"]?.({ issue: { id: "issue-1", status: "blocked" } });
+    expect(qc.getQueryState(issuesKey)?.isInvalidated).toBe(false);
+
+    vi.advanceTimersByTime(1_000);
+    expect(qc.getQueryState(issuesKey)?.isInvalidated).toBe(true);
+  });
 });

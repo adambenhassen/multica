@@ -33,6 +33,15 @@
   },
   "issues": {
     "heading": "最近のタスク",
-    "empty": "タスクはまだありません"
+    "empty": "タスクはまだありません",
+    "empty_filtered": "このステータスのタスクはありません",
+    "filter_label": "ステータスで絞り込む",
+    "filters": {
+      "all": "すべて",
+      "in_progress": "進行中",
+      "blocked": "ブロック中",
+      "done": "完了",
+      "cancelled": "キャンセル済み"
+    }
   }
 }

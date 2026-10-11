@@ -33,6 +33,15 @@
   },
   "issues": {
     "heading": "Tâches récentes",
-    "empty": "Aucune tâche"
+    "empty": "Aucune tâche",
+    "empty_filtered": "Aucune tâche avec ce statut",
+    "filter_label": "Filtrer par statut",
+    "filters": {
+      "all": "Toutes",
+      "in_progress": "En cours",
+      "blocked": "Bloqué",
+      "done": "Terminé",
+      "cancelled": "Annulé"
+    }
   }
 }
