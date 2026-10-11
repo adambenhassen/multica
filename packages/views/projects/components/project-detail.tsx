@@ -473,7 +473,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
       <ProjectResourcesSection projectId={projectId} />
 
       {/* Skills */}
-      <ProjectSkillsSection projectId={projectId} />
+      <ProjectSkillsSection projectId={projectId} canManage={isWorkspaceAdmin} />
     </div>
   );
 
