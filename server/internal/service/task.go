@@ -6981,8 +6981,12 @@ type AgentSkillBundleRef struct {
 // LoadRequestedAgentSkillBundles returns bundles for EXACTLY the refs given,
 // keyed by AgentSkillBundleKey. A ref the agent cannot see is simply absent
 // from the map — the junction predicates in ListAgentSkillsByIDs and
-// ListProjectSkillsForAgentByIDs are the authorization, so "no row" and "not allowed" are the same answer and the
-// caller reports both as not-found.
+// ListProjectSkillsForAgentByIDs are the authorization, so "no row" and "not
+// allowed" are the same answer and the caller reports both as not-found.
+//
+// resolveProject is called only when some requested workspace skill is not
+// one of the agent's own, so the common case pays no project lookup. It may be
+// nil for a task that cannot have a project.
 //
 // This exists because the daemon resolves one skill per request (GH #4505, so
 // each download gets its own size-scaled deadline and caches independently).
@@ -6990,7 +6994,7 @@ type AgentSkillBundleRef struct {
 // whole agent on every request: N requests, each reading and hashing all N
 // skills to return one. Loading only what was asked for makes that linear,
 // which is why the resolve path must not reuse LoadAgentSkillBundles.
-func (s *TaskService) LoadRequestedAgentSkillBundles(ctx context.Context, agentID pgtype.UUID, project SkillProjectScope, refs []AgentSkillBundleRef) (map[string]AgentSkillData, error) {
+func (s *TaskService) LoadRequestedAgentSkillBundles(ctx context.Context, agentID pgtype.UUID, resolveProject func(context.Context) (SkillProjectScope, error), refs []AgentSkillBundleRef) (map[string]AgentSkillData, error) {
 	requestedIDs := make([]pgtype.UUID, 0, len(refs))
 	seenWorkspace := make(map[string]struct{}, len(refs))
 	wantBuiltin := make(map[string]struct{}, len(refs))
@@ -7025,17 +7029,33 @@ func (s *TaskService) LoadRequestedAgentSkillBundles(ctx context.Context, agentI
 		if err != nil {
 			return nil, fmt.Errorf("list agent skills by ids: %w", err)
 		}
-		if project.ProjectID.Valid {
-			projectSkills, err := s.Queries.ListProjectSkillsForAgentByIDs(ctx, db.ListProjectSkillsForAgentByIDsParams{
-				ProjectID:   project.ProjectID,
-				WorkspaceID: project.WorkspaceID,
-				SkillIds:    requestedIDs,
-				AgentID:     agentID,
-			})
-			if err != nil {
-				return nil, fmt.Errorf("list project skills by ids: %w", err)
+		found := make(map[[16]byte]struct{}, len(skills))
+		for _, sk := range skills {
+			found[sk.ID.Bytes] = struct{}{}
+		}
+		missing := make([]pgtype.UUID, 0, len(requestedIDs))
+		for _, id := range requestedIDs {
+			if _, ok := found[id.Bytes]; !ok {
+				missing = append(missing, id)
 			}
-			skills = mergeTaskSkills(skills, projectSkills)
+		}
+		if len(missing) > 0 && resolveProject != nil {
+			project, err := resolveProject(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("resolve task project: %w", err)
+			}
+			if project.ProjectID.Valid {
+				projectSkills, err := s.Queries.ListProjectSkillsForAgentByIDs(ctx, db.ListProjectSkillsForAgentByIDsParams{
+					ProjectID:   project.ProjectID,
+					WorkspaceID: project.WorkspaceID,
+					SkillIds:    missing,
+					AgentID:     agentID,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("list project skills by ids: %w", err)
+				}
+				skills = append(skills, projectSkills...)
+			}
 		}
 		if len(skills) > 0 {
 			// Same fail-closed rule as LoadAgentSkills: a failed file read

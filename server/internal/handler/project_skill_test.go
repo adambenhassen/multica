@@ -4,8 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
+	"sync"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/multica-ai/multica/server/internal/analytics"
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/testutil"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
@@ -211,6 +216,65 @@ func TestClaimTask_DeliversProjectSkills(t *testing.T) {
 		Want(http.StatusNotFound)
 	resolveBundles(t, testHandler, runtimeID, taskID, workspaceRef(disabledSkillID)).
 		Want(http.StatusNotFound)
+
+	// The agent's own skill resolves without touching the task's project; only
+	// a skill outside the agent's set pays for the project lookup.
+	spy := &projectLookupSpy{inner: testPool}
+	spyHandler := New(db.New(spy), testPool, testHandler.Hub, testHandler.Bus, testHandler.EmailService,
+		nil, nil, analytics.NoopClient{}, Config{})
+	// GetIssue also runs once per request for the task access check, so the
+	// project lookup shows up as one extra GetIssue on the project-skill request.
+	resolveBundles(t, spyHandler, runtimeID, taskID, workspaceRef(agentSkillID)).Want(http.StatusOK)
+	ownIssueReads, ownProjectSkillReads := spy.snapshot()
+	if ownProjectSkillReads != 0 {
+		t.Fatalf("resolving the agent's own skill queried project skills %d times, want 0", ownProjectSkillReads)
+	}
+	resolveBundles(t, spyHandler, runtimeID, taskID, workspaceRef(projectSkillID)).Want(http.StatusOK)
+	issueReads, projectSkillReads := spy.snapshot()
+	if issueReads-ownIssueReads != ownIssueReads+1 || projectSkillReads != 1 {
+		t.Fatalf("project skill resolve ran %d issue reads (own-skill resolve ran %d) and %d project skill reads; want one extra issue read and one project skill read",
+			issueReads-ownIssueReads, ownIssueReads, projectSkillReads)
+	}
+}
+
+// projectLookupSpy counts the queries the resolve path runs to find a task's
+// project and its project skills.
+type projectLookupSpy struct {
+	inner             db.DBTX
+	mu                sync.Mutex
+	issueReads        int
+	projectSkillReads int
+}
+
+func (s *projectLookupSpy) note(sql string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	switch {
+	case strings.Contains(sql, "-- name: GetIssue :one"):
+		s.issueReads++
+	case strings.Contains(sql, "-- name: ListProjectSkillsForAgentByIDs :many"):
+		s.projectSkillReads++
+	}
+}
+
+func (s *projectLookupSpy) snapshot() (issueReads, projectSkillReads int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.issueReads, s.projectSkillReads
+}
+
+func (s *projectLookupSpy) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	return s.inner.Exec(ctx, sql, args...)
+}
+
+func (s *projectLookupSpy) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	s.note(sql)
+	return s.inner.Query(ctx, sql, args...)
+}
+
+func (s *projectLookupSpy) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	s.note(sql)
+	return s.inner.QueryRow(ctx, sql, args...)
 }
 
 // A project skill reaches agents the caller may not be able to edit, so only
