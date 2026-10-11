@@ -1428,7 +1428,9 @@
   "mcp_usage": {
     "agent_count_one": "Utilisé par {{count}} agent",
     "agent_count_other": "Utilisé par {{count}} agents",
-    "none": "Attribué à aucun agent"
+    "project_count_one": "{{count}} projet",
+    "project_count_other": "{{count}} projets",
+    "none": "Attribué à aucun agent ni projet"
   },
   "mcp_sources": {
     "title": "Donner des outils aux agents",

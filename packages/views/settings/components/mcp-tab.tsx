@@ -59,6 +59,19 @@ import { settingsHref } from "./settings-navigation";
  */
 export function McpTab() {
   const { t } = useT("settings");
+  // Agents and projects both reach an entry, so a server attached only to
+  // projects must not read as unused.
+  const usageLabel = (server: WorkspaceMcpServer) => {
+    if (server.agent_count === undefined) return undefined;
+    const parts: string[] = [];
+    if (server.agent_count > 0) {
+      parts.push(t(($) => $.mcp_usage.agent_count, { count: server.agent_count }));
+    }
+    if (server.project_count) {
+      parts.push(t(($) => $.mcp_usage.project_count, { count: server.project_count }));
+    }
+    return parts.length > 0 ? parts.join(" · ") : t(($) => $.mcp_usage.none);
+  };
   const workspace = useCurrentWorkspace();
   const wsId = workspace?.id ?? "";
   const currentMember = useCurrentMember(wsId);
@@ -251,13 +264,7 @@ export function McpTab() {
                   key={server.name}
                   name={server.name}
                   transport={server.transport}
-                  meta={
-                    server.agent_count === undefined
-                      ? undefined
-                      : server.agent_count > 0
-                        ? t(($) => $.mcp_usage.agent_count, { count: server.agent_count })
-                        : t(($) => $.mcp_usage.none)
-                  }
+                  meta={usageLabel(server)}
                   status={
                     server.enabled === false ? (
                       <Badge variant="secondary">
