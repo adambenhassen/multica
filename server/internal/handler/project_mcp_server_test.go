@@ -55,6 +55,17 @@ func TestProjectMcpServerLifecycle(t *testing.T) {
 		t.Fatalf("list leaked the server config: %s", listed.Text())
 	}
 
+	// The library listing counts project attachments so an entry used only by
+	// projects does not look unused.
+	req = withURLParam(newRequest("GET", "/api/workspaces/"+testWorkspaceID+"/mcp-servers", nil), "id", testWorkspaceID)
+	var library []WorkspaceMcpServerResponse
+	testutil.Call(t, testHandler.ListWorkspaceMcpServers, req).Want(http.StatusOK).JSON(&library)
+	for _, entry := range library {
+		if entry.ID == serverID && (entry.ProjectCount == nil || *entry.ProjectCount != 1) {
+			t.Fatalf("library project_count = %v, want 1", entry.ProjectCount)
+		}
+	}
+
 	remove := func() *testutil.Response {
 		req := withURLParams(newRequest("DELETE", "/api/projects/"+projectID+"/mcp-servers/"+serverID, nil),
 			"id", projectID, "serverId", serverID)
