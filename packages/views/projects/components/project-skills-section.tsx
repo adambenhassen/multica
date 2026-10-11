@@ -26,6 +26,9 @@ import { SkillPickerList } from "../../agents/components/skill-picker-list";
 import { SkillIcon } from "../../skills/lib/skill-icon";
 import { useT } from "../../i18n";
 
+// Stable fallbacks: a fresh `[]` default per render would re-run the memo below.
+const NO_SKILLS: SkillSummary[] = [];
+
 export function ProjectSkillsSection({
   projectId,
   canManage,
@@ -38,7 +41,7 @@ export function ProjectSkillsSection({
   const wsId = useWorkspaceId();
   const [open, setOpen] = useState(true);
 
-  const { data: skills = [] } = useQuery(projectSkillsOptions(wsId, projectId));
+  const { data: skills = NO_SKILLS } = useQuery(projectSkillsOptions(wsId, projectId));
   const removeSkill = useRemoveProjectSkill(wsId, projectId);
 
   const handleRemove = async (skill: SkillSummary) => {
@@ -106,7 +109,7 @@ function ProjectSkillAddDialog({
 }) {
   const { t } = useT("projects");
   const wsId = useWorkspaceId();
-  const { data: workspaceSkills = [], isLoading } = useQuery(skillListOptions(wsId));
+  const { data: workspaceSkills = NO_SKILLS, isLoading } = useQuery(skillListOptions(wsId));
   const addSkills = useAddProjectSkills(wsId, projectId);
   const [open, setOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
