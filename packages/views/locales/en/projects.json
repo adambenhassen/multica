@@ -152,6 +152,23 @@
     "ref_default_label": "Default branch",
     "ref_default_tooltip": "No branch set — tasks use whatever the repository's default branch is at the time."
   },
+  "skills": {
+    "section_header": "Skills",
+    "empty": "No skills attached.",
+    "hint": "Every agent gets these skills, in addition to its own, for runs in this project.",
+    "add_button": "Add skill",
+    "add_dialog_title": "Add skills to project",
+    "add_dialog_cancel": "Cancel",
+    "add_dialog_confirm_default": "Add",
+    "add_dialog_confirm_one": "Add {{count}} skill",
+    "add_dialog_confirm_other": "Add {{count}} skills",
+    "add_dialog_saving": "Adding…",
+    "add_dialog_empty": "This workspace has no skills yet.",
+    "add_dialog_empty_partial": "All workspace skills are already attached to this project.",
+    "add_failed_toast": "Failed to add skill",
+    "remove_aria": "Remove {{name}}",
+    "remove_failed_toast": "Failed to remove skill"
+  },
   "delete_dialog": {
     "title": "Delete project",
     "description": "This will delete the project. Issues will not be deleted but will be unlinked.",

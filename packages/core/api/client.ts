@@ -4093,6 +4093,29 @@ export class ApiClient {
     });
   }
 
+  // Project skills: every task in the project runs with these in addition
+  // to its agent's own skills.
+  async listProjectSkills(projectId: string): Promise<SkillSummary[]> {
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/skills`);
+    return parseWithFallback(raw, SkillSummaryListSchema, EMPTY_SKILL_SUMMARY_LIST, {
+      endpoint: "GET /api/projects/:id/skills",
+    });
+  }
+
+  // Attaching an attached skill is a no-op on the server.
+  async addProjectSkills(projectId: string, skillIds: string[]): Promise<void> {
+    await this.fetch(`/api/projects/${projectId}/skills`, {
+      method: "POST",
+      body: JSON.stringify({ skill_ids: skillIds }),
+    });
+  }
+
+  async removeProjectSkill(projectId: string, skillId: string): Promise<void> {
+    await this.fetch(`/api/projects/${projectId}/skills/${skillId}`, {
+      method: "DELETE",
+    });
+  }
+
   // Labels
   async listLabels(resourceType: LabelResourceType = "issue"): Promise<ListLabelsResponse> {
     const raw = await this.fetch<unknown>(`/api/labels?resource_type=${resourceType}`);
