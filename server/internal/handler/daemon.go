@@ -3464,9 +3464,9 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// Skills load after the context branches because a task's project — set
 	// on resp only when it resolved inside the task's workspace — contributes
 	// its attached skills alongside the agent's own.
-	skillProject := service.SkillProjectScope{}
+	skillProject := service.TaskProjectScope{}
 	if resp.ProjectID != "" {
-		skillProject = service.SkillProjectScope{
+		skillProject = service.TaskProjectScope{
 			ProjectID:   parseUUID(resp.ProjectID),
 			WorkspaceID: parseUUID(resp.WorkspaceID),
 		}
@@ -3930,12 +3930,12 @@ func (h *Handler) ResolveTaskSkillBundles(w http.ResponseWriter, r *http.Request
 	// Project skills the claim delivered must resolve too, so the task's
 	// project is re-derived the same way the claim derived it — but only when
 	// a requested skill is not one of the agent's own.
-	resolveProject := func(ctx context.Context) (service.SkillProjectScope, error) {
+	resolveProject := func(ctx context.Context) (service.TaskProjectScope, error) {
 		projectID, err := h.TaskService.ResolveTaskProjectID(ctx, task)
 		if err != nil || !projectID.Valid {
-			return service.SkillProjectScope{}, err
+			return service.TaskProjectScope{}, err
 		}
-		return service.SkillProjectScope{ProjectID: projectID, WorkspaceID: runtime.WorkspaceID}, nil
+		return service.TaskProjectScope{ProjectID: projectID, WorkspaceID: runtime.WorkspaceID}, nil
 	}
 
 	// Load ONLY what was asked for. The daemon resolves one skill per request,
