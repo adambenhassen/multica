@@ -1,10 +1,20 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Bot, CircleDot, DollarSign, Inbox, LayoutDashboard, type LucideIcon } from "lucide-react";
+import { Bot, CircleDot, DollarSign, Inbox, LayoutDashboard, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@multica/ui/components/ui/dropdown-menu";
 import { CurrencyNumberFlow } from "@multica/ui/components/ui/number-flow";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
@@ -19,19 +29,20 @@ import { useInboxUnreadCount } from "@multica/core/inbox/queries";
 import { dashboardRunTimeDailyOptions, dashboardUsageDailyOptions } from "@multica/core/dashboard";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import {
+  OVERVIEW_SECTIONS,
   RECENT_ISSUE_FILTERS,
   recentIssuesOptions,
-  workspaceActivityOptions,
+  useOverviewLayoutStore,
+  type OverviewSection,
   type RecentIssueFilter,
 } from "@multica/core/overview";
 import type { AgentTask, Issue, IssueTableFacetsRequest } from "@multica/core/types";
 import { AppLink } from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
-import { CollectionPageHeader } from "../../layout/collection-page";
+import { CollectionPageHeader, CollectionPageHeaderAction } from "../../layout/collection-page";
 import { PAGE_GUTTER } from "../../layout/page-header";
 import { StatusIcon } from "../../issues/components/status-icon";
-import { formatActivity } from "../../issues/utils/format-activity";
 import { taskStatusConfig } from "../../agents/config";
 import { DailyTasksChart } from "../../runtimes/components/charts";
 import { addDaysIso, todayIso } from "../../runtimes/utils";
@@ -47,10 +58,17 @@ import {
   summarizeIssueFacet,
 } from "../utils";
 import { SuccessRateChart } from "./success-rate-chart";
+import { ActivityFeed } from "./activity-feed";
+import {
+  EmptyBox,
+  ErrorBox,
+  LIST_CLASS,
+  LIST_ROW_CLASS,
+  ListSkeleton,
+  SectionHeading,
+} from "./section-parts";
 import { cn } from "@multica/ui/lib/utils";
 
-// The feed endpoint caps a page at 50; the list scrolls inside its card.
-const ACTIVITY_LIMIT = 50;
 const SPEND_DAYS = 30;
 
 const STATUS_FACET_REQUEST: IssueTableFacetsRequest = {
@@ -64,72 +82,91 @@ const STATUS_FACET_REQUEST: IssueTableFacetsRequest = {
 };
 
 
-const LIST_CLASS = "max-h-[30rem] divide-y overflow-y-auto rounded-lg border bg-card";
-const LIST_ROW_CLASS =
-  "flex min-h-12 items-center gap-3 px-4 py-3 text-label transition-colors hover:bg-accent/50";
 
 export function OverviewPage() {
   const { t } = useT("overview");
+  const hidden = useOverviewLayoutStore((s) => s.hidden);
+  const showAll = useOverviewLayoutStore((s) => s.showAll);
+  // Hidden sections are not rendered at all, so they also stop fetching.
+  const shown = (section: OverviewSection) => !hidden.includes(section);
+  const listCount = Number(shown("activity")) + Number(shown("issues"));
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <CollectionPageHeader icon={LayoutDashboard} title={t(($) => $.title)} />
+      <CollectionPageHeader
+        icon={LayoutDashboard}
+        title={t(($) => $.title)}
+        actions={<CustomizeMenu />}
+      />
       <div className="flex-1 overflow-y-auto">
         <div className={cn("space-y-6 py-6", PAGE_GUTTER)}>
-          <AgentRunsPanel />
-          <MetricCards />
-          <ChartsRow />
-          <div className="grid gap-4 md:grid-cols-2">
-            <RecentActivityList />
-            <RecentIssuesList />
-          </div>
+          {OVERVIEW_SECTIONS.every((section) => !shown(section)) && (
+            <div className="flex items-center justify-between gap-2 rounded-lg border p-4 text-label text-muted-foreground">
+              <span>{t(($) => $.customize.all_hidden)}</span>
+              <Button variant="ghost" size="sm" onClick={showAll}>
+                {t(($) => $.customize.show_all)}
+              </Button>
+            </div>
+          )}
+          {shown("agents") && <AgentRunsPanel />}
+          {shown("metrics") && <MetricCards />}
+          {(shown("run_activity") || shown("success_rate")) && (
+            <ChartsRow showRuns={shown("run_activity")} showRate={shown("success_rate")} />
+          )}
+          {listCount > 0 && (
+            <div className={cn("grid gap-4", listCount === 2 && "md:grid-cols-2")}>
+              {shown("activity") && <ActivityFeed />}
+              {shown("issues") && <RecentIssuesList />}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function SectionHeading({ children, action }: { children: ReactNode; action?: ReactNode }) {
-  return (
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <h2 className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
-        {children}
-      </h2>
-      {action}
-    </div>
-  );
-}
-
-function EmptyBox({ children }: { children: ReactNode }) {
-  return (
-    <div className="rounded-lg border p-4 text-label text-muted-foreground">{children}</div>
-  );
-}
-
-// A failed section says so and offers a retry; rendering it as empty would
-// read as "nothing happened" (e.g. an older server without /api/activity).
-function ErrorBox({ onRetry }: { onRetry: () => void }) {
+function CustomizeMenu() {
   const { t } = useT("overview");
-  return (
-    <div className="flex items-center justify-between gap-2 rounded-lg border p-4 text-label text-muted-foreground">
-      <span>{t(($) => $.load_failed)}</span>
-      <Button variant="ghost" size="sm" onClick={onRetry}>
-        {t(($) => $.retry)}
-      </Button>
-    </div>
-  );
-}
+  const hidden = useOverviewLayoutStore((s) => s.hidden);
+  const toggleSection = useOverviewLayoutStore((s) => s.toggleSection);
+  const showAll = useOverviewLayoutStore((s) => s.showAll);
+  const sectionLabels: Record<OverviewSection, string> = {
+    agents: t(($) => $.agents.heading),
+    metrics: t(($) => $.customize.metrics),
+    run_activity: t(($) => $.charts.run_activity),
+    success_rate: t(($) => $.charts.success_rate),
+    activity: t(($) => $.activity.heading),
+    issues: t(($) => $.issues.heading),
+  };
 
-function ListSkeleton({ rows = 5 }: { rows?: number }) {
   return (
-    <div className={LIST_CLASS} aria-hidden="true">
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex min-h-12 items-center gap-3 px-4 py-3">
-          <Skeleton className="size-4 shrink-0 rounded-full" />
-          <Skeleton className="h-3.5 flex-1" />
-          <Skeleton className="h-3 w-12" />
-        </div>
-      ))}
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <CollectionPageHeaderAction icon={SlidersHorizontal} label={t(($) => $.customize.button)} />
+        }
+      />
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t(($) => $.customize.label)}</DropdownMenuLabel>
+          {OVERVIEW_SECTIONS.map((section) => (
+            <DropdownMenuCheckboxItem
+              key={section}
+              checked={!hidden.includes(section)}
+              onCheckedChange={() => toggleSection(section)}
+            >
+              {sectionLabels[section]}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuGroup>
+        {hidden.length > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={showAll}>{t(($) => $.customize.show_all)}</DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -368,7 +405,7 @@ function MetricCard({
 // Charts
 // ---------------------------------------------------------------------------
 
-function ChartsRow() {
+function ChartsRow({ showRuns, showRate }: { showRuns: boolean; showRate: boolean }) {
   const { t } = useT("overview");
   const wsId = useWorkspaceId();
   const tz = useViewingTimezone();
@@ -391,14 +428,20 @@ function ChartsRow() {
       </div>
     );
 
+  // A lone chart keeps its half-width slot: stretched full width at 3:1 it
+  // would push everything below it off screen.
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <ChartCard title={t(($) => $.charts.run_activity)}>
-        {body(<DailyTasksChart data={runSeries} />)}
-      </ChartCard>
-      <ChartCard title={t(($) => $.charts.success_rate)}>
-        {body(<SuccessRateChart data={rateSeries} />)}
-      </ChartCard>
+      {showRuns && (
+        <ChartCard title={t(($) => $.charts.run_activity)}>
+          {body(<DailyTasksChart data={runSeries} />)}
+        </ChartCard>
+      )}
+      {showRate && (
+        <ChartCard title={t(($) => $.charts.success_rate)}>
+          {body(<SuccessRateChart data={rateSeries} />)}
+        </ChartCard>
+      )}
     </div>
   );
 }
@@ -419,61 +462,6 @@ function ChartCard({ title, children }: { title: string; children: ReactNode }) 
 // ---------------------------------------------------------------------------
 // Recent activity / issues
 // ---------------------------------------------------------------------------
-
-function RecentActivityList() {
-  const { t } = useT("overview");
-  const { t: tIssues } = useT("issues");
-  const locale = useLocale();
-  const wsId = useWorkspaceId();
-  const paths = useWorkspacePaths();
-  const timeAgo = useTimeAgo();
-  const catalog = useIssueStatuses(wsId);
-  const { getActorName } = useActorName();
-  const { data: entries, isPending, isError, refetch } = useQuery(workspaceActivityOptions(wsId, ACTIVITY_LIMIT));
-
-  return (
-    <section>
-      <SectionHeading>{t(($) => $.activity.heading)}</SectionHeading>
-      {isPending ? (
-        <ListSkeleton />
-      ) : isError ? (
-        <ErrorBox onRetry={() => void refetch()} />
-      ) : !entries || entries.length === 0 ? (
-        <EmptyBox>{t(($) => $.activity.empty)}</EmptyBox>
-      ) : (
-        <div className={LIST_CLASS}>
-          {entries.map((entry) => (
-            <AppLink key={entry.id} href={paths.issueDetail(entry.issue.id)} className={LIST_ROW_CLASS}>
-              <ActorAvatar
-                actorType={entry.actor_type}
-                actorId={entry.actor_id}
-                name={entry.actor_name}
-                avatarUrl={entry.actor_avatar_url}
-                size="sm"
-                profileLink={false}
-              />
-              <span className="min-w-0 flex-1 truncate">
-                <span className="font-medium">
-                  {entry.actor_name || getActorName(entry.actor_type, entry.actor_id)}
-                </span>{" "}
-                <span className="text-muted-foreground">
-                  {formatActivity(entry, tIssues, locale, getActorName, catalog.labelOf)}
-                </span>{" "}
-                <span>{entry.issue.title}</span>
-              </span>
-              <span className="hidden shrink-0 font-mono text-caption text-muted-foreground sm:inline">
-                {entry.issue.identifier}
-              </span>
-              <span className="w-16 shrink-0 text-right text-caption text-muted-foreground">
-                {timeAgo(entry.created_at)}
-              </span>
-            </AppLink>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
 
 function RecentIssuesList() {
   const { t } = useT("overview");

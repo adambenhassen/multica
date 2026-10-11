@@ -29,7 +29,21 @@
   },
   "activity": {
     "heading": "Recent activity",
-    "empty": "No activity yet"
+    "empty": "No activity yet",
+    "filter_label": "Show",
+    "filters": {
+      "all": "All",
+      "comments": "Comments",
+      "status": "Status changes"
+    },
+    "empty_filtered": "Nothing here yet",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "commented": "commented",
+    "replied": "replied",
+    "marked": "marked it {{status}}",
+    "moved": "moved it to {{status}}",
+    "with_excerpt": "{{phrase}}: “{{excerpt}}”"
   },
   "issues": {
     "heading": "Recent issues",
@@ -43,5 +57,12 @@
       "done": "Done",
       "cancelled": "Cancelled"
     }
+  },
+  "customize": {
+    "button": "Customize",
+    "label": "Show on dashboard",
+    "metrics": "Metrics",
+    "show_all": "Show all",
+    "all_hidden": "Every section is hidden"
   }
 }

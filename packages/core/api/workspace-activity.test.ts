@@ -16,10 +16,10 @@ const entry = {
 
 afterEach(() => vi.unstubAllGlobals());
 
-async function read(body: unknown, limit?: number) {
+async function read(body: unknown, limit?: number, kind?: "all" | "comments" | "status") {
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
   vi.stubGlobal("fetch", fetch);
-  const result = await new ApiClient("https://api.example.test").listWorkspaceActivity({ limit });
+  const result = await new ApiClient("https://api.example.test").listWorkspaceActivity({ limit, kind });
   return { result, url: String(fetch.mock.calls[0]?.[0]) };
 }
 
@@ -28,6 +28,11 @@ describe("workspace activity API", () => {
     const { result, url } = await read({ entries: [entry] }, 10);
     expect(result.entries).toEqual([entry]);
     expect(url).toContain("/api/activity?limit=10");
+  });
+
+  it("sends a narrowing kind but not the default", async () => {
+    expect((await read({ entries: [] }, 50, "comments")).url).toContain("kind=comments");
+    expect((await read({ entries: [] }, 50, "all")).url).not.toContain("kind=");
   });
 
   // One bad row must not blank the whole feed.

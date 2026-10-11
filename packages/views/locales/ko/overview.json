@@ -29,7 +29,21 @@
   },
   "activity": {
     "heading": "최근 활동",
-    "empty": "아직 활동 없음"
+    "empty": "아직 활동 없음",
+    "filter_label": "표시",
+    "filters": {
+      "all": "전체",
+      "comments": "댓글",
+      "status": "상태 변경"
+    },
+    "empty_filtered": "아직 항목이 없습니다",
+    "today": "오늘",
+    "yesterday": "어제",
+    "commented": "댓글을 남겼습니다",
+    "replied": "답글을 남겼습니다",
+    "marked": "{{status}}(으)로 표시했습니다",
+    "moved": "{{status}}(으)로 옮겼습니다",
+    "with_excerpt": "{{phrase}}: “{{excerpt}}”"
   },
   "issues": {
     "heading": "최근 태스크",
@@ -43,5 +57,12 @@
       "done": "완료",
       "cancelled": "취소됨"
     }
+  },
+  "customize": {
+    "button": "사용자 지정",
+    "label": "대시보드에 표시",
+    "metrics": "지표",
+    "show_all": "모두 표시",
+    "all_hidden": "모든 섹션이 숨겨져 있습니다"
   }
 }

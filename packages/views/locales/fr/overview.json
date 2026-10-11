@@ -29,7 +29,21 @@
   },
   "activity": {
     "heading": "Activité récente",
-    "empty": "Aucune activité"
+    "empty": "Aucune activité",
+    "filter_label": "Afficher",
+    "filters": {
+      "all": "Tout",
+      "comments": "Commentaires",
+      "status": "Changements de statut"
+    },
+    "empty_filtered": "Rien pour le moment",
+    "today": "Aujourd'hui",
+    "yesterday": "Hier",
+    "commented": "a commenté",
+    "replied": "a répondu",
+    "marked": "l'a marquée {{status}}",
+    "moved": "l'a déplacée vers {{status}}",
+    "with_excerpt": "{{phrase}} : « {{excerpt}} »"
   },
   "issues": {
     "heading": "Tâches récentes",
@@ -43,5 +57,12 @@
       "done": "Terminé",
       "cancelled": "Annulé"
     }
+  },
+  "customize": {
+    "button": "Personnaliser",
+    "label": "Afficher sur le tableau de bord",
+    "metrics": "Indicateurs",
+    "show_all": "Tout afficher",
+    "all_hidden": "Toutes les sections sont masquées"
   }
 }

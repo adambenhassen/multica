@@ -45,7 +45,7 @@ const stores = {
 
 describe("useRealtimeSync — Dashboard activity feed", () => {
   let qc: QueryClient;
-  const feedKey = overviewKeys.activity("ws-1", 10);
+  const feedKey = overviewKeys.activity("ws-1", "all");
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -103,5 +103,12 @@ describe("useRealtimeSync — Dashboard activity feed", () => {
 
     vi.advanceTimersByTime(1_000);
     expect(qc.getQueryState(issuesKey)?.isInvalidated).toBe(true);
+  });
+
+  it("refreshes the feed after a new comment", () => {
+    const handlers = mount();
+    handlers["comment:created"]?.({ comment: { id: "c1", issue_id: "issue-1" } });
+    vi.advanceTimersByTime(1_000);
+    expect(qc.getQueryState(feedKey)?.isInvalidated).toBe(true);
   });
 });

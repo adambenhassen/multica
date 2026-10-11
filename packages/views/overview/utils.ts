@@ -1,5 +1,6 @@
 import type { AgentPresenceDetail } from "@multica/core/agents";
 import type {
+  WorkspaceActivityEntry,
   AgentTask,
   DashboardRunTimeDaily,
   IssueStatusCategory,
@@ -8,6 +9,7 @@ import type {
 import type { DailyTasksData } from "../runtimes/components/charts";
 import { aggregateDailyTasks, formatDateLabel } from "../dashboard/utils";
 import { addDaysIso } from "../runtimes/utils";
+import { stripMentionMarkdown } from "../issues/utils/strip-mention-markdown";
 
 export const OVERVIEW_CHART_DAYS = 14;
 
@@ -133,4 +135,70 @@ export function pickRunCards(snapshot: AgentTask[], limit = 4): AgentTask[] {
     .filter((task) => !ACTIVE_RUN_ORDER.includes(task.status))
     .toSorted((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""));
   return [...active, ...finished].slice(0, limit);
+}
+
+/**
+ * One line of plain text from a comment's markdown, for the activity feed.
+ * Mentions keep their label; code blocks and images drop out; link text stays.
+ */
+export function commentExcerpt(markdown: string): string {
+  return stripMentionMarkdown(markdown)
+    .replace(/```[\s\S]*?(```|$)/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+\.)\s+/gm, "")
+    .replace(/\*\*|__|~~|`|\*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Description edits autosave, so one sitting writes a run of identical rows.
+const COALESCED_FEED_ACTIONS = new Set(["description_updated"]);
+
+/** Folds consecutive repeats of an autosaved edit into one row with a count. */
+export function coalesceFeed(entries: WorkspaceActivityEntry[]): WorkspaceActivityEntry[] {
+  const out: WorkspaceActivityEntry[] = [];
+  for (const entry of entries) {
+    const prev = out[out.length - 1];
+    if (
+      prev &&
+      entry.type === "activity" &&
+      prev.type === "activity" &&
+      COALESCED_FEED_ACTIONS.has(entry.action ?? "") &&
+      prev.action === entry.action &&
+      prev.actor_type === entry.actor_type &&
+      prev.actor_id === entry.actor_id &&
+      prev.issue.id === entry.issue.id
+    ) {
+      out[out.length - 1] = { ...prev, coalesced_count: (prev.coalesced_count ?? 1) + 1 };
+      continue;
+    }
+    out.push(entry);
+  }
+  return out;
+}
+
+/** The calendar day (YYYY-MM-DD) an instant falls on in `tz`. */
+export function dayInTimezone(iso: string, tz: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+}
+
+/** Splits a newest-first feed into runs of the same calendar day. */
+export function groupFeedByDay(
+  entries: WorkspaceActivityEntry[],
+  tz: string,
+): { day: string; entries: WorkspaceActivityEntry[] }[] {
+  const groups: { day: string; entries: WorkspaceActivityEntry[] }[] = [];
+  for (const entry of entries) {
+    const day = dayInTimezone(entry.created_at, tz);
+    const last = groups[groups.length - 1];
+    if (last?.day === day) last.entries.push(entry);
+    else groups.push({ day, entries: [entry] });
+  }
+  return groups;
 }

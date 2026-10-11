@@ -27,6 +27,7 @@ vi.mock("@multica/core/workspace/hooks", () => ({
 vi.mock("../../common/actor-avatar", () => ({ ActorAvatar: () => <span /> }));
 vi.mock("../../common/use-viewing-timezone", () => ({ useViewingTimezone: () => "UTC" }));
 
+import { useOverviewLayoutStore } from "@multica/core/overview";
 import { OverviewPage } from "./overview-page";
 
 const adapter: NavigationAdapter = {
@@ -162,5 +163,59 @@ describe("OverviewPage", () => {
       sort_direction: "desc",
       limit: 50,
     });
+  });
+
+  it("reads activity as plain sentences under each issue and filters comments", async () => {
+    const calls: unknown[] = [];
+    const now = new Date().toISOString();
+    const issue = { id: "issue-1", identifier: "MUL-1", title: "Ship the dashboard", status: "done" };
+    apiRef.current = {
+      listWorkspaceActivity: ((params: unknown) => {
+        calls.push(params);
+        return Promise.resolve({
+          entries: [
+            {
+              type: "comment",
+              id: "c-1",
+              actor_type: "agent",
+              actor_id: "agent-1",
+              created_at: now,
+              content: "Looks **good**, merging [@Ada](mention://member/u1)",
+              issue,
+            },
+            {
+              type: "activity",
+              id: "a-1",
+              actor_type: "agent",
+              actor_id: "agent-1",
+              created_at: now,
+              action: "status_changed",
+              details: { from: "in_review", to: "done" },
+              issue,
+            },
+          ],
+        });
+      }) as () => Promise<unknown>,
+    };
+    renderPage();
+
+    const comment = (await screen.findByText(/commented: “Looks good, merging @Ada”/)).closest("a")!;
+    expect(comment.getAttribute("href")).toBe("/acme/issues/issue-1#comment-c-1");
+    expect(within(comment).getByText("MUL-1")).toBeTruthy();
+    expect(screen.getByText("marked it Done")).toBeTruthy();
+    expect(screen.getByText("Today")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Comments" }));
+    await screen.findAllByText(/commented/);
+    expect(calls.at(-1)).toEqual({ limit: 50, kind: "comments" });
+  });
+
+  it("hides a section chosen in Customize", async () => {
+    useOverviewLayoutStore.setState({ hidden: ["run_activity", "success_rate"] });
+    renderPage();
+    expect(screen.queryByText("Run activity")).toBeNull();
+    expect(screen.queryByText("Success rate")).toBeNull();
+    expect(screen.getByText("Recent activity")).toBeTruthy();
+    useOverviewLayoutStore.setState({ hidden: [] });
   });
 });

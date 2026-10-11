@@ -141,6 +141,7 @@ export type {
   AssigneeFrequencyEntry,
   WorkspaceActivityIssueRef,
   WorkspaceActivityEntry,
+  WorkspaceActivityKind,
   WorkspaceActivityResponse,
 } from "./activity";
 export type { IssueSubscriber } from "./subscriber";
