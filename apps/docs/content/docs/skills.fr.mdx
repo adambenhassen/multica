@@ -97,7 +97,8 @@ multica project skill add <project-id> --skill-ids <skill-id>
 
 - Les skills du projet s'ajoutent aux skills de l'agent qui s'exécute ; un skill rattaché aux deux n'est fourni qu'une fois.
 - Ils s'appliquent à chaque exécution liée au projet : ses tâches, les discussions et automatisations associées au projet, et les créations rapides qui le choisissent.
-- Tout membre de l'espace de travail peut rattacher ou retirer des skills de projet.
+- Si un agent a le skill rattaché mais désactivé, le projet ne le réactive pas pour cet agent.
+- Seuls les `owner`s et `admin`s de l'espace de travail peuvent rattacher ou retirer des skills de projet, car ils atteignent chaque agent du projet. Les agents ne peuvent pas modifier les skills de projet, même lorsqu'ils s'exécutent pour un admin.
 - Les modifications s'appliquent aux exécutions suivantes.
 
 ## Skills de l'espace de travail et skills du dépôt
