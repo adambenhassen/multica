@@ -158,6 +158,7 @@ var concurrentIndexCleanups = map[string]string{
 	"576_project_mcp_server_server_idx":                         "idx_project_mcp_server_server",
 	"579_project_attachment_audience_item_idx":                  "idx_project_attachment_audience_item",
 	"580_project_attachment_audience_target_idx":                "idx_project_attachment_audience_target",
+	"581_activity_log_workspace_recent_idx":                     "idx_activity_log_workspace_recent",
 	"510_wakeup_id":                                             "issue_wakeup_id_idx",
 	"511_wakeup_issue":                                          "issue_wakeup_issue_idx",
 	"512_wakeup_due":                                            "issue_wakeup_due_idx",
