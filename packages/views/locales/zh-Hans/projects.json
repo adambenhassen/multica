@@ -167,6 +167,17 @@
     "remove_aria": "移除 {{name}}",
     "remove_failed_toast": "移除 skill 失败"
   },
+  "mcp": {
+    "section_header": "MCP Server",
+    "empty": "还没有关联 MCP Server。",
+    "hint": "该项目下的每次运行，这些 MCP Server 会叠加到各智能体自身的 MCP Server 上；智能体已停用的 Server 除外。其凭据会到达运行项目工作的每个运行时。",
+    "add_button": "添加 MCP Server",
+    "add_empty": "当前工作区还没有 MCP Server。请在工作区设置 → MCP 中添加。",
+    "add_empty_partial": "全部工作区 MCP Server 都已关联到该项目。",
+    "add_failed_toast": "添加 MCP Server 失败",
+    "remove_aria": "移除 {{name}}",
+    "remove_failed_toast": "移除 MCP Server 失败"
+  },
   "delete_dialog": {
     "title": "删除项目",
     "description": "将删除这个项目。任务不会被删除，只会从项目中解除关联。",

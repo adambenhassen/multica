@@ -187,6 +187,32 @@ describe("ApiClient schema fallback", () => {
     });
   });
 
+  describe("listProjectMcpServers", () => {
+    it("falls back to an empty list when the response is malformed", async () => {
+      stubFetchJson({ servers: "not-an-array" });
+      const client = new ApiClient("https://api.example.test");
+      expect(await client.listProjectMcpServers("project-1")).toEqual([]);
+    });
+
+    it("never surfaces a config field even if the server sends one", async () => {
+      stubFetchJson([
+        {
+          id: "srv-1",
+          workspace_id: "ws-1",
+          name: "linear",
+          transport: "http",
+          created_at: "",
+          updated_at: "",
+          config: { headers: { Authorization: "Bearer leaked" } },
+        },
+      ]);
+      const client = new ApiClient("https://api.example.test");
+      const res = await client.listProjectMcpServers("project-1");
+      expect(res).toHaveLength(1);
+      expect(res[0]).not.toHaveProperty("config");
+    });
+  });
+
   describe("listProjectSkills", () => {
     it("falls back to an empty list when the response is malformed", async () => {
       stubFetchJson({ skills: "not-an-array" });

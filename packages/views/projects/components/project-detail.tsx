@@ -26,6 +26,7 @@ import { currentPath, useNavigation } from "../../navigation";
 import { TitleEditor, ContentEditor, type ContentEditorRef } from "../../editor";
 import { PriorityIcon } from "../../issues/components/priority-icon";
 import { ProjectResourcesSection } from "./project-resources-section";
+import { ProjectMcpServersSection } from "./project-mcp-servers-section";
 import { ProjectSkillsSection } from "./project-skills-section";
 import { ProjectStartDatePicker } from "./project-start-date-picker";
 import { ProjectDueDatePicker } from "./project-due-date-picker";
@@ -474,6 +475,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
       {/* Skills */}
       <ProjectSkillsSection projectId={projectId} canManage={isWorkspaceAdmin} />
+
+      {/* MCP servers */}
+      <ProjectMcpServersSection projectId={projectId} canManage={isWorkspaceAdmin} />
     </div>
   );
 
