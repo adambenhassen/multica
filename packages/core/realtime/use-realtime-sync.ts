@@ -835,7 +835,11 @@ export function useRealtimeSync(
       },
       project_mcp_server: () => {
         const wsId = getCurrentWsId();
-        if (wsId) qc.invalidateQueries({ queryKey: projectMcpServerKeys.all(wsId) });
+        if (wsId) {
+          qc.invalidateQueries({ queryKey: projectMcpServerKeys.all(wsId) });
+          // The library list reports each entry's project_count.
+          qc.invalidateQueries({ queryKey: workspaceKeys.mcpServers(wsId) });
+        }
       },
       project: () => {
         const wsId = getCurrentWsId();
