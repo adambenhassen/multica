@@ -3964,31 +3964,21 @@ func (h *Handler) ResolveTaskSkillBundles(w http.ResponseWriter, r *http.Request
 	}
 
 	// Project skills the claim delivered must resolve too, so the task's
-	// project is re-derived the same way the claim derived it. Only workspace
-	// refs can be project skills; a builtin-only request skips the lookup.
-	skillProject := service.SkillProjectScope{}
-	for _, ref := range wanted {
-		if ref.Source != skillbundle.SourceWorkspace {
-			continue
+	// project is re-derived the same way the claim derived it — but only when
+	// a requested skill is not one of the agent's own.
+	resolveProject := func(ctx context.Context) (service.SkillProjectScope, error) {
+		projectID, err := h.TaskService.ResolveTaskProjectID(ctx, task)
+		if err != nil || !projectID.Valid {
+			return service.SkillProjectScope{}, err
 		}
-		projectID, err := h.TaskService.ResolveTaskProjectID(r.Context(), task)
-		if err != nil {
-			slog.Error("resolve skill bundles: resolve task project failed",
-				"task_id", uuidToString(task.ID), "error", err)
-			writeError(w, http.StatusInternalServerError, "failed to load skill bundles")
-			return
-		}
-		if projectID.Valid {
-			skillProject = service.SkillProjectScope{ProjectID: projectID, WorkspaceID: runtime.WorkspaceID}
-		}
-		break
+		return service.SkillProjectScope{ProjectID: projectID, WorkspaceID: runtime.WorkspaceID}, nil
 	}
 
 	// Load ONLY what was asked for. The daemon resolves one skill per request,
 	// so serving these out of the agent's full bundle set meant reading and
 	// hashing every skill the agent has, once per request, to return one of
 	// them — quadratic in skill count across a cold dispatch.
-	allowed, err := h.TaskService.LoadRequestedAgentSkillBundles(r.Context(), task.AgentID, skillProject, wanted)
+	allowed, err := h.TaskService.LoadRequestedAgentSkillBundles(r.Context(), task.AgentID, resolveProject, wanted)
 	if err != nil {
 		// 5xx, not a partial answer: the daemon's resolve retry can recover a
 		// transient read, and a bundle assembled from a failed read would pass
