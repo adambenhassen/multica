@@ -52,6 +52,19 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 添加到项目的 skill 会提供给项目中的每个任务，叠加在执行任务的智能体自身的 skill 之上。见[添加到项目](/skills#添加到项目)。
 
+## 添加 MCP Server
+
+工作区 `owner` 和 `admin` 可以把工作区 MCP 库（设置 → MCP）中的 Server 添加到项目，也可以运行 `multica project mcp add <project-id> --server-ids <server-id>`。项目中的每个任务都会在执行任务的智能体自身的 MCP Server 之外使用它们：
+
+- 如果智能体自身的 MCP 配置声明了同名 Server，以智能体的配置为准。
+- 已分配给智能体但被停用的 Server，对该智能体仍保持停用。要让某个智能体不使用项目 Server，请在该智能体的 **MCP** 标签页分配该 Server，然后将其停用。
+- 没有自身 MCP 配置的智能体在项目运行中会切换为 Multica 托管的 MCP，与直接给它分配 Server 时相同。
+- 即使智能体代表 `admin` 运行，也不能修改项目 MCP Server。
+
+<Callout type="warning">
+项目 MCP Server 的配置（包括其中的 token）会写入运行该项目工作的每个运行时，包括成员的私有运行时。只添加凭据可以交给项目中所有参与者的 Server。
+</Callout>
+
 ## 项目负责人
 
 Lead 可以是成员或智能体，表示谁负责协调项目。它不是权限设置，不会自动分配项目中的任务；把智能体设为 lead 也不会自动运行它。启动执行仍需分配任务、@提及或自动化触发。
@@ -65,7 +78,7 @@ Lead 可以是成员或智能体，表示谁负责协调项目。它不是权限
 工作区成员都可以创建和编辑项目；只有 `owner` 和 `admin` 可以删除。
 
 <Callout type="warning">
-删除项目不会删除其中的任务：它们解除关联后继续保留在工作区；项目的描述、状态、资源和 skill 关联会被永久删除。
+删除项目不会删除其中的任务：它们解除关联后继续保留在工作区；项目的描述、状态、资源、skill 关联和 MCP Server 关联会被永久删除。
 </Callout>
 
 ## 接下来

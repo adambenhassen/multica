@@ -52,6 +52,19 @@ See [Project resources](/project-resources) for how to choose and for the safety
 
 Skills attached to a project are delivered to every task in the project, in addition to the running agent's own skills. See [Attaching to a project](/skills#attaching-to-a-project).
 
+## Add MCP servers
+
+Workspace `owner`s and `admin`s can attach servers from the workspace MCP library (Settings → MCP) to a project, or run `multica project mcp add <project-id> --server-ids <server-id>`. Every task in the project then runs with them, alongside the running agent's own MCP servers:
+
+- If the agent's own MCP configuration declares a server with the same name, the agent's entry wins.
+- A server assigned to the agent but disabled stays off for that agent. To keep a project server away from one agent, assign the server on that agent's **MCP** tab, then disable it there.
+- An agent with no MCP configuration of its own switches to Multica-managed MCP for project runs, just as when a server is assigned to it directly.
+- Agents cannot change project MCP servers, even when they run for an admin.
+
+<Callout type="warning">
+A project MCP server's configuration, including any token in it, is written onto every runtime that runs work in the project, including members' private runtimes. Attach only servers whose credentials everyone working in the project may hold.
+</Callout>
+
 ## Project lead
 
 The lead can be a member or an agent, and marks who coordinates the project. It is not a permission setting: it does not auto-assign the project's issues, and making an agent the lead does not automatically run it. Starting a run still takes an issue assignment, an @mention, or an automation trigger.
@@ -65,7 +78,7 @@ A pinned project appears in your sidebar. Pinning is a personal preference and d
 Any workspace member can create and edit projects; only `owner` and `admin` can delete them.
 
 <Callout type="warning">
-Deleting a project does not delete its issues: they detach and stay in the workspace. The project's description, status, resources, and skill attachments are permanently deleted.
+Deleting a project does not delete its issues: they detach and stay in the workspace. The project's description, status, resources, skill attachments, and MCP server attachments are permanently deleted.
 </Callout>
 
 ## Next steps
