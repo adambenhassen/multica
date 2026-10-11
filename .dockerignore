@@ -39,6 +39,8 @@ coverage
 # app workspaces so they do not silently enter the build context.
 /apps/*
 !/apps/web/
+# pnpm reads every patchedDependencies file during install (Dockerfile.web).
+!/apps/mobile/patches/
 
 # Repository-only tooling
 /.github/
