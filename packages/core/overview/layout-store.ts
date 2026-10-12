@@ -26,7 +26,7 @@ export const useOverviewLayoutStore = create<OverviewLayoutState>()(
     (set) => ({
       showComments: false,
       showOther: false,
-      latestOnly: false,
+      latestOnly: true,
       toggleComments: () => set((state) => ({ showComments: !state.showComments })),
       toggleOther: () => set((state) => ({ showOther: !state.showOther })),
       toggleLatestOnly: () => set((state) => ({ latestOnly: !state.latestOnly })),
@@ -35,14 +35,15 @@ export const useOverviewLayoutStore = create<OverviewLayoutState>()(
       name: "multica_dashboard_layout",
       storage: createJSONStorage(() => stateStorage),
       // Older builds saved other keys here (hidden sections, project labels);
-      // keep only what this build reads, and only a saved true turns one on.
+      // keep only what this build reads. Only a saved true turns comments or
+      // other changes on, and only a saved false turns latest-only off.
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Record<string, unknown>;
         return {
           ...current,
           showComments: saved.showComments === true,
           showOther: saved.showOther === true,
-          latestOnly: saved.latestOnly === true,
+          latestOnly: saved.latestOnly !== false,
         };
       },
     },

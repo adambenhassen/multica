@@ -15,7 +15,15 @@ describe("useOverviewLayoutStore", () => {
     expect(useOverviewLayoutStore.getState()).toMatchObject({ showComments: false, showOther: true, latestOnly: true });
   });
 
-  it("restores choices only from a saved true and drops retired keys", () => {
+  it("defaults to hiding earlier moves", () => {
+    const merge = useOverviewLayoutStore.persist.getOptions().merge!;
+    const current = useOverviewLayoutStore.getState();
+    expect(merge(undefined, current)).toMatchObject({ showComments: false, showOther: false, latestOnly: true });
+    expect(merge({ latestOnly: "no" }, current)).toMatchObject({ latestOnly: true });
+    expect(merge({ latestOnly: false }, current)).toMatchObject({ latestOnly: false });
+  });
+
+  it("restores choices from saved values and drops retired keys", () => {
     const merge = useOverviewLayoutStore.persist.getOptions().merge!;
     const current = useOverviewLayoutStore.getState();
     expect(merge({ showComments: true, showOther: "yes", latestOnly: true }, current)).toMatchObject({
