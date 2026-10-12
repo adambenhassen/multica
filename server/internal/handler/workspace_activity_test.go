@@ -235,6 +235,12 @@ func TestListWorkspaceActivityMergesCommentsAndFiltersByKind(t *testing.T) {
 	}
 	testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity?project=nope", ws, testUserID)).
 		Want(http.StatusBadRequest)
+
+	// Several issues at once (the Active tab sends the issues agents are on).
+	if got := ids(read("?issue=" + other + "," + inProject)); !slices.Equal(got,
+		[]string{projectComment, projectStatus, otherComment, otherStatus}) {
+		t.Fatalf("issue=other,inProject = %v, want both issues' rows", got)
+	}
 }
 
 func TestListRecentlyCompletedIssuesOrdersByCompletion(t *testing.T) {
