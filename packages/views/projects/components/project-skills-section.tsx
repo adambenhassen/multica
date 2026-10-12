@@ -81,7 +81,9 @@ export function ProjectSkillsSection({
                   className="group flex items-center gap-2 text-caption text-muted-foreground"
                 >
                   <SkillIcon className="size-3.5 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate text-foreground">{skill.name}</span>
+                  <span className="min-w-16 flex-1 truncate text-foreground" title={skill.name}>
+                    {skill.name}
+                  </span>
                   <ProjectAudienceControl
                     audience={skill.audience}
                     itemName={skill.name}

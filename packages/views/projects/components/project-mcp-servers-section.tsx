@@ -76,8 +76,14 @@ export function ProjectMcpServersSection({
                   key={server.id}
                   className="group flex items-center gap-2 text-caption text-muted-foreground"
                 >
-                  <span className="min-w-0 flex-1 truncate text-foreground">{server.name}</span>
-                  <span className="shrink-0">{mcpTransportLabel(server.transport)}</span>
+                  {/* The name keeps room beside a long audience; the transport
+                      is its tooltip (the add picker shows it too). */}
+                  <span
+                    className="min-w-16 flex-1 truncate text-foreground"
+                    title={`${server.name} · ${mcpTransportLabel(server.transport)}`}
+                  >
+                    {server.name}
+                  </span>
                   <ProjectAudienceControl
                     audience={server.audience}
                     itemName={server.name}
