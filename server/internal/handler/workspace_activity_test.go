@@ -154,6 +154,21 @@ func TestListWorkspaceActivityMergesCommentsAndFiltersByKind(t *testing.T) {
 	}
 	testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity?kind=runs", ws, testUserID)).
 		Want(http.StatusBadRequest)
+
+	blocked := dbfx.Insert(t, "activity_log", testutil.Cols{
+		"workspace_id": ws, "issue_id": issue, "actor_type": "member", "actor_id": testUserID,
+		"action": "status_changed", "details": `{"from":"done","to":"blocked"}`, "created_at": base.Add(4 * time.Minute),
+	})
+	if got := ids(read("?kind=status&to=done")); !slices.Equal(got, []string{status}) {
+		t.Fatalf("to=done = %v, want only the change into done", got)
+	}
+	if got := ids(read("?kind=status&to=blocked,done")); !slices.Equal(got, []string{blocked, status}) {
+		t.Fatalf("to=blocked,done = %v", got)
+	}
+	for _, query := range []string{"?to=done", "?kind=comments&to=done", "?kind=status&to=done,"} {
+		testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity"+query, ws, testUserID)).
+			Want(http.StatusBadRequest)
+	}
 }
 
 func TestListRecentlyCompletedIssuesOrdersByCompletion(t *testing.T) {

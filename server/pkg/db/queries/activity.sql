@@ -72,7 +72,8 @@ LIMIT 1;
 -- Issue-less rows (agent env audit entries) are excluded on purpose: the feed
 -- is visible to every member, the audit trail is not. The literal
 -- `issue_id IS NOT NULL` predicate lets idx_activity_log_workspace_recent
--- (migration 581) serve the ORDER BY without a sort step.
+-- (migration 581) serve the ORDER BY without a sort step. @to_statuses keeps
+-- only rows whose details `to` is one of the keys (status changes into them).
 SELECT a.id, a.workspace_id, a.issue_id, a.actor_type, a.actor_id, a.action, a.details, a.created_at,
        i.number AS issue_number, i.title AS issue_title, i.status AS issue_status
 FROM activity_log a
@@ -81,6 +82,7 @@ WHERE a.workspace_id = @workspace_id
   AND a.issue_id IS NOT NULL
   AND NOT (a.action = ANY(@excluded_actions::text[]))
   AND (cardinality(@only_actions::text[]) = 0 OR a.action = ANY(@only_actions::text[]))
+  AND (cardinality(@to_statuses::text[]) = 0 OR a.details->>'to' = ANY(@to_statuses::text[]))
   AND (sqlc.narg('before_at')::timestamptz IS NULL
        OR (a.created_at, a.id) < (sqlc.narg('before_at')::timestamptz, sqlc.narg('before_id')::uuid))
 ORDER BY a.created_at DESC, a.id DESC

@@ -3,6 +3,7 @@ package handler
 import (
 	"log/slog"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,6 +42,10 @@ var workspaceActivityExcludedActions = []string{
 // "status" is status changes only, "failures" is failed agent runs only. An
 // empty kind returns everything except run outcomes.
 var workspaceActivityKinds = map[string]bool{"": true, "all": true, "comments": true, "status": true, "failures": true}
+
+// maxWorkspaceActivityToStatuses caps the `to` filter; a workspace catalog
+// holds far fewer statuses than this.
+const maxWorkspaceActivityToStatuses = 100
 
 // WorkspaceActivityIssueRef names the issue an activity entry belongs to, so
 // the feed renders without a per-row issue fetch.
@@ -118,6 +123,20 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "kind must be all, comments, status or failures")
 		return
 	}
+	// `to` narrows the status feed to changes into any of the given status
+	// keys (comma-separated), e.g. every move to Blocked.
+	toStatuses := []string{}
+	if raw := r.URL.Query().Get("to"); raw != "" {
+		if kind != "status" {
+			writeError(w, http.StatusBadRequest, "to requires kind=status")
+			return
+		}
+		toStatuses = strings.Split(raw, ",")
+		if len(toStatuses) > maxWorkspaceActivityToStatuses || slices.Contains(toStatuses, "") {
+			writeError(w, http.StatusBadRequest, "to must be a comma-separated list of status keys")
+			return
+		}
+	}
 	// Non-nil on purpose: pgx sends a nil slice as NULL, and
 	// cardinality(NULL) = 0 is not true, which would filter out every row.
 	onlyActions := []string{}
@@ -140,6 +159,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 			WorkspaceID:     wsUUID,
 			ExcludedActions: excludedActions,
 			OnlyActions:     onlyActions,
+			ToStatuses:      toStatuses,
 			BeforeAt:        beforeAt,
 			BeforeID:        beforeID,
 			RowLimit:        int32(limit),
