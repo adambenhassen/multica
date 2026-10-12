@@ -22,6 +22,8 @@ vi.mock("@multica/core/paths", async (importOriginal) => {
 vi.mock("@multica/core/workspace/hooks", () => ({
   useActorName: () => ({
     getActorName: (_type: string, id: string) => (id === "agent-1" ? "Builder" : "Unknown"),
+    getActorInitials: () => "B",
+    getActorAvatarUrl: () => null,
   }),
 }));
 vi.mock("../../common/actor-avatar", () => ({
@@ -58,7 +60,7 @@ function renderPage() {
 afterEach(() => {
   cleanup();
   apiRef.current = {};
-  useOverviewLayoutStore.setState({ showComments: false });
+  useOverviewLayoutStore.setState({ showComments: false, showOther: false, latestOnly: false });
 });
 
 const NOW = new Date().toISOString();
@@ -177,42 +179,19 @@ describe("OverviewPage", () => {
     expect(calls.at(-1)).toMatchObject({ kind: "failures", to: [] });
   });
 
-  it("shows other issue changes on their own tab, in words when there is room", async () => {
-    const assigned = {
-      type: "activity",
-      id: "o-1",
-      actor_type: "agent",
-      actor_id: "agent-1",
-      created_at: NOW,
-      action: "created",
-      issue: FIX,
-    };
-    const calls = scriptFeed((p) => (p.kind === "other" ? [assigned] : [move("a-1", SHIP)]));
+  it("mixes comments and other changes into All from the Display menu, and remembers them", async () => {
+    const reassigned = { type: "activity", id: "o-1", actor_type: "agent", actor_id: "agent-1", created_at: NOW, action: "assignee_changed", details: {}, issue: FIX };
+    const calls = scriptFeed((p) => {
+      if (p.kind === "status_comments") return [comment("c-1", FIX, "Waiting for green CI"), move("a-1", SHIP)];
+      if (p.kind === "changes") return [reassigned, move("a-1", SHIP)];
+      return [move("a-1", SHIP)];
+    });
     renderPage();
-
     await within(feed()).findByText("Ship the dashboard");
-    fireEvent.click(within(feed()).getByRole("button", { name: "Other" }));
-    const row = (await within(feed()).findByText("Fix the reconnect")).closest("a")!;
-    expect(calls.at(-1)).toMatchObject({ kind: "other", to: [] });
-    const words = within(row).getAllByText("created this issue").map((el) => el.className);
-    expect(words.some((c) => c.includes("@4xl:inline"))).toBe(true);
-    expect(words.some((c) => c.includes("sr-only"))).toBe(true);
-  });
 
-  it("mixes comments into the All tab when Comments is on, and remembers it", async () => {
-    const calls = scriptFeed((p) =>
-      p.kind === "status_comments" ? [comment("c-1", FIX, "Waiting for green CI"), move("a-1", SHIP)] : [move("a-1", SHIP)],
-    );
-    renderPage();
-
-    await within(feed()).findByText("Ship the dashboard");
-    expect(within(feed()).queryByText("Fix the reconnect")).toBeNull();
-    const toggle = screen.getByRole("button", { name: "Comments" });
-    expect(toggle.getAttribute("aria-pressed")).toBe("false");
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Display" }));
+    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Comments" }));
     expect(useOverviewLayoutStore.getState().showComments).toBe(true);
-
     const row = (await within(feed()).findByText("Fix the reconnect")).closest("a")!;
     expect(row.getAttribute("href")).toBe("/acme/issues/issue-2#comment-c-1");
     // The comment's text is its icon's tooltip, and the visible text of a wide list.
@@ -220,9 +199,88 @@ describe("OverviewPage", () => {
     expect(within(row).getByText("Waiting for green CI").className).toContain("@4xl:inline");
     expect(calls.at(-1)).toMatchObject({ kind: "status_comments" });
 
-    // A comment is not a move into a status: other tabs stay status-only.
+    // Comments off, other changes on: every issue change without comments.
+    useOverviewLayoutStore.setState({ showComments: false, showOther: true });
+    await waitFor(() => expect(calls.at(-1)).toMatchObject({ kind: "changes" }));
+    // Both on: the whole feed.
+    useOverviewLayoutStore.setState({ showComments: true, showOther: true });
+    await waitFor(() => expect(calls.at(-1)).toMatchObject({ kind: "all" }));
+
+    // Neither is a move into a status: the status tabs stay status-only.
     fireEvent.click(within(feed()).getByRole("button", { name: "Blocked" }));
     await waitFor(() => expect(calls.at(-1)?.kind).toBe("status"));
+    expect(screen.queryByRole("button", { name: "Other" })).toBeNull();
+  });
+
+  it("keeps a repeat count inside the action column, so the row stays aligned", async () => {
+    const failed = (id: string) => ({
+      type: "activity", id, actor_type: "agent", actor_id: "agent-1", created_at: NOW, action: "task_failed", details: {}, issue: SHIP,
+    });
+    scriptFeed((p) => (p.kind === "failures" ? [failed("f-1"), failed("f-2")] : []));
+    renderPage();
+    fireEvent.click(await within(feed()).findByRole("button", { name: "Failed runs" }));
+    const row = (await within(feed()).findByText("Ship the dashboard")).closest("a")!;
+    const count = within(row).getByText("×2");
+    // The count sits in the fixed-width action column, next to the action's words.
+    expect(count.parentElement!.className).toContain("w-14");
+    expect(count.parentElement!.className).toContain("@4xl:w-56");
+  });
+
+  it("keeps only each issue's latest move when asked", async () => {
+    const older = { ...move("a-2", SHIP), details: { from: "todo", to: "in_review" } };
+    scriptFeed(() => [move("a-1", SHIP), move("a-3", FIX), older]);
+    renderPage();
+    await within(feed()).findAllByText("Ship the dashboard");
+    expect(within(feed()).getAllByText("Ship the dashboard")).toHaveLength(2);
+
+    useOverviewLayoutStore.setState({ latestOnly: true });
+    await waitFor(() => expect(within(feed()).getAllByText("Ship the dashboard")).toHaveLength(1));
+    expect(within(feed()).getByText("Fix the reconnect")).toBeTruthy();
+  });
+
+  it("counts the agents running now in the header, and opens the Active tab from it", async () => {
+    apiRef.current.getAgentTaskSnapshot = () =>
+      Promise.resolve([
+        { id: "t-1", agent_id: "agent-1", issue_id: "issue-1", status: "running", started_at: NOW, created_at: NOW },
+        { id: "t-2", agent_id: "agent-2", issue_id: "", status: "running", started_at: NOW, created_at: NOW },
+        { id: "t-3", agent_id: "agent-3", issue_id: "issue-2", status: "queued", started_at: null, created_at: NOW },
+      ]);
+    apiRef.current.listIssues = () =>
+      Promise.resolve({ issues: [{ id: "issue-1", identifier: "MUL-1", title: "Ship the dashboard", status: "in_progress" }], total: 1 });
+    scriptFeed(() => []);
+    renderPage();
+
+    const chip = await screen.findByRole("button", { name: "2 agents working" });
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(chip);
+    expect(chip.getAttribute("aria-pressed")).toBe("true");
+    expect(within(feed()).getByRole("button", { name: "Active", pressed: true })).toBeTruthy();
+    expect(await within(feed()).findByText("Ship the dashboard")).toBeTruthy();
+  });
+
+  it("lists the issues agents are working on now on the Active tab", async () => {
+    apiRef.current.getAgentTaskSnapshot = () =>
+      Promise.resolve([
+        { id: "t-1", agent_id: "agent-1", issue_id: "issue-1", status: "running", started_at: NOW, created_at: NOW },
+        { id: "t-2", agent_id: "agent-2", issue_id: "issue-2", status: "queued", started_at: null, created_at: NOW },
+      ]);
+    const issueCalls: { ids?: string[] }[] = [];
+    apiRef.current.listIssues = ((params: { ids?: string[] }) => {
+      issueCalls.push(params);
+      return Promise.resolve({
+        issues: [{ id: "issue-1", identifier: "MUL-1", title: "Ship the dashboard", status: "in_progress", project_id: null }],
+        total: 1,
+      });
+    }) as () => Promise<unknown>;
+    scriptFeed(() => []);
+    renderPage();
+
+    fireEvent.click(await within(feed()).findByRole("button", { name: "Active" }));
+    const row = (await within(feed()).findByText("Ship the dashboard")).closest("a")!;
+    expect(row.getAttribute("href")).toBe("/acme/issues/issue-1");
+    expect(within(row).getByText("Working now: Builder")).toBeTruthy();
+    // Only running tasks count: the queued one's issue is not asked for.
+    expect(issueCalls.at(-1)?.ids).toEqual(["issue-1"]);
   });
 
   it("shows each event on one line and names what it hides on hover", async () => {

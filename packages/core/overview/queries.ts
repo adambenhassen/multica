@@ -1,4 +1,4 @@
-import { infiniteQueryOptions, keepPreviousData, type InfiniteData } from "@tanstack/react-query";
+import { infiniteQueryOptions, keepPreviousData, queryOptions, type InfiniteData } from "@tanstack/react-query";
 import { api } from "../api";
 import type { WorkspaceActivityKind, WorkspaceActivityResponse } from "../types";
 
@@ -19,6 +19,9 @@ export const overviewKeys = {
   activityAll: (wsId: string) => [...overviewKeys.all(wsId), "activity"] as const,
   activity: (wsId: string, { kind = "all", to = [], issue = null, project = null }: ActivityFeedFilters = {}) =>
     [...overviewKeys.activityAll(wsId), kind, issue, project, ...to] as const,
+  // Under the feed prefix, so the same activity events refresh it.
+  activeIssues: (wsId: string, ids: readonly string[], project: string | null) =>
+    [...overviewKeys.activityAll(wsId), "active-issues", project, ...ids] as const,
 };
 
 // The feed endpoint caps a page at 50; the Dashboard list scrolls inside it.
@@ -53,6 +56,25 @@ export function workspaceActivityOptions(wsId: string, filters: ActivityFeedFilt
     getNextPageParam: (last) => last.next_cursor ?? undefined,
     select: (data: InfiniteData<WorkspaceActivityResponse, string | null>) =>
       uniqueById(data.pages.flatMap((page) => page.entries)),
+    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * The issues behind the given ids (the ones agents are working on right now,
+ * from the live task snapshot), optionally narrowed to one project. An empty
+ * id list is an empty result, not every issue.
+ */
+export function activeIssuesOptions(wsId: string, ids: readonly string[], project: string | null) {
+  return queryOptions({
+    queryKey: overviewKeys.activeIssues(wsId, ids, project),
+    queryFn: () =>
+      ids.length === 0
+        ? Promise.resolve([])
+        : api
+            .listIssues({ ids: [...ids], project_ids: project ? [project] : undefined, limit: ids.length })
+            .then((res) => res.issues),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   });

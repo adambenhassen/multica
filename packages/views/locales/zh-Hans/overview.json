@@ -2,7 +2,13 @@
   "title": "动态",
   "load_failed": "加载失败",
   "retry": "重试",
-  "show_comments": "评论",
+  "display": {
+    "button": "显示",
+    "on_all": "在“全部”中显示",
+    "comments": "评论",
+    "other": "其他变更",
+    "latest_only": "每个任务仅显示最新变更"
+  },
   "working_now": "正在处理：{{names}}",
   "activity": {
     "heading": "最近动态",
@@ -17,18 +23,18 @@
   },
   "status_changes": {
     "empty": "暂无状态变更",
+    "empty_active": "目前没有智能体在处理任务",
     "empty_filtered": "没有变更为此状态的记录",
     "empty_failures": "没有失败的运行",
-    "empty_other_changes": "暂无其他变更",
     "filter_label": "按新状态筛选",
     "filters": {
       "all": "全部",
+      "active": "处理中",
       "in_progress": "进行中",
       "blocked": "已阻塞",
       "done": "已完成",
       "cancelled": "已取消",
-      "failures": "失败的运行",
-      "other": "其他"
+      "failures": "失败的运行"
     }
   },
   "issue_filter": {

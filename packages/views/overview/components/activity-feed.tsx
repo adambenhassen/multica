@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState, type ReactNode } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 import { Activity, ArrowRight, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, UserRound } from "lucide-react";
 import { useInfiniteQuery, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -9,8 +9,13 @@ import { useActorName } from "@multica/core/workspace/hooks";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { agentTaskSnapshotOptions } from "@multica/core/agents";
-import { useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
-import type { WorkspaceActivityEntry, WorkspaceActivityIssueRef } from "@multica/core/types";
+import { activeIssuesOptions, useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
+import type {
+  Issue,
+  WorkspaceActivityEntry,
+  WorkspaceActivityIssueRef,
+  WorkspaceActivityKind,
+} from "@multica/core/types";
 import { cn } from "@multica/ui/lib/utils";
 import { Button } from "@multica/ui/components/ui/button";
 import { AppLink } from "../../navigation";
@@ -29,6 +34,7 @@ import {
   coalesceFeed,
   commentExcerpt,
   groupFeedByDay,
+  latestStatusChangePerIssue,
   statusChangeTargets,
 } from "../utils";
 import { EmptyBox, ErrorBox, LIST_CLASS, LIST_SECTION_CLASS, ListSkeleton, SectionHeading } from "./section-parts";
@@ -47,36 +53,80 @@ export interface FeedFocus {
 }
 
 /**
- * The feed's tabs: the status a change went into, failed agent runs, or every
- * other issue change (created, reassigned, edited).
+ * The feed's tabs: everything, the issues agents are working on now, the
+ * status a change went into, or failed agent runs.
  */
-const FEED_TABS = [...STATUS_CHANGE_FILTERS, "failures", "other"] as const;
-type FeedTab = (typeof FEED_TABS)[number];
+const FEED_TABS = ["all", "active", ...STATUS_CHANGE_FILTERS.filter((f) => f !== "all"), "failures"] as const;
+export type FeedTab = (typeof FEED_TABS)[number];
+
+/**
+ * Running tasks from the live task snapshot, grouped by issue (the agents on
+ * it and when the earliest run started) and by agent (how many runs).
+ * `pending` until the snapshot has loaded.
+ */
+export function useRunningTasks(wsId: string) {
+  const { data: snapshot, isPending } = useQuery(agentTaskSnapshotOptions(wsId));
+  return useMemo(() => {
+    const byIssue = new Map<string, { agentIds: string[]; since: string }>();
+    const byAgent = new Map<string, { count: number; issueIds: string[] }>();
+    for (const task of snapshot ?? []) {
+      if (task.status !== "running") continue;
+      const agent = byAgent.get(task.agent_id) ?? { count: 0, issueIds: [] };
+      agent.count += 1;
+      if (task.issue_id) agent.issueIds.push(task.issue_id);
+      byAgent.set(task.agent_id, agent);
+      if (!task.issue_id) continue;
+      const started = task.started_at ?? task.created_at;
+      const cur = byIssue.get(task.issue_id) ?? { agentIds: [], since: started };
+      if (!cur.agentIds.includes(task.agent_id)) cur.agentIds.push(task.agent_id);
+      if (started < cur.since) cur.since = started;
+      byIssue.set(task.issue_id, cur);
+    }
+    return { pending: isPending, byIssue, byAgent };
+  }, [snapshot, isPending]);
+}
 
 /**
  * Every status change across the workspace, newest first, each shown as the
- * move itself. The tabs narrow it by the status a change went into, or switch
- * to failed agent runs or other issue changes. With comments on, the All tab
- * mixes them in.
+ * move itself, with issue creations. The tabs narrow it by the status a change
+ * went into, or switch to the issues agents are working on now or to failed
+ * agent runs. The display choices mix comments and other issue changes into
+ * the All tab, and can keep only each issue's latest move.
  */
-export function StatusChangesFeed({ focus }: { focus: FeedFocus }) {
+export function StatusChangesFeed({
+  focus,
+  tab,
+  onTabChange,
+}: {
+  focus: FeedFocus;
+  /** Owned by the page, so its header can open the Active tab. */
+  tab: FeedTab;
+  onTabChange: (tab: FeedTab) => void;
+}) {
   const { t } = useT("overview");
   const wsId = useWorkspaceId();
   const catalog = useIssueStatuses(wsId);
   const showComments = useOverviewLayoutStore((s) => s.showComments);
-  const [tab, setTab] = useState<FeedTab>("all");
+  const showOther = useOverviewLayoutStore((s) => s.showOther);
   // Custom statuses come from the catalog, so a category tab waits for it.
   const targets = useMemo(
-    () => (tab === "failures" || tab === "other" ? [] : statusChangeTargets(tab, catalog)),
+    () => (tab === "failures" || tab === "active" ? [] : statusChangeTargets(tab, catalog)),
     [tab, catalog],
   );
-  // A comment is not a move into a status, so only the All tab mixes them in.
-  const kind =
-    tab === "failures" || tab === "other"
-      ? tab
-      : showComments && tab === "all"
-        ? "status_comments"
-        : "status";
+  // Comments and other changes are not moves into a status, so only the All
+  // tab mixes them in.
+  const kind: WorkspaceActivityKind =
+    tab === "failures"
+      ? "failures"
+      : tab !== "all"
+        ? "status"
+        : showComments && showOther
+          ? "all"
+          : showComments
+            ? "status_comments"
+            : showOther
+              ? "changes"
+              : "status";
   const query = useInfiniteQuery({
     ...workspaceActivityOptions(wsId, {
       kind,
@@ -84,28 +134,29 @@ export function StatusChangesFeed({ focus }: { focus: FeedFocus }) {
       issue: focus.issue?.id,
       project: focus.projectId,
     }),
-    enabled: targets !== null,
+    // The Active tab lists issues, not events.
+    enabled: targets !== null && tab !== "active",
   });
   const tabLabels: Record<FeedTab, string> = {
     all: t(($) => $.status_changes.filters.all),
+    active: t(($) => $.status_changes.filters.active),
     in_progress: t(($) => $.status_changes.filters.in_progress),
     blocked: t(($) => $.status_changes.filters.blocked),
     done: t(($) => $.status_changes.filters.done),
     cancelled: t(($) => $.status_changes.filters.cancelled),
     failures: t(($) => $.status_changes.filters.failures),
-    other: t(($) => $.status_changes.filters.other),
   };
 
   return (
     <section className={LIST_SECTION_CLASS}>
       <SectionHeading
         action={
-          // Seven tabs outgrow a phone: they scroll sideways rather than wrap.
+          // The tabs outgrow a phone: they scroll sideways rather than wrap.
           <div className="max-w-full overflow-x-auto">
             <Segmented
               label={t(($) => $.status_changes.filter_label)}
               value={tab}
-              onChange={setTab}
+              onChange={onTabChange}
               options={FEED_TABS.map((value) => ({ value, label: tabLabels[value] }))}
             />
           </div>
@@ -113,20 +164,131 @@ export function StatusChangesFeed({ focus }: { focus: FeedFocus }) {
       >
         {t(($) => $.activity.heading)}
       </SectionHeading>
-      <FeedBody
-        query={query}
-        focus={focus}
-        empty={
-          tab === "all"
-            ? t(($) => $.status_changes.empty)
-            : tab === "failures"
-              ? t(($) => $.status_changes.empty_failures)
-              : tab === "other"
-                ? t(($) => $.status_changes.empty_other_changes)
+      {tab === "active" ? (
+        <ActiveIssues focus={focus} />
+      ) : (
+        <FeedBody
+          query={query}
+          focus={focus}
+          empty={
+            tab === "all"
+              ? t(($) => $.status_changes.empty)
+              : tab === "failures"
+                ? t(($) => $.status_changes.empty_failures)
                 : t(($) => $.status_changes.empty_filtered)
-        }
-      />
+          }
+        />
+      )}
     </section>
+  );
+}
+
+/**
+ * The issues agents are working on right now (a running task, from the live
+ * task snapshot), newest run first: status, issue, its project, the agents,
+ * and when the work started. Narrowed by the page's project and issue filters.
+ */
+function ActiveIssues({ focus }: { focus: FeedFocus }) {
+  const { t } = useT("overview");
+  const wsId = useWorkspaceId();
+  const { pending: snapshotPending, byIssue: running } = useRunningTasks(wsId);
+  const ids = useMemo(
+    () => [...running.keys()].filter((id) => !focus.issue || id === focus.issue.id).sort(),
+    [running, focus.issue],
+  );
+  const query = useQuery({ ...activeIssuesOptions(wsId, ids, focus.projectId), enabled: !snapshotPending });
+  const { data: projectList } = useQuery(projectListOptions(wsId));
+  const projects = useMemo(() => new Map((projectList ?? []).map((p) => [p.id, p] as const)), [projectList]);
+
+  if (snapshotPending || query.isPending) return <ListSkeleton />;
+  if (query.isError) return <ErrorBox onRetry={() => void query.refetch()} />;
+  const issues = [...query.data].sort((a, b) =>
+    (running.get(b.id)?.since ?? "").localeCompare(running.get(a.id)?.since ?? ""),
+  );
+  if (issues.length === 0) return <EmptyBox>{t(($) => $.status_changes.empty_active)}</EmptyBox>;
+  return (
+    <div className={cn(LIST_CLASS, "@container")}>
+      <div className="divide-y">
+        {issues.map((issue) => (
+          <ActiveIssueRow
+            key={issue.id}
+            issue={issue}
+            agentIds={running.get(issue.id)?.agentIds ?? []}
+            since={running.get(issue.id)?.since ?? ""}
+            project={issue.project_id ? projects.get(issue.project_id) : undefined}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** One issue on the Active tab, on the same columns as a feed row. */
+function ActiveIssueRow({
+  issue,
+  agentIds,
+  since,
+  project,
+}: {
+  issue: Issue;
+  agentIds: string[];
+  since: string;
+  project: RowProject | undefined;
+}) {
+  const { t } = useT("overview");
+  const wsId = useWorkspaceId();
+  const paths = useWorkspacePaths();
+  const timeAgo = useTimeAgo();
+  const catalog = useIssueStatuses(wsId);
+  const { getActorName } = useActorName();
+  const names = agentIds.map((id) => getActorName("agent", id)).join(", ");
+  return (
+    <AppLink
+      href={paths.issueDetail(issue.id)}
+      className="flex min-w-0 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/50"
+    >
+      <span
+        aria-hidden="true"
+        className="flex size-4 shrink-0 items-center justify-center"
+        title={catalog.labelOf(issue.status)}
+      >
+        <StatusIcon
+          status={issue.status}
+          category={catalog.categoryOf(issue.status)}
+          color={catalog.colorOf(issue.status)}
+          icon={catalog.iconOf(issue.status)}
+          className="size-4"
+        />
+      </span>
+      <span className="shrink-0 font-mono text-caption text-muted-foreground">{issue.identifier}</span>
+      <span className="min-w-32 flex-1 truncate text-label" title={issue.title}>
+        {issue.title}
+      </span>
+      <span
+        className="hidden w-32 shrink-0 items-center gap-1 text-caption text-muted-foreground @lg:flex"
+        title={project?.title}
+      >
+        {project && (
+          <>
+            <ProjectIcon project={project} size="sm" />
+            <span className="truncate">{project.title}</span>
+          </>
+        )}
+      </span>
+      {/* The agents, named once the list has room. */}
+      <span className="hidden min-w-0 shrink-0 items-center gap-1.5 text-caption @sm:flex @4xl:w-56" title={names}>
+        <span className="sr-only">{t(($) => $.working_now, { names })}</span>
+        <span aria-hidden="true" className="flex shrink-0 items-center -space-x-1">
+          {agentIds.slice(0, 3).map((id) => (
+            <ActorAvatar key={id} actorType="agent" actorId={id} size="xs" profileLink={false} showStatusDot />
+          ))}
+        </span>
+        <span aria-hidden="true" className="hidden truncate font-medium text-foreground @4xl:inline">
+          {names}
+        </span>
+      </span>
+      <span className="w-16 shrink-0 text-right text-caption text-muted-foreground">{since && timeAgo(since)}</span>
+    </AppLink>
   );
 }
 
@@ -149,18 +311,13 @@ function FeedBody({
   const projects = useMemo(() => new Map((projectList ?? []).map((p) => [p.id, p] as const)), [projectList]);
   // Agents working on each issue right now, from the live task snapshot the
   // app already keeps fresh over WebSocket.
-  const { data: snapshot } = useQuery(agentTaskSnapshotOptions(wsId));
-  const workingByIssue = useMemo(() => {
-    const out = new Map<string, string[]>();
-    for (const task of snapshot ?? []) {
-      if (task.status !== "running" || !task.issue_id) continue;
-      const ids = out.get(task.issue_id) ?? [];
-      if (!ids.includes(task.agent_id)) out.set(task.issue_id, [...ids, task.agent_id]);
-    }
-    return out;
-  }, [snapshot]);
+  const { byIssue: working } = useRunningTasks(wsId);
   const { data: entries, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = query;
-  const groups = useMemo(() => groupFeedByDay(coalesceFeed(entries ?? []), tz), [entries, tz]);
+  const latestOnly = useOverviewLayoutStore((s) => s.latestOnly);
+  const groups = useMemo(() => {
+    const rows = latestOnly ? latestStatusChangePerIssue(entries ?? []) : (entries ?? []);
+    return groupFeedByDay(coalesceFeed(rows), tz);
+  }, [entries, tz, latestOnly]);
 
   const today = todayIso(tz);
   const dayLabel = (day: string) => {
@@ -190,7 +347,7 @@ function FeedBody({
                 key={entry.id}
                 entry={entry}
                 project={entry.issue.project_id ? projects.get(entry.issue.project_id) : undefined}
-                workingAgentIds={workingByIssue.get(entry.issue.id)}
+                workingAgentIds={working.get(entry.issue.id)?.agentIds}
                 // Filtered to one issue, every row is that issue: no tint, no filter button.
                 highlighted={!focus.issue && focus.hoveredIssueId === entry.issue.id}
                 onHoverIssue={focus.onHoverIssue}
@@ -359,6 +516,11 @@ const FeedRow = memo(function FeedRow({
                 <StatusChip statusKey={details.to!} />
               </>
             )}
+            {/* Repeats of the same event fold into one row; the count stays
+                inside this fixed column so the row keeps its alignment. */}
+            {(entry.coalesced_count ?? 1) > 1 && (
+              <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
+            )}
           </span>
           <span className="flex min-w-0 items-center gap-1.5 @4xl:w-36">
             <ActorAvatar
@@ -374,9 +536,6 @@ const FeedRow = memo(function FeedRow({
             <span className="hidden truncate font-medium text-foreground @4xl:inline">{actorName}</span>
           </span>
           {!isMove && <span className="sr-only">{action}</span>}
-          {(entry.coalesced_count ?? 1) > 1 && (
-            <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
-          )}
         </span>
         <span
           className={cn(

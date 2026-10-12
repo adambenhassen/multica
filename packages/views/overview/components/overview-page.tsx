@@ -1,19 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { Activity, MessageSquare, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Activity, SlidersHorizontal, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@multica/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@multica/ui/components/ui/dropdown-menu";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { projectListOptions } from "@multica/core/projects/queries";
-import { useOverviewLayoutStore } from "@multica/core/overview";
-import type { WorkspaceActivityIssueRef } from "@multica/core/types";
+import { activeIssuesOptions, useOverviewLayoutStore } from "@multica/core/overview";
+import type { WorkingAgentSummary, WorkspaceActivityIssueRef } from "@multica/core/types";
 import { CollectionPageHeader, CollectionPageHeaderAction } from "../../layout/collection-page";
 import { PAGE_GUTTER } from "../../layout/page-header";
 import { ALL_PROJECTS } from "../../dashboard/components/dashboard-shared";
 import { ProjectFilter } from "../../dashboard/components/dashboard-filters";
+import { WorkspaceAgentWorkingChip } from "../../issues/components/workspace-agent-working-chip";
 import { useT } from "../../i18n";
-import { StatusChangesFeed, type FeedFocus } from "./activity-feed";
+import { StatusChangesFeed, useRunningTasks, type FeedFocus, type FeedTab } from "./activity-feed";
 import { cn } from "@multica/ui/lib/utils";
 
 export function OverviewPage() {
@@ -25,6 +34,8 @@ export function OverviewPage() {
   // filter, so the trigger cannot claim a filter the feed does not apply.
   const projectId =
     projectValue !== ALL_PROJECTS && projects.some((p) => p.id === projectValue) ? projectValue : null;
+  const [tab, setTab] = useState<FeedTab>("all");
+  const workingAgents = useWorkingAgents(wsId, projectId);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -33,8 +44,14 @@ export function OverviewPage() {
         title={t(($) => $.title)}
         actions={
           <>
+            {/* How many agents are running right now; opens the Active tab. */}
+            <WorkspaceAgentWorkingChip
+              value={tab === "active"}
+              onToggle={() => setTab(tab === "active" ? "all" : "active")}
+              agents={workingAgents}
+            />
             <ProjectFilter projects={projects} projectValue={projectValue} onProjectChange={setProjectValue} />
-            <CommentsToggle />
+            <DisplayMenu />
           </>
         }
       />
@@ -45,6 +62,8 @@ export function OverviewPage() {
             // another project would leave the feed empty.
             key={projectId ?? ALL_PROJECTS}
             projectId={projectId}
+            tab={tab}
+            onTabChange={setTab}
           />
         </div>
       </div>
@@ -57,7 +76,15 @@ export function OverviewPage() {
  * tints the issue's other rows, and an optional issue filter is cleared from
  * the chip above.
  */
-function ActivityList({ projectId }: { projectId: string | null }) {
+function ActivityList({
+  projectId,
+  tab,
+  onTabChange,
+}: {
+  projectId: string | null;
+  tab: FeedTab;
+  onTabChange: (tab: FeedTab) => void;
+}) {
   const { t } = useT("overview");
   const [hoveredIssueId, setHoveredIssueId] = useState<string | null>(null);
   const [issue, setIssue] = useState<WorkspaceActivityIssueRef | null>(null);
@@ -94,24 +121,74 @@ function ActivityList({ projectId }: { projectId: string | null }) {
         </div>
       )}
       <div className="flex flex-col md:min-h-0 md:flex-1">
-        <StatusChangesFeed focus={focus} />
+        <StatusChangesFeed focus={focus} tab={tab} onTabChange={onTabChange} />
       </div>
     </div>
   );
 }
 
-/** Mixes comments into the feed's All tab; remembered per device. */
-function CommentsToggle() {
+/**
+ * What the feed shows beyond status changes: comments and other issue changes
+ * on the All tab, and whether each issue keeps only its latest move.
+ * Remembered per device.
+ */
+function DisplayMenu() {
   const { t } = useT("overview");
   const showComments = useOverviewLayoutStore((s) => s.showComments);
+  const showOther = useOverviewLayoutStore((s) => s.showOther);
+  const latestOnly = useOverviewLayoutStore((s) => s.latestOnly);
   const toggleComments = useOverviewLayoutStore((s) => s.toggleComments);
+  const toggleOther = useOverviewLayoutStore((s) => s.toggleOther);
+  const toggleLatestOnly = useOverviewLayoutStore((s) => s.toggleLatestOnly);
   return (
-    <CollectionPageHeaderAction
-      icon={MessageSquare}
-      label={t(($) => $.show_comments)}
-      variant={showComments ? "brand" : "outline"}
-      aria-pressed={showComments}
-      onClick={toggleComments}
-    />
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<CollectionPageHeaderAction icon={SlidersHorizontal} label={t(($) => $.display.button)} />}
+      />
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t(($) => $.display.on_all)}</DropdownMenuLabel>
+          <DropdownMenuCheckboxItem checked={showComments} onCheckedChange={toggleComments}>
+            {t(($) => $.display.comments)}
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem checked={showOther} onCheckedChange={toggleOther}>
+            {t(($) => $.display.other)}
+          </DropdownMenuCheckboxItem>
+        </DropdownMenuGroup>
+        <DropdownMenuGroup>
+          <DropdownMenuCheckboxItem checked={latestOnly} onCheckedChange={toggleLatestOnly}>
+            {t(($) => $.display.latest_only)}
+          </DropdownMenuCheckboxItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
+}
+
+/**
+ * The agents running a task right now, for the header chip. With a project
+ * picked, only runs on that project's issues count, so the chip never
+ * advertises work the Active tab will not list. `undefined` until known.
+ */
+function useWorkingAgents(wsId: string, projectId: string | null): WorkingAgentSummary[] | undefined {
+  const running = useRunningTasks(wsId);
+  const ids = useMemo(() => [...running.byIssue.keys()].sort(), [running.byIssue]);
+  const { data: projectIssues } = useQuery({
+    ...activeIssuesOptions(wsId, ids, projectId),
+    enabled: !running.pending && projectId !== null,
+  });
+  return useMemo(() => {
+    if (running.pending) return undefined;
+    let inProject: Set<string> | null = null;
+    if (projectId !== null) {
+      if (!projectIssues) return undefined;
+      inProject = new Set(projectIssues.map((i) => i.id));
+    }
+    const out: WorkingAgentSummary[] = [];
+    for (const [id, agent] of running.byAgent) {
+      const count = inProject ? agent.issueIds.filter((issueId) => inProject.has(issueId)).length : agent.count;
+      if (count > 0) out.push({ id, running_task_count: count });
+    }
+    return out.sort((a, b) => b.running_task_count - a.running_task_count);
+  }, [running, projectId, projectIssues]);
 }

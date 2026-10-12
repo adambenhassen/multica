@@ -2,7 +2,13 @@
   "title": "Activité",
   "load_failed": "Chargement impossible",
   "retry": "Réessayer",
-  "show_comments": "Commentaires",
+  "display": {
+    "button": "Affichage",
+    "on_all": "Afficher dans Tout",
+    "comments": "Commentaires",
+    "other": "Autres changements",
+    "latest_only": "Dernier changement par tâche"
+  },
   "working_now": "En cours : {{names}}",
   "activity": {
     "heading": "Activité récente",
@@ -17,18 +23,18 @@
   },
   "status_changes": {
     "empty": "Aucun changement de statut",
+    "empty_active": "Aucun agent ne travaille sur une tâche en ce moment",
     "empty_filtered": "Aucun passage à ce statut",
     "empty_failures": "Aucune exécution échouée",
-    "empty_other_changes": "Aucun autre changement",
     "filter_label": "Filtrer par nouveau statut",
     "filters": {
       "all": "Tous",
+      "active": "Actives",
       "in_progress": "En cours",
       "blocked": "Bloqué",
       "done": "Terminé",
       "cancelled": "Annulé",
-      "failures": "Exécutions échouées",
-      "other": "Autres"
+      "failures": "Exécutions échouées"
     }
   },
   "issue_filter": {

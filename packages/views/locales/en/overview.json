@@ -2,7 +2,13 @@
   "title": "Activity",
   "load_failed": "Couldn't load",
   "retry": "Try again",
-  "show_comments": "Comments",
+  "display": {
+    "button": "Display",
+    "on_all": "Show on All",
+    "comments": "Comments",
+    "other": "Other changes",
+    "latest_only": "Latest change per issue"
+  },
   "working_now": "Working now: {{names}}",
   "activity": {
     "heading": "Recent activity",
@@ -17,18 +23,18 @@
   },
   "status_changes": {
     "empty": "No status changes yet",
+    "empty_active": "No agent is working on an issue right now",
     "empty_filtered": "No changes into this status",
     "empty_failures": "No failed runs",
-    "empty_other_changes": "No other changes yet",
     "filter_label": "Filter by new status",
     "filters": {
       "all": "All",
+      "active": "Active",
       "in_progress": "In progress",
       "blocked": "Blocked",
       "done": "Done",
       "cancelled": "Cancelled",
-      "failures": "Failed runs",
-      "other": "Other"
+      "failures": "Failed runs"
     }
   },
   "issue_filter": {
