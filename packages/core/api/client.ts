@@ -4162,7 +4162,7 @@ export class ApiClient {
     });
   }
 
-  // Replaces who a project skill reaches (restricted: false = every agent).
+  // Replaces who a project skill reaches (neither restricted nor excluded = every agent).
   async setProjectSkillAudience(
     projectId: string,
     skillId: string,
@@ -4197,7 +4197,7 @@ export class ApiClient {
     });
   }
 
-  // Replaces who a project MCP server reaches (restricted: false = every agent).
+  // Replaces who a project MCP server reaches (neither restricted nor excluded = every agent).
   async setProjectMcpServerAudience(
     projectId: string,
     serverId: string,

@@ -249,7 +249,8 @@ describe("ApiClient schema fallback", () => {
       ]);
       const client = new ApiClient("https://api.example.test");
       const res = await client.listProjectSkills("project-1");
-      expect(res[0]?.audience).toEqual({ restricted: true, agent_ids: ["a1"], label_ids: ["l1"] });
+      // A server that predates exclusions omits `excluded`.
+      expect(res[0]?.audience).toEqual({ restricted: true, excluded: false, agent_ids: ["a1"], label_ids: ["l1"] });
       // Older servers send no audience; a malformed one is treated the same.
       expect(res[1]?.audience).toBeUndefined();
     });

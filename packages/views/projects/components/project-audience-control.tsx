@@ -11,9 +11,18 @@ import type { ProjectAttachmentAudience } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@multica/ui/components/ui/popover";
+import { Segmented } from "../../dashboard/components/dashboard-shared";
 import { useT } from "../../i18n";
 
-const EVERYONE: ProjectAttachmentAudience = { restricted: false, agent_ids: [], label_ids: [] };
+const EVERYONE: ProjectAttachmentAudience = { restricted: false, excluded: false, agent_ids: [], label_ids: [] };
+
+/** Who a link reaches: everyone, only the picked agents/labels, or everyone but them. */
+type AudienceMode = "all" | "only" | "except";
+
+function modeOf(audience: ProjectAttachmentAudience): AudienceMode {
+  if (audience.restricted) return "only";
+  return audience.excluded ? "except" : "all";
+}
 
 /**
  * Shows and edits which agents a project skill / MCP server reaches. Members
@@ -40,14 +49,19 @@ export function ProjectAudienceControl({
   const agentName = useMemo(() => new Map(agents.map((a) => [a.id, a.name])), [agents]);
   const labelName = useMemo(() => new Map(labels.map((l) => [l.id, l.name])), [labels]);
 
-  const summary = !current.restricted
-    ? t(($) => $.audience.everyone)
-    : current.agent_ids.length + current.label_ids.length === 0
-      ? t(($) => $.audience.nobody)
-      : [
-          ...current.agent_ids.map((id) => agentName.get(id) ?? t(($) => $.audience.unknown_agent)),
-          ...current.label_ids.map((id) => `#${labelName.get(id) ?? t(($) => $.audience.unknown_label)}`),
-        ].join(", ");
+  const names = [
+    ...current.agent_ids.map((id) => agentName.get(id) ?? t(($) => $.audience.unknown_agent)),
+    ...current.label_ids.map((id) => `#${labelName.get(id) ?? t(($) => $.audience.unknown_label)}`),
+  ].join(", ");
+  const mode = modeOf(current);
+  // "Only" with nobody picked reaches nobody; "except" with nobody picked
+  // reaches everyone.
+  const summary =
+    mode === "only"
+      ? names || t(($) => $.audience.nobody)
+      : mode === "except" && names
+        ? t(($) => $.audience.except_summary, { names })
+        : t(($) => $.audience.everyone);
 
   const chip = (
     <span className="inline-flex min-w-0 max-w-40 items-center gap-1 text-caption text-muted-foreground">
@@ -91,14 +105,14 @@ function AudienceEditor({
 }) {
   const { t } = useT("projects");
   const [open, setOpen] = useState(false);
-  const [restricted, setRestricted] = useState(current.restricted);
+  const [mode, setMode] = useState<AudienceMode>(modeOf(current));
   const [agentIds, setAgentIds] = useState<Set<string>>(new Set(current.agent_ids));
   const [labelIds, setLabelIds] = useState<Set<string>>(new Set(current.label_ids));
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
-    setRestricted(current.restricted);
+    setMode(modeOf(current));
     setAgentIds(new Set(current.agent_ids));
     setLabelIds(new Set(current.label_ids));
     setQuery("");
@@ -119,9 +133,14 @@ function AudienceEditor({
     setSaving(true);
     try {
       await onSave(
-        restricted
-          ? { restricted: true, agent_ids: [...agentIds], label_ids: [...labelIds] }
-          : { restricted: false, agent_ids: [], label_ids: [] },
+        mode === "all"
+          ? EVERYONE
+          : {
+              restricted: mode === "only",
+              excluded: mode === "except",
+              agent_ids: [...agentIds],
+              label_ids: [...labelIds],
+            },
       );
       setOpen(false);
     } catch (err) {
@@ -151,11 +170,20 @@ function AudienceEditor({
         {chip}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 space-y-2 p-2">
-        <label className="flex items-center gap-2 text-caption">
-          <Checkbox checked={restricted} onCheckedChange={(v) => setRestricted(v === true)} />
-          {t(($) => $.audience.restrict_label)}
-        </label>
-        {restricted && (
+        <Segmented
+          label={t(($) => $.audience.mode_label)}
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: "all", label: t(($) => $.audience.mode_all) },
+            { value: "only", label: t(($) => $.audience.mode_only) },
+            { value: "except", label: t(($) => $.audience.mode_except) },
+          ]}
+        />
+        {mode === "except" && (
+          <p className="text-caption text-muted-foreground">{t(($) => $.audience.except_hint)}</p>
+        )}
+        {mode !== "all" && (
           <>
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -190,7 +218,7 @@ function AudienceEditor({
                 </label>
               ))}
             </div>
-            {agentIds.size + labelIds.size === 0 && (
+            {mode === "only" && agentIds.size + labelIds.size === 0 && (
               <p className="text-caption text-muted-foreground">{t(($) => $.audience.nobody_hint)}</p>
             )}
           </>

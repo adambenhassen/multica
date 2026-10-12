@@ -22,16 +22,15 @@ function skill(id: string, name: string) {
   };
 }
 
-const ATTACHED = {
-  ...skill("skill-1", "deploy-checklist"),
-  audience: { restricted: true, agent_ids: ["agent-ops"], label_ids: ["label-ops"] },
-};
+const ONLY_OPS = { restricted: true, excluded: false, agent_ids: ["agent-ops"], label_ids: ["label-ops"] };
+let attachedAudience = ONLY_OPS;
+const ATTACHED = skill("skill-1", "deploy-checklist");
 const AVAILABLE = skill("skill-2", "review-helper");
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey?: unknown[] }) => {
     const key = options?.queryKey?.[0];
-    if (key === "project-skills") return { data: [ATTACHED] };
+    if (key === "project-skills") return { data: [{ ...ATTACHED, audience: attachedAudience }] };
     if (key === "workspace-skills") return { data: [ATTACHED, AVAILABLE], isLoading: false };
     if (key === "agents") return { data: [{ id: "agent-ops", name: "DevOps", archived_at: null }, { id: "agent-qa", name: "QA", archived_at: null }] };
     if (key === "agent-labels") return { data: [{ id: "label-ops", name: "ops" }] };
@@ -62,6 +61,7 @@ describe("ProjectSkillsSection", () => {
     addMock.mockClear();
     removeMock.mockClear();
     audienceMock.mockClear();
+    attachedAudience = ONLY_OPS;
   });
 
   it("shows who a restricted skill reaches and saves a new audience", async () => {
@@ -73,7 +73,46 @@ describe("ProjectSkillsSection", () => {
     await waitFor(() =>
       expect(audienceMock).toHaveBeenCalledWith({
         skillId: "skill-1",
-        audience: { restricted: true, agent_ids: ["agent-ops", "agent-qa"], label_ids: ["label-ops"] },
+        audience: { restricted: true, excluded: false, agent_ids: ["agent-ops", "agent-qa"], label_ids: ["label-ops"] },
+      }),
+    );
+  });
+
+  it("names who an exclusion leaves out and saves one", async () => {
+    attachedAudience = { restricted: false, excluded: true, agent_ids: ["agent-ops"], label_ids: ["label-ops"] };
+    renderWithI18n(<ProjectSkillsSection projectId="p1" canManage />);
+    fireEvent.click(screen.getByRole("button", { name: /Change who gets deploy-checklist \(now: All except DevOps, #ops\)/ }));
+    expect(await screen.findByRole("button", { name: "Except", pressed: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: "QA" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(audienceMock).toHaveBeenCalledWith({
+        skillId: "skill-1",
+        audience: { restricted: false, excluded: true, agent_ids: ["agent-ops", "agent-qa"], label_ids: ["label-ops"] },
+      }),
+    );
+  });
+
+  it("switches an audience from Only to Except and back to everyone", async () => {
+    renderWithI18n(<ProjectSkillsSection projectId="p1" canManage />);
+    fireEvent.click(screen.getByRole("button", { name: /Change who gets deploy-checklist/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Except" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(audienceMock).toHaveBeenLastCalledWith({
+        skillId: "skill-1",
+        audience: { restricted: false, excluded: true, agent_ids: ["agent-ops"], label_ids: ["label-ops"] },
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Change who gets deploy-checklist/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "All" }));
+    expect(screen.queryByRole("checkbox", { name: "QA" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(audienceMock).toHaveBeenLastCalledWith({
+        skillId: "skill-1",
+        audience: { restricted: false, excluded: false, agent_ids: [], label_ids: [] },
       }),
     );
   });

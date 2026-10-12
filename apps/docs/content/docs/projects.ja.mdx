@@ -57,7 +57,7 @@ import { Callout } from "fumadocs-ui/components/callout";
 ワークスペースの `owner` と `admin` は、ワークスペースの MCP ライブラリ（設定 → MCP）の Server をプロジェクトに追加できます。`multica project mcp add <project-id> --server-ids <server-id>` でも追加できます。プロジェクト内のすべてのタスクは、実行するエージェント自身の MCP Server に加えてこれらを使って実行されます。
 
 - エージェント自身の MCP 構成に同じ名前の Server がある場合は、エージェントの設定が優先されます。
-- 各 Server には受け取る対象があります。**すべてのエージェント**（デフォルト）か、選択したエージェントとエージェントラベルのみです。Server の行か `multica project mcp audience` で変更できます。すべてのエージェントに渡すべきでない認証情報を持つ Server は限定してください。
+- 各 Server には受け取る対象があります。**すべてのエージェント**（デフォルト）、選択したエージェントとエージェントラベルのみ、または選択したもの以外のすべてのエージェントです。Server の行か `multica project mcp audience` で変更できます。すべてのエージェントに渡すべきでない認証情報を持つ Server は限定してください。
 - エージェントに割り当て済みで無効化されている Server は、そのエージェントでは無効のままです。
 - 自身の MCP 構成を持たないエージェントは、Server を直接割り当てた場合と同じく、プロジェクトの実行では Multica 管理の MCP に切り替わります。
 - `admin` のために実行されているエージェントでも、プロジェクトの MCP Server は変更できません。

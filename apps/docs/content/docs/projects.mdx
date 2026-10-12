@@ -57,7 +57,7 @@ Skills attached to a project are delivered to every task in the project, in addi
 Workspace `owner`s and `admin`s can attach servers from the workspace MCP library (Settings → MCP) to a project, or run `multica project mcp add <project-id> --server-ids <server-id>`. Every task in the project then runs with them, alongside the running agent's own MCP servers:
 
 - If the agent's own MCP configuration declares a server with the same name, the agent's entry wins.
-- Each server has an audience: **All agents** (the default), or only selected agents and agent labels. Change it from the server's row or with `multica project mcp audience`, and restrict servers whose credentials not every agent should hold.
+- Each server has an audience: **All agents** (the default), only selected agents and agent labels, or all agents except selected ones. Change it from the server's row or with `multica project mcp audience`, and restrict servers whose credentials not every agent should hold.
 - A server assigned to the agent but disabled stays off for that agent.
 - An agent with no MCP configuration of its own switches to Multica-managed MCP for project runs, just as when a server is assigned to it directly.
 - Agents cannot change project MCP servers, even when they run for an admin.

@@ -57,7 +57,7 @@ Les skills rattachés à un projet sont fournis à chaque tâche du projet, en p
 Les `owner`s et `admin`s de l'espace de travail peuvent rattacher à un projet des serveurs de la bibliothèque MCP de l'espace de travail (Paramètres → MCP), ou exécuter `multica project mcp add <project-id> --server-ids <server-id>`. Chaque tâche du projet s'exécute alors avec eux, en plus des serveurs MCP de l'agent :
 
 - Si la configuration MCP de l'agent déclare un serveur du même nom, l'entrée de l'agent l'emporte.
-- Chaque serveur a des destinataires : **Tous les agents** (par défaut), ou seulement les agents et libellés d'agent choisis. Modifiez-les depuis la ligne du serveur ou avec `multica project mcp audience`, et restreignez les serveurs dont les identifiants ne doivent pas être confiés à tous les agents.
+- Chaque serveur a des destinataires : **Tous les agents** (par défaut), seulement les agents et libellés d'agent choisis, ou tous les agents sauf ceux choisis. Modifiez-les depuis la ligne du serveur ou avec `multica project mcp audience`, et restreignez les serveurs dont les identifiants ne doivent pas être confiés à tous les agents.
 - Un serveur assigné à l'agent mais désactivé reste désactivé pour cet agent.
 - Un agent sans configuration MCP propre passe en MCP géré par Multica pour les exécutions du projet, comme lorsqu'un serveur lui est assigné directement.
 - Les agents ne peuvent pas modifier les serveurs MCP du projet, même lorsqu'ils s'exécutent pour un admin.
