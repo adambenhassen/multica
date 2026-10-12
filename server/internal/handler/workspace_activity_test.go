@@ -169,6 +169,22 @@ func TestListWorkspaceActivityMergesCommentsAndFiltersByKind(t *testing.T) {
 		testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity"+query, ws, testUserID)).
 			Want(http.StatusBadRequest)
 	}
+
+	// `issue` keeps one issue's history across activity and comments.
+	other := dbfx.Issue(t, "Other issue", testutil.Cols{"workspace_id": ws})
+	otherStatus := dbfx.Insert(t, "activity_log", testutil.Cols{
+		"workspace_id": ws, "issue_id": other, "actor_type": "member", "actor_id": testUserID,
+		"action": "status_changed", "details": `{"from":"todo","to":"blocked"}`, "created_at": base.Add(5 * time.Minute),
+	})
+	otherComment := dbfx.Comment(t, other, "on the other issue", testutil.Cols{"workspace_id": ws, "created_at": base.Add(6 * time.Minute)})
+	if got := ids(read("?issue=" + other)); !slices.Equal(got, []string{otherComment, otherStatus}) {
+		t.Fatalf("issue=other = %v, want only the other issue's comment and status change", got)
+	}
+	if got := ids(read("?kind=status&to=blocked&issue=" + issue)); !slices.Equal(got, []string{blocked}) {
+		t.Fatalf("kind=status&to=blocked&issue = %v, want only this issue's move into blocked", got)
+	}
+	testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity?issue=nope", ws, testUserID)).
+		Want(http.StatusBadRequest)
 }
 
 func TestListRecentlyCompletedIssuesOrdersByCompletion(t *testing.T) {

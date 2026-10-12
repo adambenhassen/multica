@@ -290,10 +290,11 @@ WHERE a.workspace_id = $1
   AND NOT (a.action = ANY($2::text[]))
   AND (cardinality($3::text[]) = 0 OR a.action = ANY($3::text[]))
   AND (cardinality($4::text[]) = 0 OR a.details->>'to' = ANY($4::text[]))
-  AND ($5::timestamptz IS NULL
-       OR (a.created_at, a.id) < ($5::timestamptz, $6::uuid))
+  AND ($5::uuid IS NULL OR a.issue_id = $5::uuid)
+  AND ($6::timestamptz IS NULL
+       OR (a.created_at, a.id) < ($6::timestamptz, $7::uuid))
 ORDER BY a.created_at DESC, a.id DESC
-LIMIT $7
+LIMIT $8
 `
 
 type ListRecentWorkspaceActivitiesParams struct {
@@ -301,6 +302,7 @@ type ListRecentWorkspaceActivitiesParams struct {
 	ExcludedActions []string           `json:"excluded_actions"`
 	OnlyActions     []string           `json:"only_actions"`
 	ToStatuses      []string           `json:"to_statuses"`
+	IssueID         pgtype.UUID        `json:"issue_id"`
 	BeforeAt        pgtype.Timestamptz `json:"before_at"`
 	BeforeID        pgtype.UUID        `json:"before_id"`
 	RowLimit        int32              `json:"row_limit"`
@@ -325,13 +327,15 @@ type ListRecentWorkspaceActivitiesRow struct {
 // is visible to every member, the audit trail is not. The literal
 // `issue_id IS NOT NULL` predicate lets idx_activity_log_workspace_recent
 // (migration 581) serve the ORDER BY without a sort step. @to_statuses keeps
-// only rows whose details `to` is one of the keys (status changes into them).
+// only rows whose details `to` is one of the keys (status changes into them);
+// @issue_id, when set, keeps one issue's rows.
 func (q *Queries) ListRecentWorkspaceActivities(ctx context.Context, arg ListRecentWorkspaceActivitiesParams) ([]ListRecentWorkspaceActivitiesRow, error) {
 	rows, err := q.db.Query(ctx, listRecentWorkspaceActivities,
 		arg.WorkspaceID,
 		arg.ExcludedActions,
 		arg.OnlyActions,
 		arg.ToStatuses,
+		arg.IssueID,
 		arg.BeforeAt,
 		arg.BeforeID,
 		arg.RowLimit,
