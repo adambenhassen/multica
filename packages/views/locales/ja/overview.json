@@ -2,6 +2,7 @@
   "title": "ダッシュボード",
   "load_failed": "読み込めませんでした",
   "retry": "再試行",
+  "compact_rows": "コンパクト表示",
   "agents": {
     "heading": "エージェント",
     "view_all": "すべて表示",

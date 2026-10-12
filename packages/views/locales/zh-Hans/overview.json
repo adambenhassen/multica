@@ -2,6 +2,7 @@
   "title": "仪表盘",
   "load_failed": "加载失败",
   "retry": "重试",
+  "compact_rows": "紧凑行",
   "agents": {
     "heading": "智能体",
     "view_all": "查看全部",

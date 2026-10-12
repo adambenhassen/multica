@@ -2,6 +2,7 @@
   "title": "Dashboard",
   "load_failed": "Couldn't load",
   "retry": "Try again",
+  "compact_rows": "Compact rows",
   "agents": {
     "heading": "Agents",
     "view_all": "View all",

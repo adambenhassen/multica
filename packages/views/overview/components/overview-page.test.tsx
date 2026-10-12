@@ -243,6 +243,42 @@ describe("OverviewPage", () => {
     expect(calls.at(-1)).toEqual({ limit: 50, kind: "failures", to: [] });
   });
 
+  it("puts feed rows on one line with Compact rows, and remembers it", async () => {
+    const now = new Date().toISOString();
+    apiRef.current = {
+      listWorkspaceActivity: () =>
+        Promise.resolve({
+          entries: [
+            {
+              type: "activity",
+              id: "a-1",
+              actor_type: "agent",
+              actor_id: "agent-1",
+              created_at: now,
+              action: "status_changed",
+              details: { from: "in_review", to: "done" },
+              issue: { id: "issue-1", identifier: "MUL-1", title: "Ship the dashboard", status: "done" },
+            },
+          ],
+        }),
+    };
+    renderPage();
+    const activity = screen.getByRole("heading", { name: "Recent activity" }).closest("section")!;
+    const row = () => within(activity).getByText("Ship the dashboard").closest("a")!;
+    await within(activity).findByText("Ship the dashboard");
+    // Two lines: the title line and the detail line.
+    expect(row().querySelector(".flex-col")).not.toBeNull();
+
+    const toggle = screen.getByRole("button", { name: "Compact rows" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(useOverviewLayoutStore.getState().compact).toBe(true);
+    expect(row().querySelector(".flex-col")).toBeNull();
+    expect(within(row()).getByText("marked it Done")).toBeTruthy();
+    useOverviewLayoutStore.setState({ compact: false });
+  });
+
   it("hides a section chosen in Customize", async () => {
     useOverviewLayoutStore.setState({ hidden: ["run_activity", "success_rate"] });
     renderPage();

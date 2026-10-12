@@ -2,6 +2,7 @@
   "title": "대시보드",
   "load_failed": "불러오지 못했습니다",
   "retry": "다시 시도",
+  "compact_rows": "간결한 행",
   "agents": {
     "heading": "에이전트",
     "view_all": "모두 보기",
