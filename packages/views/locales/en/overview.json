@@ -1,33 +1,8 @@
 {
-  "title": "Dashboard",
+  "title": "Activity",
   "load_failed": "Couldn't load",
   "retry": "Try again",
   "project_labels": "Project labels",
-  "agents": {
-    "heading": "Agents",
-    "view_all": "View all",
-    "empty": "No recent agent runs",
-    "no_issue": "No linked issue",
-    "started_ago": "Started {{time}}",
-    "finished_ago": "Finished {{time}}",
-    "queued_ago": "Queued {{time}}"
-  },
-  "metrics": {
-    "agents_online": "Agents online",
-    "agents_desc": "{{working}} working · {{queued}} queued · {{offline}} offline",
-    "issues_in_progress": "Issues in progress",
-    "issues_desc": "{{todo}} to do · {{blocked}} blocked",
-    "spend": "Spend · 30d",
-    "spend_desc": "Estimated from token usage",
-    "inbox": "Unread in inbox"
-  },
-  "charts": {
-    "last_14_days": "Last 14 days",
-    "run_activity": "Run activity",
-    "success_rate": "Success rate",
-    "no_runs": "No runs yet",
-    "rate_tooltip": "{{rate}}% succeeded"
-  },
   "activity": {
     "heading": "Recent activity",
     "empty": "No activity yet",
@@ -68,7 +43,6 @@
   "customize": {
     "button": "Customize",
     "label": "Show on dashboard",
-    "metrics": "Metrics",
     "show_all": "Show all",
     "all_hidden": "Every section is hidden"
   }

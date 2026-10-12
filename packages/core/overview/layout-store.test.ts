@@ -7,16 +7,16 @@ describe("useOverviewLayoutStore", () => {
 
   it("toggles a section off and back on", () => {
     const { toggleSection } = useOverviewLayoutStore.getState();
-    toggleSection("run_activity");
-    expect(useOverviewLayoutStore.getState().hidden).toEqual(["run_activity"]);
-    toggleSection("run_activity");
+    toggleSection("status_changes");
+    expect(useOverviewLayoutStore.getState().hidden).toEqual(["status_changes"]);
+    toggleSection("status_changes");
     expect(useOverviewLayoutStore.getState().hidden).toEqual([]);
   });
 
   it("drops unknown sections when restoring a saved layout", () => {
     const merge = useOverviewLayoutStore.persist.getOptions().merge!;
-    const restored = merge({ hidden: ["metrics", "retired_section", 3] }, useOverviewLayoutStore.getState());
-    expect(restored.hidden).toEqual(["metrics"]);
+    const restored = merge({ hidden: ["activity", "metrics", 3] }, useOverviewLayoutStore.getState());
+    expect(restored.hidden).toEqual(["activity"]);
   });
 
   it("restores project labels only from a saved true", () => {

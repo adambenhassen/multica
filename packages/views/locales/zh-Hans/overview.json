@@ -1,33 +1,8 @@
 {
-  "title": "仪表盘",
+  "title": "动态",
   "load_failed": "加载失败",
   "retry": "重试",
   "project_labels": "项目标签",
-  "agents": {
-    "heading": "智能体",
-    "view_all": "查看全部",
-    "empty": "暂无最近运行",
-    "no_issue": "未关联任务",
-    "started_ago": "{{time}}开始",
-    "finished_ago": "{{time}}完成",
-    "queued_ago": "{{time}}进入队列"
-  },
-  "metrics": {
-    "agents_online": "在线智能体",
-    "agents_desc": "工作中 {{working}} · 排队 {{queued}} · 离线 {{offline}}",
-    "issues_in_progress": "进行中的任务",
-    "issues_desc": "待办 {{todo}} · 已阻塞 {{blocked}}",
-    "spend": "费用 · 30天",
-    "spend_desc": "根据 Token 用量估算",
-    "inbox": "收件箱未读"
-  },
-  "charts": {
-    "last_14_days": "最近 14 天",
-    "run_activity": "运行活动",
-    "success_rate": "成功率",
-    "no_runs": "暂无运行",
-    "rate_tooltip": "成功率 {{rate}}%"
-  },
   "activity": {
     "heading": "最近动态",
     "empty": "暂无动态",
@@ -68,7 +43,6 @@
   "customize": {
     "button": "自定义",
     "label": "在仪表盘中显示",
-    "metrics": "指标",
     "show_all": "全部显示",
     "all_hidden": "所有模块均已隐藏"
   }
