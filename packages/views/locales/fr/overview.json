@@ -2,17 +2,10 @@
   "title": "Activité",
   "load_failed": "Chargement impossible",
   "retry": "Réessayer",
-  "project_labels": "Libellés de projet",
+  "show_comments": "Commentaires",
+  "working_now": "En cours : {{names}}",
   "activity": {
     "heading": "Activité récente",
-    "empty": "Aucune activité",
-    "filter_label": "Afficher",
-    "filters": {
-      "all": "Tout",
-      "comments": "Commentaires",
-      "failures": "Échecs"
-    },
-    "empty_filtered": "Rien pour le moment",
     "today": "Aujourd'hui",
     "yesterday": "Hier",
     "commented": "a commenté",
@@ -23,27 +16,24 @@
     "run_failed": "a eu une exécution en échec"
   },
   "status_changes": {
-    "heading": "Changements de statut",
     "empty": "Aucun changement de statut",
     "empty_filtered": "Aucun passage à ce statut",
+    "empty_failures": "Aucune exécution échouée",
+    "empty_other_changes": "Aucun autre changement",
     "filter_label": "Filtrer par nouveau statut",
     "filters": {
       "all": "Tous",
       "in_progress": "En cours",
       "blocked": "Bloqué",
       "done": "Terminé",
-      "cancelled": "Annulé"
+      "cancelled": "Annulé",
+      "failures": "Exécutions échouées",
+      "other": "Autres"
     }
   },
   "issue_filter": {
     "label": "Filtré sur",
     "filter": "Afficher uniquement cette tâche",
     "clear": "Retirer le filtre de tâche"
-  },
-  "customize": {
-    "button": "Personnaliser",
-    "label": "Afficher sur le tableau de bord",
-    "show_all": "Tout afficher",
-    "all_hidden": "Toutes les sections sont masquées"
   }
 }

@@ -2,17 +2,10 @@
   "title": "アクティビティ",
   "load_failed": "読み込めませんでした",
   "retry": "再試行",
-  "project_labels": "プロジェクト名",
+  "show_comments": "コメント",
+  "working_now": "作業中: {{names}}",
   "activity": {
     "heading": "最近のアクティビティ",
-    "empty": "アクティビティはまだありません",
-    "filter_label": "表示",
-    "filters": {
-      "all": "すべて",
-      "comments": "コメント",
-      "failures": "失敗"
-    },
-    "empty_filtered": "まだ何もありません",
     "today": "今日",
     "yesterday": "昨日",
     "commented": "コメントしました",
@@ -23,27 +16,24 @@
     "run_failed": "実行が失敗しました"
   },
   "status_changes": {
-    "heading": "ステータス変更",
     "empty": "ステータス変更はまだありません",
     "empty_filtered": "このステータスへの変更はありません",
+    "empty_failures": "失敗した実行はありません",
+    "empty_other_changes": "ほかの変更はまだありません",
     "filter_label": "変更後のステータスで絞り込む",
     "filters": {
       "all": "すべて",
       "in_progress": "進行中",
       "blocked": "ブロック中",
       "done": "完了",
-      "cancelled": "キャンセル済み"
+      "cancelled": "キャンセル済み",
+      "failures": "失敗した実行",
+      "other": "その他"
     }
   },
   "issue_filter": {
     "label": "絞り込み中",
     "filter": "このタスクのみ表示",
     "clear": "タスクの絞り込みを解除"
-  },
-  "customize": {
-    "button": "カスタマイズ",
-    "label": "ダッシュボードに表示",
-    "show_all": "すべて表示",
-    "all_hidden": "すべてのセクションが非表示です"
   }
 }

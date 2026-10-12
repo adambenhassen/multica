@@ -2,17 +2,10 @@
   "title": "Activity",
   "load_failed": "Couldn't load",
   "retry": "Try again",
-  "project_labels": "Project labels",
+  "show_comments": "Comments",
+  "working_now": "Working now: {{names}}",
   "activity": {
     "heading": "Recent activity",
-    "empty": "No activity yet",
-    "filter_label": "Show",
-    "filters": {
-      "all": "All",
-      "comments": "Comments",
-      "failures": "Failures"
-    },
-    "empty_filtered": "Nothing here yet",
     "today": "Today",
     "yesterday": "Yesterday",
     "commented": "commented",
@@ -23,27 +16,24 @@
     "run_failed": "had a failed run"
   },
   "status_changes": {
-    "heading": "Status changes",
     "empty": "No status changes yet",
     "empty_filtered": "No changes into this status",
+    "empty_failures": "No failed runs",
+    "empty_other_changes": "No other changes yet",
     "filter_label": "Filter by new status",
     "filters": {
       "all": "All",
       "in_progress": "In progress",
       "blocked": "Blocked",
       "done": "Done",
-      "cancelled": "Cancelled"
+      "cancelled": "Cancelled",
+      "failures": "Failed runs",
+      "other": "Other"
     }
   },
   "issue_filter": {
     "label": "Filtered to",
     "filter": "Show only this issue",
     "clear": "Clear issue filter"
-  },
-  "customize": {
-    "button": "Customize",
-    "label": "Show on dashboard",
-    "show_all": "Show all",
-    "all_hidden": "Every section is hidden"
   }
 }
