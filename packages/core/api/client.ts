@@ -1745,6 +1745,7 @@ export class ApiClient {
       kind?: WorkspaceActivityKind;
       to?: readonly string[];
       issue?: string;
+      project?: string;
       before?: string;
     } = {},
   ): Promise<WorkspaceActivityResponse> {
@@ -1755,6 +1756,8 @@ export class ApiClient {
     if (params.to?.length) search.set("to", params.to.join(","));
     // One issue's history (the issue's UUID).
     if (params.issue) search.set("issue", params.issue);
+    // One project's issues (the project's UUID).
+    if (params.project) search.set("project", params.project);
     if (params.before) search.set("before", params.before);
     const qs = search.toString();
     const raw = await this.fetch<unknown>(`/api/activity${qs ? `?${qs}` : ""}`);

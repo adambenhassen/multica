@@ -17,11 +17,11 @@ export type OverviewSection = (typeof OVERVIEW_SECTIONS)[number];
 
 export interface OverviewLayoutState {
   hidden: OverviewSection[];
-  /** Feed rows on one line instead of two. */
-  compact: boolean;
+  /** Feed rows show their issue's project after the title. */
+  showProjects: boolean;
   toggleSection: (section: OverviewSection) => void;
   showAll: () => void;
-  toggleCompact: () => void;
+  toggleProjects: () => void;
 }
 
 const stateStorage = defaultStorage as unknown as StateStorage;
@@ -32,7 +32,7 @@ export const useOverviewLayoutStore = create<OverviewLayoutState>()(
   persist(
     (set) => ({
       hidden: [],
-      compact: false,
+      showProjects: false,
       toggleSection: (section) =>
         set((state) => ({
           hidden: state.hidden.includes(section)
@@ -40,21 +40,21 @@ export const useOverviewLayoutStore = create<OverviewLayoutState>()(
             : [...state.hidden, section],
         })),
       showAll: () => set({ hidden: [] }),
-      toggleCompact: () => set((state) => ({ compact: !state.compact })),
+      toggleProjects: () => set((state) => ({ showProjects: !state.showProjects })),
     }),
     {
       name: "multica_dashboard_layout",
       storage: createJSONStorage(() => stateStorage),
       // A section a newer build stops shipping must not linger as hidden.
       merge: (persisted, current) => {
-        const saved = persisted as { hidden?: unknown; compact?: unknown } | undefined;
+        const saved = persisted as { hidden?: unknown; showProjects?: unknown } | undefined;
         const hidden = saved?.hidden;
         return {
           ...current,
           hidden: Array.isArray(hidden)
             ? hidden.filter((s): s is OverviewSection => OVERVIEW_SECTIONS.includes(s as OverviewSection))
             : [],
-          compact: saved?.compact === true,
+          showProjects: saved?.showProjects === true,
         };
       },
     },

@@ -45,7 +45,7 @@ const stores = {
 
 describe("useRealtimeSync — Dashboard activity feed", () => {
   let qc: QueryClient;
-  const feedKey = overviewKeys.activity("ws-1", "all");
+  const feedKey = overviewKeys.activity("ws-1");
 
   beforeEach(() => {
     vi.useFakeTimers();

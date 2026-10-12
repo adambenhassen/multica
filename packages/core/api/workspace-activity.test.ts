@@ -59,13 +59,15 @@ describe("workspace activity API", () => {
     expect(urls[1]?.has("to")).toBe(false);
   });
 
-  it("sends the issue whose history to read", async () => {
+  it("sends the issue and project to narrow the feed to", async () => {
     const { url } = await read({ entries: [] }, 50, "all");
     expect(url).not.toContain("issue=");
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ entries: [] }), { status: 200 }));
     vi.stubGlobal("fetch", fetch);
-    await new ApiClient("https://api.example.test").listWorkspaceActivity({ issue: "issue-1" });
-    expect(new URL(String(fetch.mock.calls[0]?.[0])).searchParams.get("issue")).toBe("issue-1");
+    await new ApiClient("https://api.example.test").listWorkspaceActivity({ issue: "issue-1", project: "project-1" });
+    const params = new URL(String(fetch.mock.calls[0]?.[0])).searchParams;
+    expect(params.get("issue")).toBe("issue-1");
+    expect(params.get("project")).toBe("project-1");
   });
 
   // One bad row must not blank the whole feed.

@@ -2,7 +2,7 @@
   "title": "Tableau de bord",
   "load_failed": "Chargement impossible",
   "retry": "Réessayer",
-  "compact_rows": "Lignes compactes",
+  "project_labels": "Libellés de projet",
   "agents": {
     "heading": "Agents",
     "view_all": "Tout voir",

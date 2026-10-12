@@ -56,6 +56,8 @@ export interface WorkspaceActivityIssueRef {
   identifier: string;
   title: string;
   status: string;
+  /** The issue's project; absent when it has none (and from older servers). */
+  project_id?: string | null;
 }
 
 /** One row of the workspace-wide activity feed (GET /api/activity). */

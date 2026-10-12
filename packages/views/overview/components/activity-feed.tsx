@@ -2,11 +2,12 @@
 
 import { memo, useMemo, useState, type ReactNode } from "react";
 import { Activity, ArrowRight, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, UserRound } from "lucide-react";
-import { useInfiniteQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
+import { projectListOptions } from "@multica/core/projects/queries";
 import { useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
 import type {
   WorkspaceActivityEntry,
@@ -20,6 +21,7 @@ import { ActorAvatar } from "../../common/actor-avatar";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
 import { StatusIcon } from "../../issues/components/status-icon";
 import { PriorityIcon } from "../../issues/components/priority-icon";
+import { ProjectIcon } from "../../projects/components/project-icon";
 import { formatActivity } from "../../issues/utils/format-activity";
 import { Segmented } from "../../dashboard/components/dashboard-shared";
 import { InfiniteScrollSentinel } from "../../issues/components/infinite-scroll-sentinel";
@@ -40,14 +42,16 @@ const FEED_KINDS = ["all", "comments", "failures"] as const satisfies readonly W
 type FeedKind = (typeof FEED_KINDS)[number];
 
 /**
- * The issue both feeds point at, owned by the page: the hovered issue's rows
- * are tinted, and `issue` narrows both feeds to one issue's history.
+ * What both feeds point at, owned by the page: the hovered issue's rows are
+ * tinted, `issue` narrows both feeds to one issue's history, and `projectId`
+ * to one project's issues.
  */
 export interface FeedFocus {
   hoveredIssueId: string | null;
   onHoverIssue: (issueId: string | null) => void;
   issue: WorkspaceActivityIssueRef | null;
   onFilterIssue: (issue: WorkspaceActivityIssueRef) => void;
+  projectId: string | null;
 }
 
 /**
@@ -59,7 +63,9 @@ export function ActivityFeed({ focus }: { focus: FeedFocus }) {
   const { t } = useT("overview");
   const wsId = useWorkspaceId();
   const [kind, setKind] = useState<FeedKind>("all");
-  const query = useInfiniteQuery(workspaceActivityOptions(wsId, kind, [], focus.issue?.id ?? null));
+  const query = useInfiniteQuery(
+    workspaceActivityOptions(wsId, { kind, issue: focus.issue?.id, project: focus.projectId }),
+  );
   const kindLabels: Record<FeedKind, string> = {
     all: t(($) => $.activity.filters.all),
     comments: t(($) => $.activity.filters.comments),
@@ -83,7 +89,6 @@ export function ActivityFeed({ focus }: { focus: FeedFocus }) {
       <FeedBody
         query={query}
         focus={focus}
-        transitionOnly={false}
         empty={kind === "all" ? t(($) => $.activity.empty) : t(($) => $.activity.empty_filtered)}
       />
     </section>
@@ -102,7 +107,12 @@ export function StatusChangesFeed({ focus }: { focus: FeedFocus }) {
   // Custom statuses come from the catalog, so a category tab waits for it.
   const targets = useMemo(() => statusChangeTargets(filter, catalog), [filter, catalog]);
   const query = useInfiniteQuery({
-    ...workspaceActivityOptions(wsId, "status", targets ?? [], focus.issue?.id ?? null),
+    ...workspaceActivityOptions(wsId, {
+      kind: "status",
+      to: targets ?? [],
+      issue: focus.issue?.id,
+      project: focus.projectId,
+    }),
     enabled: targets !== null,
   });
   const filterLabels: Record<StatusChangeFilter, string> = {
@@ -130,7 +140,6 @@ export function StatusChangesFeed({ focus }: { focus: FeedFocus }) {
       <FeedBody
         query={query}
         focus={focus}
-        transitionOnly
         empty={
           filter === "all" ? t(($) => $.status_changes.empty) : t(($) => $.status_changes.empty_filtered)
         }
@@ -143,18 +152,23 @@ export function StatusChangesFeed({ focus }: { focus: FeedFocus }) {
 function FeedBody({
   query,
   focus,
-  transitionOnly,
   empty,
 }: {
   query: UseInfiniteQueryResult<WorkspaceActivityEntry[]>;
   focus: FeedFocus;
-  transitionOnly: boolean;
   empty: string;
 }) {
   const { t } = useT("overview");
   const locale = useLocale();
   const tz = useViewingTimezone();
-  const compact = useOverviewLayoutStore((s) => s.compact);
+  const wsId = useWorkspaceId();
+  const showProjects = useOverviewLayoutStore((s) => s.showProjects);
+  // Labels resolve through the project list the app already caches.
+  const { data: projectList } = useQuery({ ...projectListOptions(wsId), enabled: showProjects });
+  const projects = useMemo(
+    () => new Map((showProjects ? (projectList ?? []) : []).map((p) => [p.id, p] as const)),
+    [showProjects, projectList],
+  );
   const { data: entries, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = query;
   const groups = useMemo(() => groupFeedByDay(coalesceFeed(entries ?? []), tz), [entries, tz]);
 
@@ -185,8 +199,8 @@ function FeedBody({
               <FeedRow
                 key={entry.id}
                 entry={entry}
-                transitionOnly={transitionOnly}
-                compact={compact}
+                showProjects={showProjects}
+                project={entry.issue.project_id ? projects.get(entry.issue.project_id) : undefined}
                 // Filtered to one issue, every row is that issue: no tint, no filter button.
                 highlighted={!focus.issue && focus.hoveredIssueId === entry.issue.id}
                 onHoverIssue={focus.onHoverIssue}
@@ -208,22 +222,29 @@ function FeedBody({
   );
 }
 
+/** The project a row's label names. */
+type RowProject = { id: string; title: string; icon: string | null };
+
 /**
- * `transitionOnly` is the Status changes feed: every row there is a status
- * change, so its second line shows the move itself ("In Review → Todo") and
- * who made it, instead of a sentence. `compact` puts the whole row on one line.
+ * One event on one line, the same in both feeds: what happened as an icon,
+ * the issue, its project when labels are on, the move as status icons, the
+ * actor's avatar, then when. Every icon names itself on hover, and the names
+ * hidden from view stay for screen readers. Sized by the list's width (it is
+ * the query container): a narrow list drops the project, then the detail, so
+ * the title stays readable.
  */
 const FeedRow = memo(function FeedRow({
   entry,
-  transitionOnly,
-  compact,
+  showProjects,
+  project,
   highlighted,
   onHoverIssue,
   onFilterIssue,
 }: {
   entry: WorkspaceActivityEntry;
-  transitionOnly: boolean;
-  compact: boolean;
+  /** Project labels are on: the row keeps a project column, empty without one. */
+  showProjects: boolean;
+  project: RowProject | undefined;
   /** Another row of the same issue is hovered. */
   highlighted: boolean;
   onHoverIssue: (issueId: string | null) => void;
@@ -241,6 +262,7 @@ const FeedRow = memo(function FeedRow({
 
   const details = (entry.details ?? {}) as Record<string, string>;
   const isComment = entry.type === "comment";
+  const isMove = entry.action === "status_changed" && !!details.to;
   const actorName = entry.actor_name || getActorName(entry.actor_type, entry.actor_id);
   const excerpt = isComment ? commentExcerpt(entry.content ?? "") : "";
 
@@ -249,19 +271,19 @@ const FeedRow = memo(function FeedRow({
   if (isComment) {
     phrase = entry.parent_id ? t(($) => $.activity.replied) : t(($) => $.activity.commented);
     lead = <MessageSquare className="size-4 text-muted-foreground" />;
-  } else if (entry.action === "status_changed" && details.to) {
-    const status = catalog.labelOf(details.to);
-    const category = catalog.categoryOf(details.to);
+  } else if (isMove) {
+    const status = catalog.labelOf(details.to!);
+    const category = catalog.categoryOf(details.to!);
     phrase =
       category === "done" || category === "closed"
         ? t(($) => $.activity.marked, { status })
         : t(($) => $.activity.moved, { status });
     lead = (
       <StatusIcon
-        status={details.to}
+        status={details.to!}
         category={category}
-        color={catalog.colorOf(details.to)}
-        icon={catalog.iconOf(details.to)}
+        color={catalog.colorOf(details.to!)}
+        icon={catalog.iconOf(details.to!)}
         className="size-4"
       />
     );
@@ -283,114 +305,9 @@ const FeedRow = memo(function FeedRow({
         <Activity className="size-4 text-muted-foreground" />
       );
   }
+  // A comment's line of text lives in its icon's tooltip.
+  const action = excerpt ? t(($) => $.activity.with_excerpt, { phrase, excerpt }) : phrase;
   const href = paths.issueDetail(entry.issue.id) + (isComment ? `#comment-${entry.id}` : "");
-
-  const avatar = (
-    <ActorAvatar
-      actorType={entry.actor_type}
-      actorId={entry.actor_id}
-      name={entry.actor_name}
-      avatarUrl={entry.actor_avatar_url}
-      size="xs"
-      profileLink={false}
-      // Compact rows hide the name, so hovering the avatar shows who it is.
-      enableHoverCard={compact}
-    />
-  );
-  // A status change reads as the move itself ("In Review → Done") in both feeds.
-  const isMove = entry.action === "status_changed" && !!details.to;
-  const transition = transitionOnly && isMove;
-  const move = isMove && (
-    <>
-      {details.from && (
-        <>
-          <StatusChip statusKey={details.from} iconOnly={compact} />
-          <ArrowRight aria-label="→" className="size-3 shrink-0" />
-        </>
-      )}
-      <StatusChip statusKey={details.to!} iconOnly={compact} />
-    </>
-  );
-  const sentence = (
-    <>
-      {avatar}
-      <span className="shrink-0 font-medium text-foreground">{actorName}</span>
-      {isMove ? (
-        <span className="flex min-w-0 items-center gap-1.5">{move}</span>
-      ) : (
-        <span className="min-w-0 truncate">
-          {excerpt ? t(($) => $.activity.with_excerpt, { phrase, excerpt }) : phrase}
-        </span>
-      )}
-      {(entry.coalesced_count ?? 1) > 1 && (
-        <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
-      )}
-    </>
-  );
-
-  // Compact, the same in both feeds: issue, then the move as icons and the
-  // actor's avatar, then when, all on one line. Status names, the actor's name
-  // and the action's sentence stay for screen readers only. Sized by the list's
-  // width (it is the query container): a very narrow list drops the detail so
-  // the title stays readable.
-  // The filter button takes the time's place while the row is hovered.
-  const timeClass = cn(
-    "shrink-0 text-caption text-muted-foreground",
-    onFilterIssue && "group-hover:invisible group-focus-within:invisible",
-  );
-  const link = compact ? (
-      <AppLink href={href} className="flex min-w-0 items-center gap-3 px-4 py-2">
-        <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center" title={phrase}>
-          {lead}
-        </span>
-        <span className="shrink-0 font-mono text-caption text-muted-foreground">{entry.issue.identifier}</span>
-        <span className="min-w-32 flex-1 truncate text-label" title={entry.issue.title}>
-          {entry.issue.title}
-        </span>
-        <span className="hidden shrink-0 items-center gap-1.5 text-caption text-muted-foreground @sm:flex">
-          {move}
-          <span className={cn("flex shrink-0 items-center", isMove && "pl-1.5")}>
-            {avatar}
-            <span className="sr-only">{actorName}</span>
-          </span>
-          {!isMove && <span className="sr-only">{phrase}</span>}
-          {(entry.coalesced_count ?? 1) > 1 && (
-            <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
-          )}
-        </span>
-        <span className={cn("w-16 text-right", timeClass)}>{timeAgo(entry.created_at)}</span>
-      </AppLink>
-  ) : (
-    <AppLink href={href} className="flex min-w-0 items-start gap-3 px-4 py-2.5">
-      <span aria-hidden="true" className="mt-0.5 flex size-4 shrink-0 items-center justify-center" title={phrase}>
-        {lead}
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex min-w-0 items-center gap-2 text-label">
-          <span className="shrink-0 font-mono text-caption text-muted-foreground">
-            {entry.issue.identifier}
-          </span>
-          <span className="min-w-0 truncate" title={entry.issue.title}>
-            {entry.issue.title}
-          </span>
-          <span className={cn("ml-auto pl-2", timeClass)}>{timeAgo(entry.created_at)}</span>
-        </span>
-        <span className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
-          {transition ? (
-            <>
-              {move}
-              <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
-                {avatar}
-                <span className="font-medium text-foreground">{actorName}</span>
-              </span>
-            </>
-          ) : (
-            sentence
-          )}
-        </span>
-      </span>
-    </AppLink>
-  );
 
   // Hovering (or focusing) a row tints every row of its issue in both feeds,
   // so its history reads at a glance; clicking still opens the issue.
@@ -405,19 +322,81 @@ const FeedRow = memo(function FeedRow({
       onFocus={() => onHoverIssue(entry.issue.id)}
       onBlur={() => onHoverIssue(null)}
     >
-      {link}
+      <AppLink href={href} className="flex min-w-0 items-center gap-3 px-4 py-2">
+        <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center" title={action}>
+          {lead}
+        </span>
+        <span className="shrink-0 font-mono text-caption text-muted-foreground">{entry.issue.identifier}</span>
+        <span className="min-w-32 flex-1 truncate text-label" title={entry.issue.title}>
+          {entry.issue.title}
+        </span>
+        {/* Fixed-width columns keep project labels aligned down the list. */}
+        {showProjects && (
+          <span
+            className="hidden w-32 shrink-0 items-center gap-1 text-caption text-muted-foreground @lg:flex"
+            title={project?.title}
+          >
+            {project && (
+              <>
+                <ProjectIcon project={project} size="sm" />
+                <span className="truncate">{project.title}</span>
+              </>
+            )}
+          </span>
+        )}
+        <span
+          className={cn(
+            "hidden shrink-0 items-center justify-end gap-1.5 text-caption text-muted-foreground @sm:flex",
+            showProjects && "w-20",
+          )}
+        >
+          {isMove && (
+            <>
+              {details.from && (
+                <>
+                  <StatusChip statusKey={details.from} />
+                  <ArrowRight aria-label="→" className="size-3 shrink-0" />
+                </>
+              )}
+              <StatusChip statusKey={details.to!} />
+            </>
+          )}
+          <span className={cn("flex shrink-0 items-center", isMove && "pl-1.5")}>
+            <ActorAvatar
+              actorType={entry.actor_type}
+              actorId={entry.actor_id}
+              name={entry.actor_name}
+              avatarUrl={entry.actor_avatar_url}
+              size="xs"
+              profileLink={false}
+              enableHoverCard
+            />
+            <span className="sr-only">{actorName}</span>
+          </span>
+          {!isMove && <span className="sr-only">{action}</span>}
+          {(entry.coalesced_count ?? 1) > 1 && (
+            <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
+          )}
+        </span>
+        <span
+          className={cn(
+            "w-16 shrink-0 text-right text-caption text-muted-foreground",
+            // The filter button takes the time's place while the row is hovered.
+            onFilterIssue && "group-hover:invisible group-focus-within:invisible",
+          )}
+        >
+          {timeAgo(entry.created_at)}
+        </span>
+      </AppLink>
       {onFilterIssue && (
         <Button
           variant="ghost"
           size="icon-xs"
           aria-label={t(($) => $.issue_filter.filter)}
           title={t(($) => $.issue_filter.filter)}
-          className={cn(
-            "absolute right-3 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-            // Centered without a transform: Button's pressed state sets its own
-            // translate, which would drop the button out from under the pointer.
-            compact ? "inset-y-0 my-auto" : "top-2",
-          )}
+          // Centered without a transform: Button's pressed state sets its own
+          // translate, which would drop the button out from under the pointer.
+          className="absolute inset-y-0 right-3 my-auto opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
           onClick={() => onFilterIssue(entry.issue)}
         >
           <ListFilter aria-hidden="true" />
@@ -427,16 +406,13 @@ const FeedRow = memo(function FeedRow({
   );
 });
 
-/**
- * A status as its icon and name, resolved through the workspace catalog.
- * `iconOnly` keeps the name for screen readers and the hover tooltip.
- */
-function StatusChip({ statusKey, iconOnly = false }: { statusKey: string; iconOnly?: boolean }) {
+/** A status as its icon; its name is the hover tooltip and the screen-reader text. */
+function StatusChip({ statusKey }: { statusKey: string }) {
   const wsId = useWorkspaceId();
   const catalog = useIssueStatuses(wsId);
   const label = catalog.labelOf(statusKey);
   return (
-    <span className={cn("flex min-w-0 items-center gap-1", iconOnly && "shrink-0")} title={iconOnly ? label : undefined}>
+    <span className="flex shrink-0 items-center" title={label}>
       <StatusIcon
         status={statusKey}
         category={catalog.categoryOf(statusKey)}
@@ -444,7 +420,7 @@ function StatusChip({ statusKey, iconOnly = false }: { statusKey: string; iconOn
         icon={catalog.iconOf(statusKey)}
         className="size-3.5 shrink-0"
       />
-      <span className={iconOnly ? "sr-only" : "truncate text-foreground"}>{label}</span>
+      <span className="sr-only">{label}</span>
     </span>
   );
 }

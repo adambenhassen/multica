@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Bot, CircleDot, DollarSign, Inbox, LayoutDashboard, Rows3, SlidersHorizontal, X, type LucideIcon } from "lucide-react";
+import { Bot, CircleDot, DollarSign, Inbox, LayoutDashboard, SlidersHorizontal, Tag, X, type LucideIcon } from "lucide-react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
@@ -26,6 +26,7 @@ import {
 } from "@multica/core/issues/queries";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { useInboxUnreadCount } from "@multica/core/inbox/queries";
+import { projectListOptions } from "@multica/core/projects/queries";
 import { dashboardRunTimeDailyOptions, dashboardUsageDailyOptions } from "@multica/core/dashboard";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import { OVERVIEW_SECTIONS, useOverviewLayoutStore, type OverviewSection } from "@multica/core/overview";
@@ -40,6 +41,8 @@ import { taskStatusConfig } from "../../agents/config";
 import { DailyTasksChart } from "../../runtimes/components/charts";
 import { addDaysIso, todayIso } from "../../runtimes/utils";
 import { computeDailyTotals } from "../../dashboard/utils";
+import { ALL_PROJECTS } from "../../dashboard/components/dashboard-shared";
+import { ProjectFilter } from "../../dashboard/components/dashboard-filters";
 import { useLocale, useT, useTimeAgo } from "../../i18n";
 import {
   OVERVIEW_CHART_DAYS,
@@ -76,6 +79,14 @@ export function OverviewPage() {
   const shown = (section: OverviewSection) => !hidden.includes(section);
   const listCount = Number(shown("activity")) + Number(shown("status_changes"));
 
+  const wsId = useWorkspaceId();
+  const [projectValue, setProjectValue] = useState<string>(ALL_PROJECTS);
+  const { data: projects = [] } = useQuery({ ...projectListOptions(wsId), enabled: listCount > 0 });
+  // A project that no longer resolves (deleted, or a stale id) counts as no
+  // filter, so the trigger cannot claim a filter the feeds do not apply.
+  const projectId =
+    projectValue !== ALL_PROJECTS && projects.some((p) => p.id === projectValue) ? projectValue : null;
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <CollectionPageHeader
@@ -83,7 +94,12 @@ export function OverviewPage() {
         title={t(($) => $.title)}
         actions={
           <>
-            <CompactToggle />
+            {listCount > 0 && (
+              <>
+                <ProjectFilter projects={projects} projectValue={projectValue} onProjectChange={setProjectValue} />
+                <ProjectLabelsToggle />
+              </>
+            )}
             <CustomizeMenu />
           </>
         }
@@ -104,7 +120,14 @@ export function OverviewPage() {
             <ChartsRow showRuns={shown("run_activity")} showRate={shown("success_rate")} />
           )}
           {listCount > 0 && (
-            <FeedLists showActivity={shown("activity")} showStatusChanges={shown("status_changes")} />
+            <FeedLists
+              // A new project starts from a clean slate: an issue filter from
+              // another project would leave both feeds empty.
+              key={projectId ?? ALL_PROJECTS}
+              projectId={projectId}
+              showActivity={shown("activity")}
+              showStatusChanges={shown("status_changes")}
+            />
           )}
         </div>
       </div>
@@ -113,14 +136,29 @@ export function OverviewPage() {
 }
 
 /**
- * The two feeds side by side. They share the hovered issue (its rows are
- * tinted in both) and an optional issue filter, cleared from the chip above.
+ * The two feeds side by side, narrowed to the header's project. They share
+ * the hovered issue (its rows are tinted in both) and an optional issue
+ * filter, cleared from the chip above.
  */
-function FeedLists({ showActivity, showStatusChanges }: { showActivity: boolean; showStatusChanges: boolean }) {
+function FeedLists({
+  projectId,
+  showActivity,
+  showStatusChanges,
+}: {
+  projectId: string | null;
+  showActivity: boolean;
+  showStatusChanges: boolean;
+}) {
   const { t } = useT("overview");
   const [hoveredIssueId, setHoveredIssueId] = useState<string | null>(null);
   const [issue, setIssue] = useState<WorkspaceActivityIssueRef | null>(null);
-  const focus: FeedFocus = { hoveredIssueId, onHoverIssue: setHoveredIssueId, issue, onFilterIssue: setIssue };
+  const focus: FeedFocus = {
+    hoveredIssueId,
+    onHoverIssue: setHoveredIssueId,
+    issue,
+    onFilterIssue: setIssue,
+    projectId,
+  };
 
   return (
     // Takes the height left below the other sections (at least 30rem), so the
@@ -154,17 +192,17 @@ function FeedLists({ showActivity, showStatusChanges }: { showActivity: boolean;
   );
 }
 
-function CompactToggle() {
+function ProjectLabelsToggle() {
   const { t } = useT("overview");
-  const compact = useOverviewLayoutStore((s) => s.compact);
-  const toggleCompact = useOverviewLayoutStore((s) => s.toggleCompact);
+  const showProjects = useOverviewLayoutStore((s) => s.showProjects);
+  const toggleProjects = useOverviewLayoutStore((s) => s.toggleProjects);
   return (
     <CollectionPageHeaderAction
-      icon={Rows3}
-      label={t(($) => $.compact_rows)}
-      variant={compact ? "brand" : "outline"}
-      aria-pressed={compact}
-      onClick={toggleCompact}
+      icon={Tag}
+      label={t(($) => $.project_labels)}
+      variant={showProjects ? "brand" : "outline"}
+      aria-pressed={showProjects}
+      onClick={toggleProjects}
     />
   );
 }

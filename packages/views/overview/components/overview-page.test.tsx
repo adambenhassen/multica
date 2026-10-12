@@ -249,7 +249,7 @@ describe("OverviewPage", () => {
     expect(calls.at(-1)).toEqual({ limit: 50, kind: "failures", to: [] });
   });
 
-  it("puts feed rows on one line with Compact rows, and remembers it", async () => {
+  it("shows each event on one line and names what it hides on hover", async () => {
     const now = new Date().toISOString();
     apiRef.current = {
       listWorkspaceActivity: () =>
@@ -279,31 +279,69 @@ describe("OverviewPage", () => {
     };
     renderPage();
     const activity = screen.getByRole("heading", { name: "Recent activity" }).closest("section")!;
-    const row = () => within(activity).getByText("Ship the dashboard").closest("a")!;
     await within(activity).findByText("Ship the dashboard");
-    // Two lines: the title line and the detail line.
-    expect(row().querySelector(".flex-col")).not.toBeNull();
+    const row = within(activity).getByText("Ship the dashboard").closest("a")!;
+    // The move as icons, then the avatar; names stay for screen readers.
+    expect(within(row).getByLabelText("→")).toBeTruthy();
+    expect(within(row).getByText("Done").className).toContain("sr-only");
+    expect(within(row).getByText("Builder").className).toContain("sr-only");
+    // Hover names the rest: the full title, who acted, the action and each status.
+    expect(within(row).getByText("Ship the dashboard").getAttribute("title")).toBe("Ship the dashboard");
+    expect(within(row).getByTestId("avatar").dataset.hoverCard).toBe("on");
+    expect(row.querySelector('[title="marked it Done"]')).not.toBeNull();
+    expect(row.querySelector('[title="In Review"]')).not.toBeNull();
+    expect(row.querySelector('[title="Done"]')).not.toBeNull();
+    // A comment's text is its icon's tooltip, not a visible line.
+    const comment = within(activity).getByText("Fix the reconnect").closest("a")!;
+    expect(comment.querySelector('[title="commented: “Waiting for green CI”"]')).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Compact rows" })).toBeNull();
+  });
 
-    const toggle = screen.getByRole("button", { name: "Compact rows" });
+  it("labels rows with their project on request and filters both feeds to a project", async () => {
+    const now = new Date().toISOString();
+    const calls: { kind?: string; project?: string }[] = [];
+    apiRef.current = {
+      listProjects: () =>
+        Promise.resolve({
+          projects: [{ id: "project-1", title: "Teagram server", icon: null }],
+          total: 1,
+        }),
+      listWorkspaceActivity: ((params: { kind?: string; project?: string }) => {
+        calls.push(params);
+        return Promise.resolve({
+          entries: [
+            {
+              type: "activity",
+              id: params.kind === "status" ? "s-1" : "a-1",
+              actor_type: "agent",
+              actor_id: "agent-1",
+              created_at: now,
+              action: "status_changed",
+              details: { from: "todo", to: "done" },
+              issue: { id: "issue-1", identifier: "MUL-1", title: "Ship the dashboard", status: "done", project_id: "project-1" },
+            },
+          ],
+        });
+      }) as () => Promise<unknown>,
+    };
+    renderPage();
+    const activity = screen.getByRole("heading", { name: "Recent activity" }).closest("section")!;
+    await within(activity).findByText("Ship the dashboard");
+    expect(within(activity).queryByText("Teagram server")).toBeNull();
+
+    const toggle = screen.getByRole("button", { name: "Project labels" });
     expect(toggle.getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-pressed")).toBe("true");
-    expect(useOverviewLayoutStore.getState().compact).toBe(true);
-    expect(row().querySelector(".flex-col")).toBeNull();
-    // The move as icons, then the avatar; names stay for screen readers.
-    expect(within(row()).getByLabelText("→")).toBeTruthy();
-    expect(within(row()).getByText("Done").className).toContain("sr-only");
-    expect(within(row()).getByText("Builder").className).toContain("sr-only");
-    // Hover shows what compact rows hide: the full title and who acted.
-    expect(within(row()).getByText("Ship the dashboard").getAttribute("title")).toBe("Ship the dashboard");
-    expect(within(row()).getByTestId("avatar").dataset.hoverCard).toBe("on");
-    // Every icon names itself on hover: the row's action and each status.
-    expect(row().querySelector('[title="marked it Done"]')).not.toBeNull();
-    expect(row().querySelector('[title="In Review"]')).not.toBeNull();
-    expect(row().querySelector('[title="Done"]')).not.toBeNull();
-    const comment = within(activity).getByText("Fix the reconnect").closest("a")!;
-    expect(within(comment).queryByText(/Waiting for green CI/)).toBeNull();
-    useOverviewLayoutStore.setState({ compact: false });
+    expect(useOverviewLayoutStore.getState().showProjects).toBe(true);
+    expect(await within(activity).findByText("Teagram server")).toBeTruthy();
+    useOverviewLayoutStore.setState({ showProjects: false });
+
+    fireEvent.click(screen.getByRole("button", { name: "Project" }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Teagram server" }));
+    await waitFor(() =>
+      expect(calls.filter((c) => c.project === "project-1").map((c) => c.kind).sort()).toEqual(["all", "status"]),
+    );
   });
 
   it("tints an issue's rows in both feeds on hover and filters both to it", async () => {
