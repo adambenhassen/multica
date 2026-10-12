@@ -81,5 +81,31 @@ WHERE a.workspace_id = @workspace_id
   AND a.issue_id IS NOT NULL
   AND NOT (a.action = ANY(@excluded_actions::text[]))
   AND (cardinality(@only_actions::text[]) = 0 OR a.action = ANY(@only_actions::text[]))
+  AND (sqlc.narg('before_at')::timestamptz IS NULL
+       OR (a.created_at, a.id) < (sqlc.narg('before_at')::timestamptz, sqlc.narg('before_id')::uuid))
 ORDER BY a.created_at DESC, a.id DESC
 LIMIT @row_limit;
+
+-- name: ListIssuesByStatusEnteredAt :many
+-- Issues currently in one of @statuses, newest first by when they entered
+-- that status: the latest status_changed activity whose `to` is the issue's
+-- current status. Backs the Dashboard's Done / Cancelled tabs, where "recent"
+-- means recently completed, not recently touched. An issue with no such row
+-- (created directly in the status) falls back to its updated_at.
+SELECT i.id, i.number, i.title, i.status,
+       COALESCE(entered.created_at, i.updated_at)::timestamptz AS entered_at,
+       entered.actor_type, entered.actor_id
+FROM issue i
+LEFT JOIN LATERAL (
+    SELECT a.created_at, a.actor_type, a.actor_id
+    FROM activity_log a
+    WHERE a.issue_id = i.id
+      AND a.action = 'status_changed'
+      AND a.details->>'to' = i.status
+    ORDER BY a.created_at DESC, a.id DESC
+    LIMIT 1
+) entered ON true
+WHERE i.workspace_id = @workspace_id
+  AND i.status = ANY(@statuses::text[])
+ORDER BY entered_at DESC, i.id DESC
+LIMIT @row_limit OFFSET @row_offset;

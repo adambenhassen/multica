@@ -874,5 +874,7 @@ JOIN issue i ON i.id = c.issue_id AND i.workspace_id = c.workspace_id
 WHERE c.workspace_id = @workspace_id
   AND c.type = 'comment'
   AND c.deleted_at IS NULL
+  AND (sqlc.narg('before_at')::timestamptz IS NULL
+       OR (c.created_at, c.id) < (sqlc.narg('before_at')::timestamptz, sqlc.narg('before_id')::uuid))
 ORDER BY c.created_at DESC, c.id DESC
 LIMIT @row_limit;

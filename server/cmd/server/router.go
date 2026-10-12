@@ -1990,6 +1990,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 
 			// Workspace-wide issue activity feed (Dashboard page)
 			r.Get("/api/activity", h.ListWorkspaceActivity)
+			r.Get("/api/activity/completed", h.ListRecentlyCompletedIssues)
 
 			// Local search index sync for Web/Desktop (MUL-7754). Human clients
 			// only: agents search through /api/issues/search.
