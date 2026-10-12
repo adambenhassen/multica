@@ -10,8 +10,9 @@ JOIN project_mcp_server pms ON pms.server_id = s.id
 WHERE pms.project_id = sqlc.arg('project_id')
   AND pms.workspace_id = sqlc.arg('workspace_id')
   AND s.workspace_id = sqlc.arg('workspace_id')
-  AND (pms.restricted = FALSE
-    OR EXISTS (
+  -- Only: needs a match in the audience. Except: needs none. All: no audience.
+  AND (NOT (pms.restricted OR pms.excluded)
+    OR pms.restricted = EXISTS (
       SELECT 1 FROM project_attachment_audience paa
       WHERE paa.project_id = pms.project_id
         AND paa.workspace_id = pms.workspace_id
@@ -32,7 +33,7 @@ ORDER BY s.name ASC;
 -- name: ListProjectMcpServers :many
 -- Every server attached to the project, for the project page. Returns config
 -- only for server-side projection; the HTTP layer never serializes it.
-SELECT sqlc.embed(s), pms.restricted
+SELECT sqlc.embed(s), pms.restricted, pms.excluded
 FROM workspace_mcp_server s
 JOIN project_mcp_server pms ON pms.server_id = s.id
 WHERE pms.project_id = $1
@@ -53,8 +54,8 @@ INSERT INTO project_mcp_server (project_id, server_id, workspace_id, created_by)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING;
 
--- name: SetProjectMcpServerRestricted :execrows
-UPDATE project_mcp_server SET restricted = sqlc.arg('restricted')
+-- name: SetProjectMcpServerAudienceMode :execrows
+UPDATE project_mcp_server SET restricted = sqlc.arg('restricted'), excluded = sqlc.arg('excluded')
 WHERE project_id = sqlc.arg('project_id') AND server_id = sqlc.arg('server_id') AND workspace_id = sqlc.arg('workspace_id');
 
 -- name: RemoveProjectMcpServer :execrows

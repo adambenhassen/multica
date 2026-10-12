@@ -64,7 +64,7 @@ func (h *Handler) writeProjectSkills(w http.ResponseWriter, r *http.Request, pro
 				s.ID, s.WorkspaceID, s.Name, s.Description, s.Config,
 				s.CreatedBy, s.CreatedAt, s.UpdatedAt,
 			),
-			Audience: audienceFor(targets, projectAttachmentSkill, s.ID, s.Restricted),
+			Audience: audienceFor(targets, projectAttachmentSkill, s.ID, s.Restricted, s.Excluded),
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)

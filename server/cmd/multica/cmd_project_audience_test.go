@@ -16,6 +16,7 @@ func newAudienceCmd(t *testing.T, flags map[string]string) *cobra.Command {
 	cmd := &cobra.Command{Use: "audience"}
 	cmd.Flags().Bool("all", false, "")
 	cmd.Flags().Bool("nobody", false, "")
+	cmd.Flags().Bool("except", false, "")
 	cmd.Flags().StringSlice("agents", nil, "")
 	cmd.Flags().StringSlice("labels", nil, "")
 	cmd.Flags().String("output", "json", "")
@@ -53,6 +54,7 @@ func TestProjectAudienceSendsRestrictedTargets(t *testing.T) {
 	}
 	want := map[string]any{
 		"restricted": true,
+		"excluded":   false,
 		"agent_ids":  []any{"agent-a", "agent-b"},
 		"label_ids":  []any{"label-ops"},
 	}
@@ -67,6 +69,35 @@ func TestProjectAudienceSendsRestrictedTargets(t *testing.T) {
 	if gotPath != "/api/projects/"+projectID+"/mcp-servers/server-1/audience" || gotBody["restricted"] != false {
 		t.Fatalf("--all sent path=%q body=%v", gotPath, gotBody)
 	}
+
+	cmd = newAudienceCmd(t, map[string]string{"except": "true", "labels": "label-interns"})
+	if err := runProjectAudience(cmd, []string{projectID, "skill-1"}, "skills"); err != nil {
+		t.Fatalf("runProjectAudience --except: %v", err)
+	}
+	if gotBody["restricted"] != false || gotBody["excluded"] != true ||
+		!reflect.DeepEqual(gotBody["label_ids"], []any{"label-interns"}) {
+		t.Fatalf("--except sent body=%v", gotBody)
+	}
+}
+
+func TestAudienceSummaryNamesExclusions(t *testing.T) {
+	item := func(a map[string]any) map[string]any { return map[string]any{"audience": a} }
+	cases := []struct {
+		item map[string]any
+		want string
+	}{
+		{map[string]any{}, "all"},
+		{item(map[string]any{"restricted": false, "agent_ids": []any{}, "label_ids": []any{}}), "all"},
+		{item(map[string]any{"restricted": true, "agent_ids": []any{}, "label_ids": []any{}}), "nobody"},
+		{item(map[string]any{"restricted": true, "agent_ids": []any{"a"}, "label_ids": []any{}}), "1 agents, 0 labels"},
+		{item(map[string]any{"excluded": true, "agent_ids": []any{"a"}, "label_ids": []any{"l"}}), "all except 1 agents, 1 labels"},
+		{item(map[string]any{"excluded": true, "agent_ids": []any{}, "label_ids": []any{}}), "all"},
+	}
+	for _, tc := range cases {
+		if got := audienceSummary(tc.item); got != tc.want {
+			t.Errorf("audienceSummary(%v) = %q, want %q", tc.item, got, tc.want)
+		}
+	}
 }
 
 func TestProjectAudienceRejectsConflictingFlags(t *testing.T) {
@@ -80,6 +111,8 @@ func TestProjectAudienceRejectsConflictingFlags(t *testing.T) {
 		{map[string]string{}, "pass --all, --nobody"},
 		{map[string]string{"all": "true", "agents": "a"}, "--all cannot be combined"},
 		{map[string]string{"nobody": "true", "labels": "l"}, "--nobody cannot be combined"},
+		{map[string]string{"except": "true"}, "--except needs at least one"},
+		{map[string]string{"all": "true", "except": "true"}, "--all cannot be combined"},
 	}
 	for _, tc := range cases {
 		err := runProjectAudience(newAudienceCmd(t, tc.flags), []string{"p", "s"}, "skills")

@@ -1332,6 +1332,7 @@ type ProjectMcpServer struct {
 	CreatedBy   pgtype.UUID        `json:"created_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	Restricted  bool               `json:"restricted"`
+	Excluded    bool               `json:"excluded"`
 }
 
 type ProjectResource struct {
@@ -1353,6 +1354,7 @@ type ProjectSkill struct {
 	CreatedBy   pgtype.UUID        `json:"created_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	Restricted  bool               `json:"restricted"`
+	Excluded    bool               `json:"excluded"`
 }
 
 type QuickAction struct {

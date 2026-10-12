@@ -95,7 +95,7 @@ func (q *Queries) DeleteProjectMcpServersByServer(ctx context.Context, arg Delet
 }
 
 const listProjectMcpServers = `-- name: ListProjectMcpServers :many
-SELECT s.id, s.workspace_id, s.name, s.config, s.created_by, s.created_at, s.updated_at, pms.restricted
+SELECT s.id, s.workspace_id, s.name, s.config, s.created_by, s.created_at, s.updated_at, pms.restricted, pms.excluded
 FROM workspace_mcp_server s
 JOIN project_mcp_server pms ON pms.server_id = s.id
 WHERE pms.project_id = $1
@@ -112,6 +112,7 @@ type ListProjectMcpServersParams struct {
 type ListProjectMcpServersRow struct {
 	WorkspaceMcpServer WorkspaceMcpServer `json:"workspace_mcp_server"`
 	Restricted         bool               `json:"restricted"`
+	Excluded           bool               `json:"excluded"`
 }
 
 // Every server attached to the project, for the project page. Returns config
@@ -134,6 +135,7 @@ func (q *Queries) ListProjectMcpServers(ctx context.Context, arg ListProjectMcpS
 			&i.WorkspaceMcpServer.CreatedAt,
 			&i.WorkspaceMcpServer.UpdatedAt,
 			&i.Restricted,
+			&i.Excluded,
 		); err != nil {
 			return nil, err
 		}
@@ -153,8 +155,9 @@ JOIN project_mcp_server pms ON pms.server_id = s.id
 WHERE pms.project_id = $1
   AND pms.workspace_id = $2
   AND s.workspace_id = $2
-  AND (pms.restricted = FALSE
-    OR EXISTS (
+  -- Only: needs a match in the audience. Except: needs none. All: no audience.
+  AND (NOT (pms.restricted OR pms.excluded)
+    OR pms.restricted = EXISTS (
       SELECT 1 FROM project_attachment_audience paa
       WHERE paa.project_id = pms.project_id
         AND paa.workspace_id = pms.workspace_id
@@ -235,21 +238,23 @@ func (q *Queries) RemoveProjectMcpServer(ctx context.Context, arg RemoveProjectM
 	return result.RowsAffected(), nil
 }
 
-const setProjectMcpServerRestricted = `-- name: SetProjectMcpServerRestricted :execrows
-UPDATE project_mcp_server SET restricted = $1
-WHERE project_id = $2 AND server_id = $3 AND workspace_id = $4
+const setProjectMcpServerAudienceMode = `-- name: SetProjectMcpServerAudienceMode :execrows
+UPDATE project_mcp_server SET restricted = $1, excluded = $2
+WHERE project_id = $3 AND server_id = $4 AND workspace_id = $5
 `
 
-type SetProjectMcpServerRestrictedParams struct {
+type SetProjectMcpServerAudienceModeParams struct {
 	Restricted  bool        `json:"restricted"`
+	Excluded    bool        `json:"excluded"`
 	ProjectID   pgtype.UUID `json:"project_id"`
 	ServerID    pgtype.UUID `json:"server_id"`
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
-func (q *Queries) SetProjectMcpServerRestricted(ctx context.Context, arg SetProjectMcpServerRestrictedParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setProjectMcpServerRestricted,
+func (q *Queries) SetProjectMcpServerAudienceMode(ctx context.Context, arg SetProjectMcpServerAudienceModeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setProjectMcpServerAudienceMode,
 		arg.Restricted,
+		arg.Excluded,
 		arg.ProjectID,
 		arg.ServerID,
 		arg.WorkspaceID,

@@ -33,8 +33,9 @@ WHERE id = ANY(sqlc.arg('label_ids')::uuid[])
   AND resource_type = 'agent';
 
 -- name: IsLabelInProjectAudience :one
--- Agent owners may label their own agents, so attaching a label that grants a
--- restricted project skill / MCP server is gated to workspace admins.
+-- Agent owners may label their own agents, so attaching or detaching a label
+-- that a project skill / MCP server audience uses is gated to workspace admins:
+-- attaching an "only" label or detaching an "except" label widens access.
 SELECT EXISTS (
     SELECT 1 FROM project_attachment_audience
     WHERE target_type = 'label' AND target_id = $1 AND workspace_id = $2
@@ -50,8 +51,9 @@ FROM project_skill ps
 JOIN skill s ON s.id = ps.skill_id AND s.workspace_id = ps.workspace_id
 JOIN project p ON p.id = ps.project_id AND p.workspace_id = ps.workspace_id
 WHERE ps.workspace_id = sqlc.arg('workspace_id')
-  AND (ps.restricted = FALSE
-    OR EXISTS (
+  -- Only: needs a match in the audience. Except: needs none. All: no audience.
+  AND (NOT (ps.restricted OR ps.excluded)
+    OR ps.restricted = EXISTS (
       SELECT 1 FROM project_attachment_audience paa
       WHERE paa.project_id = ps.project_id
         AND paa.workspace_id = ps.workspace_id
@@ -72,8 +74,9 @@ FROM project_mcp_server pms
 JOIN workspace_mcp_server s ON s.id = pms.server_id AND s.workspace_id = pms.workspace_id
 JOIN project p ON p.id = pms.project_id AND p.workspace_id = pms.workspace_id
 WHERE pms.workspace_id = sqlc.arg('workspace_id')
-  AND (pms.restricted = FALSE
-    OR EXISTS (
+  -- Only: needs a match in the audience. Except: needs none. All: no audience.
+  AND (NOT (pms.restricted OR pms.excluded)
+    OR pms.restricted = EXISTS (
       SELECT 1 FROM project_attachment_audience paa
       WHERE paa.project_id = pms.project_id
         AND paa.workspace_id = pms.workspace_id

@@ -607,25 +607,8 @@ func (h *Handler) AttachLabelToAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "agent label not found")
 		return
 	}
-	// A label in a project audience grants restricted project skills / MCP
-	// servers (MCP credentials included). Agent owners can label their own
-	// agents, so only human workspace admins may hand out such a label.
-	// Detaching only narrows access and stays with the agent's managers.
-	inAudience, err := h.Queries.IsLabelInProjectAudience(r.Context(), db.IsLabelInProjectAudienceParams{
-		TargetID: labelID, WorkspaceID: agent.WorkspaceID,
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to check agent label")
+	if !h.requireAudienceLabelAdmin(w, r, agent.WorkspaceID, labelID) {
 		return
-	}
-	if inAudience {
-		if isMachineCredentialActor(r) {
-			writeError(w, http.StatusForbidden, "this label grants project access; only people can assign it")
-			return
-		}
-		if _, ok := h.requireWorkspaceRole(w, r, uuidToString(agent.WorkspaceID), "agent label not found", "owner", "admin"); !ok {
-			return
-		}
 	}
 	if err := h.Queries.AttachLabelToAgent(r.Context(), db.AttachLabelToAgentParams{
 		AgentID: agent.ID, LabelID: labelID, WorkspaceID: agent.WorkspaceID,
@@ -637,6 +620,31 @@ func (h *Handler) AttachLabelToAgent(w http.ResponseWriter, r *http.Request) {
 	h.ListLabelsForAgent(w, r)
 }
 
+// requireAudienceLabelAdmin gates changing whether an agent carries a label
+// that a project audience uses. Attaching a label from an "only" audience
+// grants project skills / MCP servers (MCP credentials included); detaching a
+// label from an "except" audience does the same. Agent owners can label their
+// own agents, so either change on such a label is for human workspace admins.
+// It writes the error response and returns false when the actor may not.
+func (h *Handler) requireAudienceLabelAdmin(w http.ResponseWriter, r *http.Request, workspaceID, labelID pgtype.UUID) bool {
+	inAudience, err := h.Queries.IsLabelInProjectAudience(r.Context(), db.IsLabelInProjectAudienceParams{
+		TargetID: labelID, WorkspaceID: workspaceID,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check agent label")
+		return false
+	}
+	if !inAudience {
+		return true
+	}
+	if isMachineCredentialActor(r) {
+		writeError(w, http.StatusForbidden, "this label controls project access; only people can change it")
+		return false
+	}
+	_, ok := h.requireWorkspaceRole(w, r, uuidToString(workspaceID), "agent label not found", "owner", "admin")
+	return ok
+}
+
 func (h *Handler) DetachLabelFromAgent(w http.ResponseWriter, r *http.Request) {
 	agent, ok := h.loadAgentForUser(w, r, chi.URLParam(r, "id"))
 	if !ok || !h.canManageAgent(w, r, agent) {
@@ -644,6 +652,9 @@ func (h *Handler) DetachLabelFromAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	labelID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "labelId"), "label id")
 	if !ok {
+		return
+	}
+	if !h.requireAudienceLabelAdmin(w, r, agent.WorkspaceID, labelID) {
 		return
 	}
 	if err := h.Queries.DetachLabelFromAgent(r.Context(), db.DetachLabelFromAgentParams{
