@@ -6,6 +6,7 @@ import {
   coalesceFeed,
   commentExcerpt,
   groupFeedByDay,
+  latestRowPerIssue,
   latestStatusChangePerIssue,
   statusChangeTargets,
 } from "./utils";
@@ -98,14 +99,27 @@ describe("latestStatusChangePerIssue", () => {
       ...over,
     }) as WorkspaceActivityEntry;
 
-  it("keeps each issue's newest move and every other row", () => {
+  it("keeps each issue's newest move, counting its creation as a move, and every other row", () => {
     const entries = [
       row("s3", "i1"),
       row("c1", "i1", { type: "comment", action: undefined }),
+      row("a1", "i1", { action: "assignee_changed" }),
       row("s2", "i2"),
       row("s1", "i1"),
       row("k1", "i1", { action: "created" }),
+      row("k3", "i3", { action: "created" }),
     ];
-    expect(latestStatusChangePerIssue(entries).map((e) => e.id)).toEqual(["s3", "c1", "s2", "k1"]);
+    // i1's creation is an earlier move; i3 never moved, so its creation stays.
+    expect(latestStatusChangePerIssue(entries).map((e) => e.id)).toEqual(["s3", "c1", "a1", "s2", "k3"]);
+  });
+
+  it("keeps each issue's newest row of any kind for one-row-per-issue lists", () => {
+    const entries = [
+      row("c1", "i1", { type: "comment", action: undefined }),
+      row("s3", "i1"),
+      row("s2", "i2"),
+      row("k1", "i1", { action: "created" }),
+    ];
+    expect(latestRowPerIssue(entries).map((e) => e.id)).toEqual(["c1", "s2"]);
   });
 });

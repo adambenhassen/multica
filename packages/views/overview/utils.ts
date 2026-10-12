@@ -46,18 +46,25 @@ export function coalesceFeed(entries: WorkspaceActivityEntry[]): WorkspaceActivi
 }
 
 /**
- * Keeps each issue's newest status change and drops its older ones, so an
- * issue that moved several times shows once, at its latest move. Other rows
- * pass through. `entries` are newest first.
+ * Keeps each issue's newest move and drops its older ones, so an issue that
+ * moved several times shows once, at its latest move. Its creation counts as
+ * its first move: a new issue that has not moved yet keeps that row. Other
+ * rows pass through. `entries` are newest first.
  */
 export function latestStatusChangePerIssue(entries: WorkspaceActivityEntry[]): WorkspaceActivityEntry[] {
   const seen = new Set<string>();
   return entries.filter((entry) => {
-    if (entry.type !== "activity" || entry.action !== "status_changed") return true;
+    if (entry.type !== "activity" || (entry.action !== "status_changed" && entry.action !== "created")) return true;
     if (seen.has(entry.issue.id)) return false;
     seen.add(entry.issue.id);
     return true;
   });
+}
+
+/** Keeps each issue's newest row of any kind. `entries` are newest first. */
+export function latestRowPerIssue(entries: WorkspaceActivityEntry[]): WorkspaceActivityEntry[] {
+  const seen = new Set<string>();
+  return entries.filter((entry) => (seen.has(entry.issue.id) ? false : (seen.add(entry.issue.id), true)));
 }
 
 /** The calendar day (YYYY-MM-DD) an instant falls on in `tz`. */

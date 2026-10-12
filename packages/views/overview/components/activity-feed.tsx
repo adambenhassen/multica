@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, type ReactNode } from "react";
+import { memo, useEffect, useMemo, type ReactNode } from "react";
 import { Activity, ArrowRight, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, UserRound } from "lucide-react";
 import { useInfiniteQuery, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -33,6 +33,7 @@ import {
   coalesceFeed,
   commentExcerpt,
   groupFeedByDay,
+  latestRowPerIssue,
   latestStatusChangePerIssue,
   statusChangeTargets,
 } from "../utils";
@@ -184,6 +185,8 @@ export function StatusChangesFeed({
                 ? t(($) => $.status_changes.empty_failures)
                 : t(($) => $.status_changes.empty_filtered)
           }
+          // Active is about what is happening now: one row per issue, its latest.
+          onePerIssueOf={tab === "active" ? activeIssues : undefined}
         />
       )}
     </section>
@@ -195,10 +198,17 @@ function FeedBody({
   query,
   focus,
   empty,
+  onePerIssueOf,
 }: {
   query: UseInfiniteQueryResult<WorkspaceActivityEntry[]>;
   focus: FeedFocus;
   empty: string;
+  /**
+   * One row per issue (its newest), for a feed of exactly these issues. A busy
+   * issue can fill a page on its own, so pages load until every issue has its
+   * row, and there is no scroll paging.
+   */
+  onePerIssueOf?: readonly string[];
 }) {
   const { t } = useT("overview");
   const locale = useLocale();
@@ -212,10 +222,21 @@ function FeedBody({
   const { byIssue: working } = useRunningTasks(wsId);
   const { data: entries, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = query;
   const latestOnly = useOverviewLayoutStore((s) => s.latestOnly);
+  const onePerIssue = onePerIssueOf !== undefined;
   const groups = useMemo(() => {
-    const rows = latestOnly ? latestStatusChangePerIssue(entries ?? []) : (entries ?? []);
+    const rows = onePerIssue
+      ? latestRowPerIssue(entries ?? [])
+      : latestOnly
+        ? latestStatusChangePerIssue(entries ?? [])
+        : (entries ?? []);
     return groupFeedByDay(coalesceFeed(rows), tz);
-  }, [entries, tz, latestOnly]);
+  }, [entries, tz, latestOnly, onePerIssue]);
+  const covered = useMemo(() => new Set((entries ?? []).map((e) => e.issue.id)).size, [entries]);
+  useEffect(() => {
+    if (onePerIssueOf && hasNextPage && !isFetchingNextPage && covered < onePerIssueOf.length) {
+      void fetchNextPage();
+    }
+  }, [onePerIssueOf, hasNextPage, isFetchingNextPage, covered, fetchNextPage]);
 
   const today = todayIso(tz);
   const dayLabel = (day: string) => {
@@ -255,8 +276,12 @@ function FeedBody({
           </div>
         </div>
       ))}
-      {hasNextPage && (
+      {hasNextPage && !onePerIssue && (
         <InfiniteScrollSentinel
+          // Re-created per loaded page: when hidden earlier moves leave too
+          // few rows to fill the list, it is still in view after a page lands
+          // and fires again, instead of waiting for a scroll that cannot come.
+          key={entries?.length ?? 0}
           onVisible={() => {
             if (!isFetchingNextPage) void fetchNextPage();
           }}
