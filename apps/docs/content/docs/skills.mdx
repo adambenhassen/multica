@@ -97,7 +97,7 @@ multica project skill add <project-id> --skill-ids <skill-id>
 
 - Project skills are added to the running agent's own skills; a skill attached to both is delivered once.
 - They apply to every run tied to the project: its issues, chats and autopilots set to it, and quick-create tasks that pick it.
-- Each project skill has an audience: **All agents** (the default), or only selected agents and agent labels. Change it from the skill's row on the project page or with `multica project skill audience`. A restricted skill whose agents and labels are all removed reaches no agent. Once a label is used by an audience, only owners and admins can add it to an agent.
+- Each project skill has an audience: **All agents** (the default), only selected agents and agent labels, or all agents except selected ones. Change it from the skill's row on the project page or with `multica project skill audience`. A restricted skill whose agents and labels are all removed reaches no agent; an exclusion whose agents and labels are all removed reaches every agent. Once a label is used by an audience, only owners and admins can add it to an agent or remove it from one.
 - If an agent has the skill attached but disabled, it stays off for that agent even inside the project.
 - Only workspace `owner`s and `admin`s can attach or remove project skills, because they reach every agent in the project. Agents cannot change project skills, even when they run for an admin.
 - Edits take effect from subsequent runs.

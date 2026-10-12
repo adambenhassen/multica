@@ -140,12 +140,15 @@ export interface ListProjectResourcesResponse {
 }
 
 /**
- * Which agents a project skill / MCP server reaches. Unrestricted reaches every
- * agent in the project; restricted reaches only the listed agents and agents
- * carrying a listed agent label (nobody when both lists are empty).
+ * Which agents a project skill / MCP server reaches. By default every agent in
+ * the project; restricted reaches only the listed agents and agents carrying a
+ * listed agent label (nobody when both lists are empty); excluded reaches every
+ * agent except those (everyone when both lists are empty). At most one of
+ * `restricted` and `excluded` is set.
  */
 export interface ProjectAttachmentAudience {
   restricted: boolean;
+  excluded: boolean;
   agent_ids: string[];
   label_ids: string[];
 }

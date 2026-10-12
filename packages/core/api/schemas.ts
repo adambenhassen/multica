@@ -3541,6 +3541,8 @@ export const WorkspaceMcpServerListSchema = z.array(WorkspaceMcpServerSchema);
 // to undefined (older servers had none, which meant every agent).
 export const ProjectAttachmentAudienceSchema = z.object({
   restricted: z.boolean().default(false),
+  // Servers that predate exclusions omit it.
+  excluded: z.boolean().default(false),
   agent_ids: z.array(z.string()).catch([]),
   label_ids: z.array(z.string()).catch([]),
 });
