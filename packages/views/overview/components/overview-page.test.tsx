@@ -24,7 +24,11 @@ vi.mock("@multica/core/workspace/hooks", () => ({
     getActorName: (_type: string, id: string) => (id === "agent-1" ? "Builder" : "Unknown"),
   }),
 }));
-vi.mock("../../common/actor-avatar", () => ({ ActorAvatar: () => <span /> }));
+vi.mock("../../common/actor-avatar", () => ({
+  ActorAvatar: ({ enableHoverCard }: { enableHoverCard?: boolean }) => (
+    <span data-testid="avatar" data-hover-card={enableHoverCard ? "on" : "off"} />
+  ),
+}));
 vi.mock("../../common/use-viewing-timezone", () => ({ useViewingTimezone: () => "UTC" }));
 
 import { useOverviewLayoutStore } from "@multica/core/overview";
@@ -225,7 +229,9 @@ describe("OverviewPage", () => {
     const comment = (await within(activity).findByText(/commented: “Looks good, merging @Ada”/)).closest("a")!;
     expect(comment.getAttribute("href")).toBe("/acme/issues/issue-1#comment-c-1");
     expect(within(comment).getByText("MUL-1")).toBeTruthy();
-    expect(within(activity).getByText("marked it Done")).toBeTruthy();
+    // A status change shows the move itself rather than a sentence.
+    expect(within(activity).getByLabelText("→")).toBeTruthy();
+    expect(within(activity).queryByText("marked it Done")).toBeNull();
     expect(within(activity).getByText("Today")).toBeTruthy();
     expect(within(activity).queryByRole("button", { name: "Status changes" })).toBeNull();
 
@@ -249,6 +255,15 @@ describe("OverviewPage", () => {
       listWorkspaceActivity: () =>
         Promise.resolve({
           entries: [
+            {
+              type: "comment",
+              id: "c-1",
+              actor_type: "agent",
+              actor_id: "agent-1",
+              created_at: now,
+              content: "Waiting for green CI",
+              issue: { id: "issue-2", identifier: "MUL-2", title: "Fix the reconnect", status: "in_review" },
+            },
             {
               type: "activity",
               id: "a-1",
@@ -275,7 +290,15 @@ describe("OverviewPage", () => {
     expect(toggle.getAttribute("aria-pressed")).toBe("true");
     expect(useOverviewLayoutStore.getState().compact).toBe(true);
     expect(row().querySelector(".flex-col")).toBeNull();
-    expect(within(row()).getByText("marked it Done")).toBeTruthy();
+    // The move as icons, then the avatar; names stay for screen readers.
+    expect(within(row()).getByLabelText("→")).toBeTruthy();
+    expect(within(row()).getByText("Done").className).toContain("sr-only");
+    expect(within(row()).getByText("Builder").className).toContain("sr-only");
+    // Hover shows what compact rows hide: the full title and who acted.
+    expect(within(row()).getByText("Ship the dashboard").getAttribute("title")).toBe("Ship the dashboard");
+    expect(within(row()).getByTestId("avatar").dataset.hoverCard).toBe("on");
+    const comment = within(activity).getByText("Fix the reconnect").closest("a")!;
+    expect(within(comment).queryByText(/Waiting for green CI/)).toBeNull();
     useOverviewLayoutStore.setState({ compact: false });
   });
 
