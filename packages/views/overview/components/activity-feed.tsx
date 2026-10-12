@@ -1,15 +1,20 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
-import { Activity, ArrowRight, CirclePlus, CircleX, MessageSquare, Pencil, UserRound } from "lucide-react";
+import { memo, useMemo, useState, type ReactNode } from "react";
+import { Activity, ArrowRight, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, UserRound } from "lucide-react";
 import { useInfiniteQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
-import type { WorkspaceActivityEntry, WorkspaceActivityKind } from "@multica/core/types";
+import type {
+  WorkspaceActivityEntry,
+  WorkspaceActivityIssueRef,
+  WorkspaceActivityKind,
+} from "@multica/core/types";
 import { cn } from "@multica/ui/lib/utils";
+import { Button } from "@multica/ui/components/ui/button";
 import { AppLink } from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
@@ -35,15 +40,26 @@ const FEED_KINDS = ["all", "comments", "failures"] as const satisfies readonly W
 type FeedKind = (typeof FEED_KINDS)[number];
 
 /**
+ * The issue both feeds point at, owned by the page: the hovered issue's rows
+ * are tinted, and `issue` narrows both feeds to one issue's history.
+ */
+export interface FeedFocus {
+  hoveredIssueId: string | null;
+  onHoverIssue: (issueId: string | null) => void;
+  issue: WorkspaceActivityIssueRef | null;
+  onFilterIssue: (issue: WorkspaceActivityIssueRef) => void;
+}
+
+/**
  * What is happening across the workspace, issue first: each row names the
  * issue, then who did what to it in plain words. Run completions and other
  * machine bookkeeping are filtered out server-side.
  */
-export function ActivityFeed() {
+export function ActivityFeed({ focus }: { focus: FeedFocus }) {
   const { t } = useT("overview");
   const wsId = useWorkspaceId();
   const [kind, setKind] = useState<FeedKind>("all");
-  const query = useInfiniteQuery(workspaceActivityOptions(wsId, kind));
+  const query = useInfiniteQuery(workspaceActivityOptions(wsId, kind, [], focus.issue?.id ?? null));
   const kindLabels: Record<FeedKind, string> = {
     all: t(($) => $.activity.filters.all),
     comments: t(($) => $.activity.filters.comments),
@@ -66,6 +82,7 @@ export function ActivityFeed() {
       </SectionHeading>
       <FeedBody
         query={query}
+        focus={focus}
         transitionOnly={false}
         empty={kind === "all" ? t(($) => $.activity.empty) : t(($) => $.activity.empty_filtered)}
       />
@@ -77,7 +94,7 @@ export function ActivityFeed() {
  * Every status change across the workspace, newest first, each shown as the
  * move itself. The tabs narrow it by the status a change went into.
  */
-export function StatusChangesFeed() {
+export function StatusChangesFeed({ focus }: { focus: FeedFocus }) {
   const { t } = useT("overview");
   const wsId = useWorkspaceId();
   const catalog = useIssueStatuses(wsId);
@@ -85,7 +102,7 @@ export function StatusChangesFeed() {
   // Custom statuses come from the catalog, so a category tab waits for it.
   const targets = useMemo(() => statusChangeTargets(filter, catalog), [filter, catalog]);
   const query = useInfiniteQuery({
-    ...workspaceActivityOptions(wsId, "status", targets ?? []),
+    ...workspaceActivityOptions(wsId, "status", targets ?? [], focus.issue?.id ?? null),
     enabled: targets !== null,
   });
   const filterLabels: Record<StatusChangeFilter, string> = {
@@ -112,6 +129,7 @@ export function StatusChangesFeed() {
       </SectionHeading>
       <FeedBody
         query={query}
+        focus={focus}
         transitionOnly
         empty={
           filter === "all" ? t(($) => $.status_changes.empty) : t(($) => $.status_changes.empty_filtered)
@@ -124,10 +142,12 @@ export function StatusChangesFeed() {
 /** A paged feed grouped under day headings, with its loading, error and empty states. */
 function FeedBody({
   query,
+  focus,
   transitionOnly,
   empty,
 }: {
   query: UseInfiniteQueryResult<WorkspaceActivityEntry[]>;
+  focus: FeedFocus;
   transitionOnly: boolean;
   empty: string;
 }) {
@@ -162,7 +182,16 @@ function FeedBody({
           </div>
           <div className="divide-y">
             {group.entries.map((entry) => (
-              <FeedRow key={entry.id} entry={entry} transitionOnly={transitionOnly} compact={compact} />
+              <FeedRow
+                key={entry.id}
+                entry={entry}
+                transitionOnly={transitionOnly}
+                compact={compact}
+                // Filtered to one issue, every row is that issue: no tint, no filter button.
+                highlighted={!focus.issue && focus.hoveredIssueId === entry.issue.id}
+                onHoverIssue={focus.onHoverIssue}
+                onFilterIssue={focus.issue ? undefined : focus.onFilterIssue}
+              />
             ))}
           </div>
         </div>
@@ -184,14 +213,22 @@ function FeedBody({
  * change, so its second line shows the move itself ("In Review → Todo") and
  * who made it, instead of a sentence. `compact` puts the whole row on one line.
  */
-function FeedRow({
+const FeedRow = memo(function FeedRow({
   entry,
   transitionOnly,
   compact,
+  highlighted,
+  onHoverIssue,
+  onFilterIssue,
 }: {
   entry: WorkspaceActivityEntry;
   transitionOnly: boolean;
   compact: boolean;
+  /** Another row of the same issue is hovered. */
+  highlighted: boolean;
+  onHoverIssue: (issueId: string | null) => void;
+  /** Absent while the feeds are already filtered to one issue. */
+  onFilterIssue?: (issue: WorkspaceActivityIssueRef) => void;
 }) {
   const { t } = useT("overview");
   const { t: tIssues } = useT("issues");
@@ -296,13 +333,14 @@ function FeedRow({
   // and the action's sentence stay for screen readers only. Sized by the list's
   // width (it is the query container): a very narrow list drops the detail so
   // the title stays readable.
-  if (compact) {
-    return (
-      <AppLink
-        href={href}
-        className="flex min-w-0 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/50"
-      >
-        <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center">
+  // The filter button takes the time's place while the row is hovered.
+  const timeClass = cn(
+    "shrink-0 text-caption text-muted-foreground",
+    onFilterIssue && "group-hover:invisible group-focus-within:invisible",
+  );
+  const link = compact ? (
+      <AppLink href={href} className="flex min-w-0 items-center gap-3 px-4 py-2">
+        <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center" title={phrase}>
           {lead}
         </span>
         <span className="shrink-0 font-mono text-caption text-muted-foreground">{entry.issue.identifier}</span>
@@ -320,19 +358,11 @@ function FeedRow({
             <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
           )}
         </span>
-        <span className="w-16 shrink-0 text-right text-caption text-muted-foreground">
-          {timeAgo(entry.created_at)}
-        </span>
+        <span className={cn("w-16 text-right", timeClass)}>{timeAgo(entry.created_at)}</span>
       </AppLink>
-    );
-  }
-
-  return (
-    <AppLink
-      href={href}
-      className="flex min-w-0 items-start gap-3 px-4 py-2.5 transition-colors hover:bg-accent/50"
-    >
-      <span aria-hidden="true" className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
+  ) : (
+    <AppLink href={href} className="flex min-w-0 items-start gap-3 px-4 py-2.5">
+      <span aria-hidden="true" className="mt-0.5 flex size-4 shrink-0 items-center justify-center" title={phrase}>
         {lead}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -343,9 +373,7 @@ function FeedRow({
           <span className="min-w-0 truncate" title={entry.issue.title}>
             {entry.issue.title}
           </span>
-          <span className="ml-auto shrink-0 pl-2 text-caption text-muted-foreground">
-            {timeAgo(entry.created_at)}
-          </span>
+          <span className={cn("ml-auto pl-2", timeClass)}>{timeAgo(entry.created_at)}</span>
         </span>
         <span className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
           {transition ? (
@@ -363,18 +391,52 @@ function FeedRow({
       </span>
     </AppLink>
   );
-}
+
+  // Hovering (or focusing) a row tints every row of its issue in both feeds,
+  // so its history reads at a glance; clicking still opens the issue.
+  return (
+    <div
+      className={cn(
+        "group relative transition-colors hover:bg-accent/50",
+        highlighted && "bg-brand/10 hover:bg-brand/15",
+      )}
+      onMouseEnter={() => onHoverIssue(entry.issue.id)}
+      onMouseLeave={() => onHoverIssue(null)}
+      onFocus={() => onHoverIssue(entry.issue.id)}
+      onBlur={() => onHoverIssue(null)}
+    >
+      {link}
+      {onFilterIssue && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={t(($) => $.issue_filter.filter)}
+          title={t(($) => $.issue_filter.filter)}
+          className={cn(
+            "absolute right-3 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+            // Centered without a transform: Button's pressed state sets its own
+            // translate, which would drop the button out from under the pointer.
+            compact ? "inset-y-0 my-auto" : "top-2",
+          )}
+          onClick={() => onFilterIssue(entry.issue)}
+        >
+          <ListFilter aria-hidden="true" />
+        </Button>
+      )}
+    </div>
+  );
+});
 
 /**
  * A status as its icon and name, resolved through the workspace catalog.
- * `iconOnly` keeps the name for screen readers only.
+ * `iconOnly` keeps the name for screen readers and the hover tooltip.
  */
 function StatusChip({ statusKey, iconOnly = false }: { statusKey: string; iconOnly?: boolean }) {
   const wsId = useWorkspaceId();
   const catalog = useIssueStatuses(wsId);
   const label = catalog.labelOf(statusKey);
   return (
-    <span className={cn("flex min-w-0 items-center gap-1", iconOnly && "shrink-0")}>
+    <span className={cn("flex min-w-0 items-center gap-1", iconOnly && "shrink-0")} title={iconOnly ? label : undefined}>
       <StatusIcon
         status={statusKey}
         category={catalog.categoryOf(statusKey)}

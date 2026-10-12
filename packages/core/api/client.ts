@@ -1740,13 +1740,21 @@ export class ApiClient {
 
   // Newest issue activity across the current workspace, for the Dashboard.
   async listWorkspaceActivity(
-    params: { limit?: number; kind?: WorkspaceActivityKind; to?: readonly string[]; before?: string } = {},
+    params: {
+      limit?: number;
+      kind?: WorkspaceActivityKind;
+      to?: readonly string[];
+      issue?: string;
+      before?: string;
+    } = {},
   ): Promise<WorkspaceActivityResponse> {
     const search = new URLSearchParams();
     if (params.limit !== undefined) search.set("limit", String(params.limit));
     if (params.kind && params.kind !== "all") search.set("kind", params.kind);
     // Status keys the changes went into; the server takes it with kind=status only.
     if (params.to?.length) search.set("to", params.to.join(","));
+    // One issue's history (the issue's UUID).
+    if (params.issue) search.set("issue", params.issue);
     if (params.before) search.set("before", params.before);
     const qs = search.toString();
     const raw = await this.fetch<unknown>(`/api/activity${qs ? `?${qs}` : ""}`);

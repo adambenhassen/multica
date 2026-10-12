@@ -60,6 +60,11 @@
       "cancelled": "已取消"
     }
   },
+  "issue_filter": {
+    "label": "已筛选",
+    "filter": "仅显示此任务",
+    "clear": "清除任务筛选"
+  },
   "customize": {
     "button": "自定义",
     "label": "在仪表盘中显示",

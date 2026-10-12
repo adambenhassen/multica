@@ -60,6 +60,11 @@
       "cancelled": "Annulé"
     }
   },
+  "issue_filter": {
+    "label": "Filtré sur",
+    "filter": "Afficher uniquement cette tâche",
+    "clear": "Retirer le filtre de tâche"
+  },
   "customize": {
     "button": "Personnaliser",
     "label": "Afficher sur le tableau de bord",
