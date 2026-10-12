@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -53,6 +54,10 @@ var workspaceActivityKinds = map[string]bool{
 // maxWorkspaceActivityToStatuses caps the `to` filter; a workspace catalog
 // holds far fewer statuses than this.
 const maxWorkspaceActivityToStatuses = 100
+
+// maxWorkspaceActivityIssues caps the `issue` filter (the Active tab sends the
+// issues agents are working on right now).
+const maxWorkspaceActivityIssues = 200
 
 // WorkspaceActivityIssueRef names the issue an activity entry belongs to, so
 // the feed renders without a per-row issue fetch.
@@ -162,13 +167,21 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 		excludedActions = append(slices.Clone(workspaceActivityExcludedActions), "status_changed", "created")
 	}
 
-	// `issue` narrows the feed to one issue's history, `project` to one
-	// project's issues.
-	var issueID, projectID pgtype.UUID
+	// `issue` (one id, or several comma-separated) narrows the feed to those
+	// issues' history, `project` to one project's issues.
+	issueIDs := []pgtype.UUID{}
+	var projectID pgtype.UUID
 	if raw := r.URL.Query().Get("issue"); raw != "" {
-		var ok bool
-		if issueID, ok = parseUUIDOrBadRequest(w, raw, "issue"); !ok {
+		ids, ok := parseUUIDParamList(w, raw, "issue")
+		if !ok {
 			return
+		}
+		if len(ids) > maxWorkspaceActivityIssues {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("issue accepts at most %d ids", maxWorkspaceActivityIssues))
+			return
+		}
+		if ids != nil {
+			issueIDs = ids
 		}
 	}
 	if raw := r.URL.Query().Get("project"); raw != "" {
@@ -187,7 +200,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 			ExcludedActions: excludedActions,
 			OnlyActions:     onlyActions,
 			ToStatuses:      toStatuses,
-			IssueID:         issueID,
+			IssueIds:        issueIDs,
 			ProjectID:       projectID,
 			BeforeAt:        beforeAt,
 			BeforeID:        beforeID,
@@ -204,7 +217,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 		rows, err := h.Queries.ListRecentWorkspaceComments(ctx, db.ListRecentWorkspaceCommentsParams{
 			WorkspaceID:   wsUUID,
 			ExcerptLength: workspaceActivityExcerptLength,
-			IssueID:       issueID,
+			IssueIds:      issueIDs,
 			ProjectID:     projectID,
 			BeforeAt:      beforeAt,
 			BeforeID:      beforeID,

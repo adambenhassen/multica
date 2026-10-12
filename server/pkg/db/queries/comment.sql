@@ -866,7 +866,7 @@ FOR UPDATE OF c;
 -- Only an excerpt of the content is returned: the feed shows one line of it.
 -- The literal type / deleted_at predicates let idx_comment_workspace_recent
 -- (migration 582) serve the ORDER BY without a sort step. @issue_id, when set,
--- keeps one issue's comments; @project_id, one project's.
+-- keeps those issues' comments (when not empty); @project_id, one project's.
 SELECT c.id, c.issue_id, c.author_type, c.author_id, c.parent_id, c.created_at,
        LEFT(c.content, @excerpt_length::int)::text AS excerpt,
        i.number AS issue_number, i.title AS issue_title, i.status AS issue_status,
@@ -876,7 +876,7 @@ JOIN issue i ON i.id = c.issue_id AND i.workspace_id = c.workspace_id
 WHERE c.workspace_id = @workspace_id
   AND c.type = 'comment'
   AND c.deleted_at IS NULL
-  AND (sqlc.narg('issue_id')::uuid IS NULL OR c.issue_id = sqlc.narg('issue_id')::uuid)
+  AND (cardinality(@issue_ids::uuid[]) = 0 OR c.issue_id = ANY(@issue_ids::uuid[]))
   AND (sqlc.narg('project_id')::uuid IS NULL OR i.project_id = sqlc.narg('project_id')::uuid)
   AND (sqlc.narg('before_at')::timestamptz IS NULL
        OR (c.created_at, c.id) < (sqlc.narg('before_at')::timestamptz, sqlc.narg('before_id')::uuid))

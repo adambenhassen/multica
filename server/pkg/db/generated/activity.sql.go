@@ -312,7 +312,7 @@ WHERE a.workspace_id = $1
   AND NOT (a.action = ANY($2::text[]))
   AND (cardinality($3::text[]) = 0 OR a.action = ANY($3::text[]))
   AND (cardinality($4::text[]) = 0 OR a.details->>'to' = ANY($4::text[]))
-  AND ($5::uuid IS NULL OR a.issue_id = $5::uuid)
+  AND (cardinality($5::uuid[]) = 0 OR a.issue_id = ANY($5::uuid[]))
   AND ($6::uuid IS NULL OR i.project_id = $6::uuid)
   AND ($7::timestamptz IS NULL
        OR (a.created_at, a.id) < ($7::timestamptz, $8::uuid))
@@ -325,7 +325,7 @@ type ListRecentWorkspaceActivitiesParams struct {
 	ExcludedActions []string           `json:"excluded_actions"`
 	OnlyActions     []string           `json:"only_actions"`
 	ToStatuses      []string           `json:"to_statuses"`
-	IssueID         pgtype.UUID        `json:"issue_id"`
+	IssueIds        []pgtype.UUID      `json:"issue_ids"`
 	ProjectID       pgtype.UUID        `json:"project_id"`
 	BeforeAt        pgtype.Timestamptz `json:"before_at"`
 	BeforeID        pgtype.UUID        `json:"before_id"`
@@ -353,14 +353,15 @@ type ListRecentWorkspaceActivitiesRow struct {
 // `issue_id IS NOT NULL` predicate lets idx_activity_log_workspace_recent
 // (migration 581) serve the ORDER BY without a sort step. @to_statuses keeps
 // only rows whose details `to` is one of the keys (status changes into them);
-// @issue_id, when set, keeps one issue's rows; @project_id, one project's.
+// @issue_ids, when not empty, keeps those issues' rows; @project_id, one
+// project's.
 func (q *Queries) ListRecentWorkspaceActivities(ctx context.Context, arg ListRecentWorkspaceActivitiesParams) ([]ListRecentWorkspaceActivitiesRow, error) {
 	rows, err := q.db.Query(ctx, listRecentWorkspaceActivities,
 		arg.WorkspaceID,
 		arg.ExcludedActions,
 		arg.OnlyActions,
 		arg.ToStatuses,
-		arg.IssueID,
+		arg.IssueIds,
 		arg.ProjectID,
 		arg.BeforeAt,
 		arg.BeforeID,
