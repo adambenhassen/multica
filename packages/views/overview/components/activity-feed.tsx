@@ -256,37 +256,46 @@ function FeedRow({
       avatarUrl={entry.actor_avatar_url}
       size="xs"
       profileLink={false}
+      // Compact rows hide the name, so hovering the avatar shows who it is.
+      enableHoverCard={compact}
     />
   );
-  const transition = transitionOnly && entry.action === "status_changed" && details.to;
-  const move = transition && (
+  // A status change reads as the move itself ("In Review → Done") in both feeds.
+  const isMove = entry.action === "status_changed" && !!details.to;
+  const transition = transitionOnly && isMove;
+  const move = isMove && (
     <>
       {details.from && (
         <>
-          <StatusChip statusKey={details.from} compact={compact} />
+          <StatusChip statusKey={details.from} iconOnly={compact} />
           <ArrowRight aria-label="→" className="size-3 shrink-0" />
         </>
       )}
-      <StatusChip statusKey={details.to!} compact={compact} />
+      <StatusChip statusKey={details.to!} iconOnly={compact} />
     </>
   );
   const sentence = (
     <>
       {avatar}
       <span className="shrink-0 font-medium text-foreground">{actorName}</span>
-      <span className="min-w-0 truncate">
-        {excerpt ? t(($) => $.activity.with_excerpt, { phrase, excerpt }) : phrase}
-      </span>
+      {isMove ? (
+        <span className="flex min-w-0 items-center gap-1.5">{move}</span>
+      ) : (
+        <span className="min-w-0 truncate">
+          {excerpt ? t(($) => $.activity.with_excerpt, { phrase, excerpt }) : phrase}
+        </span>
+      )}
       {(entry.coalesced_count ?? 1) > 1 && (
         <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
       )}
     </>
   );
 
-  // Compact: issue, then what happened, then when, all on one line. Sized by
-  // the list's width (it is the query container): the actor's name in a move
-  // needs a wide list, and a narrow one drops the detail so the title stays
-  // readable.
+  // Compact, the same in both feeds: issue, then the move as icons and the
+  // actor's avatar, then when, all on one line. Status names, the actor's name
+  // and the action's sentence stay for screen readers only. Sized by the list's
+  // width (it is the query container): a very narrow list drops the detail so
+  // the title stays readable.
   if (compact) {
     return (
       <AppLink
@@ -297,18 +306,18 @@ function FeedRow({
           {lead}
         </span>
         <span className="shrink-0 font-mono text-caption text-muted-foreground">{entry.issue.identifier}</span>
-        <span className="min-w-32 flex-1 truncate text-label">{entry.issue.title}</span>
-        <span className="hidden min-w-0 max-w-1/2 items-center gap-1.5 text-caption text-muted-foreground @md:flex">
-          {transition ? (
-            <>
-              {move}
-              <span className="flex min-w-0 items-center gap-1.5 pl-1.5">
-                {avatar}
-                <span className="hidden truncate font-medium text-foreground @2xl:inline">{actorName}</span>
-              </span>
-            </>
-          ) : (
-            sentence
+        <span className="min-w-32 flex-1 truncate text-label" title={entry.issue.title}>
+          {entry.issue.title}
+        </span>
+        <span className="hidden shrink-0 items-center gap-1.5 text-caption text-muted-foreground @sm:flex">
+          {move}
+          <span className={cn("flex shrink-0 items-center", isMove && "pl-1.5")}>
+            {avatar}
+            <span className="sr-only">{actorName}</span>
+          </span>
+          {!isMove && <span className="sr-only">{phrase}</span>}
+          {(entry.coalesced_count ?? 1) > 1 && (
+            <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
           )}
         </span>
         <span className="w-16 shrink-0 text-right text-caption text-muted-foreground">
@@ -331,7 +340,9 @@ function FeedRow({
           <span className="shrink-0 font-mono text-caption text-muted-foreground">
             {entry.issue.identifier}
           </span>
-          <span className="min-w-0 truncate">{entry.issue.title}</span>
+          <span className="min-w-0 truncate" title={entry.issue.title}>
+            {entry.issue.title}
+          </span>
           <span className="ml-auto shrink-0 pl-2 text-caption text-muted-foreground">
             {timeAgo(entry.created_at)}
           </span>
@@ -356,15 +367,14 @@ function FeedRow({
 
 /**
  * A status as its icon and name, resolved through the workspace catalog.
- * `compact` shows the name only in a list wide enough for it; screen readers
- * always get it.
+ * `iconOnly` keeps the name for screen readers only.
  */
-function StatusChip({ statusKey, compact = false }: { statusKey: string; compact?: boolean }) {
+function StatusChip({ statusKey, iconOnly = false }: { statusKey: string; iconOnly?: boolean }) {
   const wsId = useWorkspaceId();
   const catalog = useIssueStatuses(wsId);
   const label = catalog.labelOf(statusKey);
   return (
-    <span className={cn("flex min-w-0 items-center gap-1", compact && "shrink-0 @lg:shrink")}>
+    <span className={cn("flex min-w-0 items-center gap-1", iconOnly && "shrink-0")}>
       <StatusIcon
         status={statusKey}
         category={catalog.categoryOf(statusKey)}
@@ -372,8 +382,7 @@ function StatusChip({ statusKey, compact = false }: { statusKey: string; compact
         icon={catalog.iconOf(statusKey)}
         className="size-3.5 shrink-0"
       />
-      {compact && <span className="sr-only @lg:hidden">{label}</span>}
-      <span className={cn("truncate text-foreground", compact && "hidden @lg:inline")}>{label}</span>
+      <span className={iconOnly ? "sr-only" : "truncate text-foreground"}>{label}</span>
     </span>
   );
 }
