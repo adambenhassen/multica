@@ -139,6 +139,12 @@ func TestListWorkspaceActivityMergesCommentsAndFiltersByKind(t *testing.T) {
 	if got := ids(read("?kind=status")); !slices.Equal(got, []string{status}) {
 		t.Fatalf("kind=status = %v", got)
 	}
+	if got := ids(read("?kind=status_comments")); !slices.Equal(got, []string{comment, status}) {
+		t.Fatalf("kind=status_comments = %v, want the comment and the status change, not the assignment", got)
+	}
+	if got := ids(read("?kind=other")); !slices.Equal(got, []string{assigned}) {
+		t.Fatalf("kind=other = %v, want only the assignment", got)
+	}
 	if got := ids(read("?kind=all&limit=2")); !slices.Equal(got, []string{comment, assigned}) {
 		t.Fatalf("limit=2 = %v", got)
 	}
