@@ -61,20 +61,24 @@ afterEach(() => {
 });
 
 describe("OverviewPage", () => {
-  it("shows empty states when the workspace has no runs, activity or status changes", async () => {
+  it("shows only the two feeds, with empty states when there is no activity", async () => {
     apiRef.current = {
-      getAgentTaskSnapshot: () => Promise.resolve([]),
       listWorkspaceActivity: () => Promise.resolve({ entries: [] }),
     };
     renderPage();
 
-    expect(screen.getByRole("heading", { name: "Dashboard" })).toBeTruthy();
-    expect(await screen.findByText("No recent agent runs")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Activity" })).toBeTruthy();
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "Recent activity",
+      "Status changes",
+    ]);
+    // Side by side, a handle between them resizes the split.
+    expect(screen.getByRole("separator")).toBeTruthy();
     expect(await screen.findByText("No activity yet")).toBeTruthy();
     expect(await screen.findByText("No status changes yet")).toBeTruthy();
   });
 
-  it("links activity rows and metric cards to their pages", async () => {
+  it("links activity rows to their issues", async () => {
     apiRef.current = {
       listWorkspaceActivity: ((params: { kind?: string }) =>
         Promise.resolve({
@@ -90,22 +94,6 @@ describe("OverviewPage", () => {
             },
           ],
         })) as () => Promise<unknown>,
-      listIssueTableFacets: () =>
-        Promise.resolve({
-          query_fingerprint: "",
-          total: 0,
-          facets: [
-            {
-              kind: "status",
-              values: [
-                { key: "todo", count: 4 },
-                { key: "in_progress", count: 3 },
-                { key: "in_review", count: 2 },
-                { key: "blocked", count: 1 },
-              ],
-            },
-          ],
-        }),
     };
     renderPage();
 
@@ -113,16 +101,8 @@ describe("OverviewPage", () => {
     expect(row?.getAttribute("href")).toBe("/acme/issues/issue-1");
     expect(within(row!).getByText("Builder")).toBeTruthy();
     expect(within(row!).getByText("MUL-1")).toBeTruthy();
-
-    const issuesCard = screen.getByText("Issues in progress").closest("a")!;
-    expect(issuesCard.getAttribute("href")).toBe("/acme/issues");
-    expect(await within(issuesCard).findByText("5")).toBeTruthy();
-    expect(within(issuesCard).getByText("4 to do · 1 blocked")).toBeTruthy();
-
-    expect(screen.getByText("Agents online").closest("a")?.getAttribute("href")).toBe("/acme/agents");
-    expect(screen.getByText("Spend · 30d").closest("a")?.getAttribute("href")).toBe("/acme/usage");
-    expect(screen.getByText("Unread in inbox").closest("a")?.getAttribute("href")).toBe("/acme/inbox");
   });
+
   it("reports a failed section instead of showing it as empty, and retries it", async () => {
     let activityCalls = 0;
     apiRef.current = {
@@ -132,16 +112,12 @@ describe("OverviewPage", () => {
           ? Promise.reject(new Error("404"))
           : Promise.resolve({ entries: [] });
       },
-      getDashboardUsageDaily: () => Promise.reject(new Error("500")),
     };
     renderPage();
 
     const activity = screen.getByRole("heading", { name: "Recent activity" }).closest("section")!;
     expect(await within(activity).findByText("Couldn't load")).toBeTruthy();
     expect(within(activity).queryByText("No activity yet")).toBeNull();
-    const spendCard = screen.getByText("Spend · 30d").closest("a")!;
-    expect(await within(spendCard).findByText("—")).toBeTruthy();
-    expect(within(spendCard).queryByText(/\$0/)).toBeNull();
 
     fireEvent.click(within(activity).getByRole("button", { name: "Try again" }));
     expect(await within(activity).findByText("No activity yet")).toBeTruthy();
@@ -394,11 +370,11 @@ describe("OverviewPage", () => {
   });
 
   it("hides a section chosen in Customize", async () => {
-    useOverviewLayoutStore.setState({ hidden: ["run_activity", "success_rate"] });
+    useOverviewLayoutStore.setState({ hidden: ["status_changes"] });
     renderPage();
-    expect(screen.queryByText("Run activity")).toBeNull();
-    expect(screen.queryByText("Success rate")).toBeNull();
+    expect(screen.queryByText("Status changes")).toBeNull();
     expect(screen.getByText("Recent activity")).toBeTruthy();
+    expect(screen.queryByRole("separator")).toBeNull();
     useOverviewLayoutStore.setState({ hidden: [] });
   });
 });

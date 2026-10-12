@@ -1,33 +1,8 @@
 {
-  "title": "ダッシュボード",
+  "title": "アクティビティ",
   "load_failed": "読み込めませんでした",
   "retry": "再試行",
   "project_labels": "プロジェクト名",
-  "agents": {
-    "heading": "エージェント",
-    "view_all": "すべて表示",
-    "empty": "最近の実行はありません",
-    "no_issue": "紐づくタスクなし",
-    "started_ago": "{{time}}に開始",
-    "finished_ago": "{{time}}に完了",
-    "queued_ago": "{{time}}にキュー追加"
-  },
-  "metrics": {
-    "agents_online": "オンラインのエージェント",
-    "agents_desc": "作業中 {{working}} · キュー {{queued}} · オフライン {{offline}}",
-    "issues_in_progress": "進行中のタスク",
-    "issues_desc": "未着手 {{todo}} · ブロック中 {{blocked}}",
-    "spend": "コスト · 30日",
-    "spend_desc": "トークン使用量からの推定",
-    "inbox": "インボックスの未読"
-  },
-  "charts": {
-    "last_14_days": "過去14日間",
-    "run_activity": "実行アクティビティ",
-    "success_rate": "成功率",
-    "no_runs": "まだ実行はありません",
-    "rate_tooltip": "成功率 {{rate}}%"
-  },
   "activity": {
     "heading": "最近のアクティビティ",
     "empty": "アクティビティはまだありません",
@@ -68,7 +43,6 @@
   "customize": {
     "button": "カスタマイズ",
     "label": "ダッシュボードに表示",
-    "metrics": "指標",
     "show_all": "すべて表示",
     "all_hidden": "すべてのセクションが非表示です"
   }

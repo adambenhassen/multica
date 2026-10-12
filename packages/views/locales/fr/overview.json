@@ -1,33 +1,8 @@
 {
-  "title": "Tableau de bord",
+  "title": "Activité",
   "load_failed": "Chargement impossible",
   "retry": "Réessayer",
   "project_labels": "Libellés de projet",
-  "agents": {
-    "heading": "Agents",
-    "view_all": "Tout voir",
-    "empty": "Aucune exécution récente",
-    "no_issue": "Aucune tâche liée",
-    "started_ago": "Démarré {{time}}",
-    "finished_ago": "Terminé {{time}}",
-    "queued_ago": "En file {{time}}"
-  },
-  "metrics": {
-    "agents_online": "Agents en ligne",
-    "agents_desc": "{{working}} actifs · {{queued}} en file · {{offline}} hors ligne",
-    "issues_in_progress": "Tâches en cours",
-    "issues_desc": "{{todo}} à faire · {{blocked}} bloquées",
-    "spend": "Coût · 30 j",
-    "spend_desc": "Estimé à partir des tokens",
-    "inbox": "Non lus dans la boîte"
-  },
-  "charts": {
-    "last_14_days": "14 derniers jours",
-    "run_activity": "Activité des exécutions",
-    "success_rate": "Taux de réussite",
-    "no_runs": "Aucune exécution",
-    "rate_tooltip": "{{rate}} % réussies"
-  },
   "activity": {
     "heading": "Activité récente",
     "empty": "Aucune activité",
@@ -68,7 +43,6 @@
   "customize": {
     "button": "Personnaliser",
     "label": "Afficher sur le tableau de bord",
-    "metrics": "Indicateurs",
     "show_all": "Tout afficher",
     "all_hidden": "Toutes les sections sont masquées"
   }

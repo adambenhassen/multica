@@ -1,33 +1,8 @@
 {
-  "title": "대시보드",
+  "title": "활동",
   "load_failed": "불러오지 못했습니다",
   "retry": "다시 시도",
   "project_labels": "프로젝트 라벨",
-  "agents": {
-    "heading": "에이전트",
-    "view_all": "모두 보기",
-    "empty": "최근 실행 없음",
-    "no_issue": "연결된 태스크 없음",
-    "started_ago": "{{time}} 시작",
-    "finished_ago": "{{time}} 완료",
-    "queued_ago": "{{time}} 대기열 추가"
-  },
-  "metrics": {
-    "agents_online": "온라인 에이전트",
-    "agents_desc": "작업 중 {{working}} · 대기 {{queued}} · 오프라인 {{offline}}",
-    "issues_in_progress": "진행 중인 태스크",
-    "issues_desc": "할 일 {{todo}} · 막힘 {{blocked}}",
-    "spend": "비용 · 30일",
-    "spend_desc": "토큰 사용량 기준 추정",
-    "inbox": "읽지 않은 인박스"
-  },
-  "charts": {
-    "last_14_days": "최근 14일",
-    "run_activity": "실행 활동",
-    "success_rate": "성공률",
-    "no_runs": "아직 실행 없음",
-    "rate_tooltip": "성공률 {{rate}}%"
-  },
   "activity": {
     "heading": "최근 활동",
     "empty": "아직 활동 없음",
@@ -68,7 +43,6 @@
   "customize": {
     "button": "사용자 지정",
     "label": "대시보드에 표시",
-    "metrics": "지표",
     "show_all": "모두 표시",
     "all_hidden": "모든 섹션이 숨겨져 있습니다"
   }

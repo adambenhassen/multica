@@ -5,14 +5,7 @@ import { createJSONStorage, persist, type StateStorage } from "zustand/middlewar
 import { defaultStorage } from "../platform/storage";
 
 /** Dashboard sections a viewer can hide, in page order. */
-export const OVERVIEW_SECTIONS = [
-  "agents",
-  "metrics",
-  "run_activity",
-  "success_rate",
-  "activity",
-  "status_changes",
-] as const;
+export const OVERVIEW_SECTIONS = ["activity", "status_changes"] as const;
 export type OverviewSection = (typeof OVERVIEW_SECTIONS)[number];
 
 export interface OverviewLayoutState {
