@@ -7,8 +7,9 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
-import { workspaceActivityOptions } from "@multica/core/overview";
+import { useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
 import type { WorkspaceActivityEntry, WorkspaceActivityKind } from "@multica/core/types";
+import { cn } from "@multica/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
@@ -133,6 +134,7 @@ function FeedBody({
   const { t } = useT("overview");
   const locale = useLocale();
   const tz = useViewingTimezone();
+  const compact = useOverviewLayoutStore((s) => s.compact);
   const { data: entries, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = query;
   const groups = useMemo(() => groupFeedByDay(coalesceFeed(entries ?? []), tz), [entries, tz]);
 
@@ -152,7 +154,7 @@ function FeedBody({
   if (isError) return <ErrorBox onRetry={() => void refetch()} />;
   if (groups.length === 0) return <EmptyBox>{empty}</EmptyBox>;
   return (
-    <div className={LIST_CLASS}>
+    <div className={cn(LIST_CLASS, "@container")}>
       {groups.map((group) => (
         <div key={group.day}>
           <div className="sticky top-0 z-10 border-b bg-card px-4 py-1.5 text-micro font-medium uppercase tracking-wide text-muted-foreground">
@@ -160,7 +162,7 @@ function FeedBody({
           </div>
           <div className="divide-y">
             {group.entries.map((entry) => (
-              <FeedRow key={entry.id} entry={entry} transitionOnly={transitionOnly} />
+              <FeedRow key={entry.id} entry={entry} transitionOnly={transitionOnly} compact={compact} />
             ))}
           </div>
         </div>
@@ -180,9 +182,17 @@ function FeedBody({
 /**
  * `transitionOnly` is the Status changes feed: every row there is a status
  * change, so its second line shows the move itself ("In Review → Todo") and
- * who made it, instead of a sentence.
+ * who made it, instead of a sentence. `compact` puts the whole row on one line.
  */
-function FeedRow({ entry, transitionOnly }: { entry: WorkspaceActivityEntry; transitionOnly: boolean }) {
+function FeedRow({
+  entry,
+  transitionOnly,
+  compact,
+}: {
+  entry: WorkspaceActivityEntry;
+  transitionOnly: boolean;
+  compact: boolean;
+}) {
   const { t } = useT("overview");
   const { t: tIssues } = useT("issues");
   const locale = useLocale();
@@ -238,6 +248,76 @@ function FeedRow({ entry, transitionOnly }: { entry: WorkspaceActivityEntry; tra
   }
   const href = paths.issueDetail(entry.issue.id) + (isComment ? `#comment-${entry.id}` : "");
 
+  const avatar = (
+    <ActorAvatar
+      actorType={entry.actor_type}
+      actorId={entry.actor_id}
+      name={entry.actor_name}
+      avatarUrl={entry.actor_avatar_url}
+      size="xs"
+      profileLink={false}
+    />
+  );
+  const transition = transitionOnly && entry.action === "status_changed" && details.to;
+  const move = transition && (
+    <>
+      {details.from && (
+        <>
+          <StatusChip statusKey={details.from} compact={compact} />
+          <ArrowRight aria-label="→" className="size-3 shrink-0" />
+        </>
+      )}
+      <StatusChip statusKey={details.to!} compact={compact} />
+    </>
+  );
+  const sentence = (
+    <>
+      {avatar}
+      <span className="shrink-0 font-medium text-foreground">{actorName}</span>
+      <span className="min-w-0 truncate">
+        {excerpt ? t(($) => $.activity.with_excerpt, { phrase, excerpt }) : phrase}
+      </span>
+      {(entry.coalesced_count ?? 1) > 1 && (
+        <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
+      )}
+    </>
+  );
+
+  // Compact: issue, then what happened, then when, all on one line. Sized by
+  // the list's width (it is the query container): the actor's name in a move
+  // needs a wide list, and a narrow one drops the detail so the title stays
+  // readable.
+  if (compact) {
+    return (
+      <AppLink
+        href={href}
+        className="flex min-w-0 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/50"
+      >
+        <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center">
+          {lead}
+        </span>
+        <span className="shrink-0 font-mono text-caption text-muted-foreground">{entry.issue.identifier}</span>
+        <span className="min-w-32 flex-1 truncate text-label">{entry.issue.title}</span>
+        <span className="hidden min-w-0 max-w-1/2 items-center gap-1.5 text-caption text-muted-foreground @md:flex">
+          {transition ? (
+            <>
+              {move}
+              <span className="flex min-w-0 items-center gap-1.5 pl-1.5">
+                {avatar}
+                <span className="hidden truncate font-medium text-foreground @2xl:inline">{actorName}</span>
+              </span>
+            </>
+          ) : (
+            sentence
+          )}
+        </span>
+        <span className="w-16 shrink-0 text-right text-caption text-muted-foreground">
+          {timeAgo(entry.created_at)}
+        </span>
+      </AppLink>
+    );
+  }
+
   return (
     <AppLink
       href={href}
@@ -256,57 +336,35 @@ function FeedRow({ entry, transitionOnly }: { entry: WorkspaceActivityEntry; tra
             {timeAgo(entry.created_at)}
           </span>
         </span>
-        {transitionOnly && entry.action === "status_changed" && details.to ? (
-          <span className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
-            {details.from && (
-              <>
-                <StatusChip statusKey={details.from} />
-                <ArrowRight aria-label="→" className="size-3 shrink-0" />
-              </>
-            )}
-            <StatusChip statusKey={details.to} />
-            <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
-              <ActorAvatar
-                actorType={entry.actor_type}
-                actorId={entry.actor_id}
-                name={entry.actor_name}
-                avatarUrl={entry.actor_avatar_url}
-                size="xs"
-                profileLink={false}
-              />
-              <span className="font-medium text-foreground">{actorName}</span>
-            </span>
-          </span>
-        ) : (
         <span className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
-          <ActorAvatar
-            actorType={entry.actor_type}
-            actorId={entry.actor_id}
-            name={entry.actor_name}
-            avatarUrl={entry.actor_avatar_url}
-            size="xs"
-            profileLink={false}
-          />
-          <span className="shrink-0 font-medium text-foreground">{actorName}</span>
-          <span className="min-w-0 truncate">
-            {excerpt ? t(($) => $.activity.with_excerpt, { phrase, excerpt }) : phrase}
-          </span>
-          {(entry.coalesced_count ?? 1) > 1 && (
-            <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
+          {transition ? (
+            <>
+              {move}
+              <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
+                {avatar}
+                <span className="font-medium text-foreground">{actorName}</span>
+              </span>
+            </>
+          ) : (
+            sentence
           )}
         </span>
-        )}
       </span>
     </AppLink>
   );
 }
 
-/** A status as its icon and name, resolved through the workspace catalog. */
-function StatusChip({ statusKey }: { statusKey: string }) {
+/**
+ * A status as its icon and name, resolved through the workspace catalog.
+ * `compact` shows the name only in a list wide enough for it; screen readers
+ * always get it.
+ */
+function StatusChip({ statusKey, compact = false }: { statusKey: string; compact?: boolean }) {
   const wsId = useWorkspaceId();
   const catalog = useIssueStatuses(wsId);
+  const label = catalog.labelOf(statusKey);
   return (
-    <span className="flex min-w-0 items-center gap-1">
+    <span className={cn("flex min-w-0 items-center gap-1", compact && "shrink-0 @lg:shrink")}>
       <StatusIcon
         status={statusKey}
         category={catalog.categoryOf(statusKey)}
@@ -314,7 +372,8 @@ function StatusChip({ statusKey }: { statusKey: string }) {
         icon={catalog.iconOf(statusKey)}
         className="size-3.5 shrink-0"
       />
-      <span className="truncate text-foreground">{catalog.labelOf(statusKey)}</span>
+      {compact && <span className="sr-only @lg:hidden">{label}</span>}
+      <span className={cn("truncate text-foreground", compact && "hidden @lg:inline")}>{label}</span>
     </span>
   );
 }

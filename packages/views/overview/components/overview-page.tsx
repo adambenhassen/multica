@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { Bot, CircleDot, DollarSign, Inbox, LayoutDashboard, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { Bot, CircleDot, DollarSign, Inbox, LayoutDashboard, Rows3, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
@@ -81,7 +81,12 @@ export function OverviewPage() {
       <CollectionPageHeader
         icon={LayoutDashboard}
         title={t(($) => $.title)}
-        actions={<CustomizeMenu />}
+        actions={
+          <>
+            <CompactToggle />
+            <CustomizeMenu />
+          </>
+        }
       />
       <div className="flex-1 overflow-y-auto">
         <div className={cn("flex min-h-full flex-col gap-6 py-6", PAGE_GUTTER)}>
@@ -109,6 +114,21 @@ export function OverviewPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function CompactToggle() {
+  const { t } = useT("overview");
+  const compact = useOverviewLayoutStore((s) => s.compact);
+  const toggleCompact = useOverviewLayoutStore((s) => s.toggleCompact);
+  return (
+    <CollectionPageHeaderAction
+      icon={Rows3}
+      label={t(($) => $.compact_rows)}
+      variant={compact ? "brand" : "outline"}
+      aria-pressed={compact}
+      onClick={toggleCompact}
+    />
   );
 }
 
