@@ -16,10 +16,15 @@ const entry = {
 
 afterEach(() => vi.unstubAllGlobals());
 
-async function read(body: unknown, limit?: number, kind?: "all" | "comments" | "status") {
+async function read(
+  body: unknown,
+  limit?: number,
+  kind?: "all" | "comments" | "status" | "failures",
+  before?: string,
+) {
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
   vi.stubGlobal("fetch", fetch);
-  const result = await new ApiClient("https://api.example.test").listWorkspaceActivity({ limit, kind });
+  const result = await new ApiClient("https://api.example.test").listWorkspaceActivity({ limit, kind, before });
   return { result, url: String(fetch.mock.calls[0]?.[0]) };
 }
 
@@ -28,6 +33,12 @@ describe("workspace activity API", () => {
     const { result, url } = await read({ entries: [entry] }, 10);
     expect(result.entries).toEqual([entry]);
     expect(url).toContain("/api/activity?limit=10");
+  });
+
+  it("passes the page cursor and reads the next one", async () => {
+    const { result, url } = await read({ entries: [entry], next_cursor: "2026-10-01T10:00:00Z|act-1" }, 50, "all", "c1");
+    expect(url).toContain("before=c1");
+    expect(result.next_cursor).toBe("2026-10-01T10:00:00Z|act-1");
   });
 
   it("sends a narrowing kind but not the default", async () => {
@@ -46,7 +57,7 @@ describe("workspace activity API", () => {
   it.each([null, [], "nope", { entries: "nope" }])(
     "falls back to an empty feed for %j",
     async (body) => {
-      expect((await read(body)).result).toEqual({ entries: [] });
+      expect((await read(body)).result).toEqual({ entries: [], next_cursor: null });
     },
   );
 });

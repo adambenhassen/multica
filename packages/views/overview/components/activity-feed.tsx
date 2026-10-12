@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Activity, CirclePlus, CircleX, MessageSquare, Pencil, UserRound } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Activity, ArrowRight, CirclePlus, CircleX, MessageSquare, Pencil, UserRound } from "lucide-react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useActorName } from "@multica/core/workspace/hooks";
@@ -16,10 +16,11 @@ import { StatusIcon } from "../../issues/components/status-icon";
 import { PriorityIcon } from "../../issues/components/priority-icon";
 import { formatActivity } from "../../issues/utils/format-activity";
 import { Segmented } from "../../dashboard/components/dashboard-shared";
+import { InfiniteScrollSentinel } from "../../issues/components/infinite-scroll-sentinel";
 import { addDaysIso, todayIso } from "../../runtimes/utils";
 import { useLocale, useT, useTimeAgo } from "../../i18n";
 import { coalesceFeed, commentExcerpt, groupFeedByDay } from "../utils";
-import { EmptyBox, ErrorBox, LIST_CLASS, ListSkeleton, SectionHeading } from "./section-parts";
+import { EmptyBox, ErrorBox, LIST_CLASS, LIST_SECTION_CLASS, ListSkeleton, SectionHeading } from "./section-parts";
 
 const FEED_KINDS: readonly WorkspaceActivityKind[] = ["all", "comments", "status", "failures"];
 
@@ -34,7 +35,8 @@ export function ActivityFeed() {
   const wsId = useWorkspaceId();
   const tz = useViewingTimezone();
   const [kind, setKind] = useState<WorkspaceActivityKind>("all");
-  const { data: entries, isPending, isError, refetch } = useQuery(workspaceActivityOptions(wsId, kind));
+  const { data: entries, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useInfiniteQuery(workspaceActivityOptions(wsId, kind));
   const groups = useMemo(() => groupFeedByDay(coalesceFeed(entries ?? []), tz), [entries, tz]);
 
   const today = todayIso(tz);
@@ -56,7 +58,7 @@ export function ActivityFeed() {
   };
 
   return (
-    <section>
+    <section className={LIST_SECTION_CLASS}>
       <SectionHeading
         action={
           <Segmented
@@ -86,18 +88,31 @@ export function ActivityFeed() {
               </div>
               <div className="divide-y">
                 {group.entries.map((entry) => (
-                  <FeedRow key={entry.id} entry={entry} />
+                  <FeedRow key={entry.id} entry={entry} transitionOnly={kind === "status"} />
                 ))}
               </div>
             </div>
           ))}
+          {hasNextPage && (
+            <InfiniteScrollSentinel
+              onVisible={() => {
+                if (!isFetchingNextPage) void fetchNextPage();
+              }}
+              loading={isFetchingNextPage}
+            />
+          )}
         </div>
       )}
     </section>
   );
 }
 
-function FeedRow({ entry }: { entry: WorkspaceActivityEntry }) {
+/**
+ * `transitionOnly` is the Status changes tab: every row there is a status
+ * change, so its second line shows the move itself ("In Review → Todo") and
+ * who made it, instead of a sentence.
+ */
+function FeedRow({ entry, transitionOnly }: { entry: WorkspaceActivityEntry; transitionOnly: boolean }) {
   const { t } = useT("overview");
   const { t: tIssues } = useT("issues");
   const locale = useLocale();
@@ -171,6 +186,28 @@ function FeedRow({ entry }: { entry: WorkspaceActivityEntry }) {
             {timeAgo(entry.created_at)}
           </span>
         </span>
+        {transitionOnly && entry.action === "status_changed" && details.to ? (
+          <span className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
+            {details.from && (
+              <>
+                <StatusChip statusKey={details.from} />
+                <ArrowRight aria-label="→" className="size-3 shrink-0" />
+              </>
+            )}
+            <StatusChip statusKey={details.to} />
+            <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
+              <ActorAvatar
+                actorType={entry.actor_type}
+                actorId={entry.actor_id}
+                name={entry.actor_name}
+                avatarUrl={entry.actor_avatar_url}
+                size="xs"
+                profileLink={false}
+              />
+              <span className="font-medium text-foreground">{actorName}</span>
+            </span>
+          </span>
+        ) : (
         <span className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
           <ActorAvatar
             actorType={entry.actor_type}
@@ -188,7 +225,26 @@ function FeedRow({ entry }: { entry: WorkspaceActivityEntry }) {
             <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
           )}
         </span>
+        )}
       </span>
     </AppLink>
+  );
+}
+
+/** A status as its icon and name, resolved through the workspace catalog. */
+function StatusChip({ statusKey }: { statusKey: string }) {
+  const wsId = useWorkspaceId();
+  const catalog = useIssueStatuses(wsId);
+  return (
+    <span className="flex min-w-0 items-center gap-1">
+      <StatusIcon
+        status={statusKey}
+        category={catalog.categoryOf(statusKey)}
+        color={catalog.colorOf(statusKey)}
+        icon={catalog.iconOf(statusKey)}
+        className="size-3.5 shrink-0"
+      />
+      <span className="truncate text-foreground">{catalog.labelOf(statusKey)}</span>
+    </span>
   );
 }

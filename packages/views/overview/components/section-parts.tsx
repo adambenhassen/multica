@@ -5,7 +5,13 @@ import { useT } from "../../i18n";
 
 // Shared building blocks for the Dashboard's sections.
 
-export const LIST_CLASS = "max-h-[30rem] divide-y overflow-y-auto rounded-lg border bg-card";
+// On desktop the lists fill the rest of the page and scroll inside; on narrow
+// screens they keep a fixed height and the page scrolls.
+export const LIST_CLASS =
+  "max-h-[30rem] divide-y overflow-y-auto rounded-lg border bg-card md:max-h-none md:min-h-0 md:flex-1";
+// A list section is a column so its list can take the height left under the
+// heading.
+export const LIST_SECTION_CLASS = "flex min-w-0 flex-col md:min-h-0 md:flex-1";
 export const LIST_ROW_CLASS =
   "flex min-h-12 items-center gap-3 px-4 py-3 text-label transition-colors hover:bg-accent/50";
 

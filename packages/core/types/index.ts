@@ -160,6 +160,8 @@ export type {
   WorkspaceActivityIssueRef,
   WorkspaceActivityEntry,
   WorkspaceActivityKind,
+  RecentlyCompletedEntry,
+  RecentlyCompletedResponse,
   WorkspaceActivityResponse,
 } from "./activity";
 export type { IssueSubscriber } from "./subscriber";

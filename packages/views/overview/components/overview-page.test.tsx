@@ -162,7 +162,49 @@ describe("OverviewPage", () => {
       sort_by: "updated_at",
       sort_direction: "desc",
       limit: 50,
+      offset: 0,
     });
+  });
+
+  it("keeps Blocked out of In progress and orders Done by completion", async () => {
+    const status = (key: string, category: string, position: number) => ({
+      id: key, workspace_id: "ws-1", key, name: key, description: "", category, color: "#888888",
+      icon: null, is_system: false, position, archived_at: null, created_at: "", updated_at: "",
+    });
+    const issueCalls: unknown[] = [];
+    const completedCalls: unknown[] = [];
+    apiRef.current = {
+      listIssueStatuses: () =>
+        Promise.resolve({
+          statuses: [
+            status("todo", "unstarted", 0),
+            status("in_progress", "started", 1),
+            status("qa", "started", 2),
+            status("blocked", "started", 3),
+            status("done", "done", 4),
+          ],
+          categories: ["unstarted", "started", "done", "closed"],
+          total: 5,
+        }),
+      listIssues: ((params: unknown) => {
+        issueCalls.push(params);
+        return Promise.resolve({ issues: [], total: 0 });
+      }) as () => Promise<unknown>,
+      listRecentlyCompleted: ((params: unknown) => {
+        completedCalls.push(params);
+        return Promise.resolve({ entries: [], next_offset: null });
+      }) as () => Promise<unknown>,
+    };
+    renderPage();
+
+    await screen.findByText("No issues yet");
+    fireEvent.click(screen.getByRole("button", { name: "In progress" }));
+    await screen.findByText("No issues with this status");
+    expect(issueCalls.at(-1)).toMatchObject({ statuses: ["in_progress", "qa"] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await screen.findByText("No issues with this status");
+    expect(completedCalls.at(-1)).toEqual({ category: "done", limit: 50, offset: 0 });
   });
 
   it("reads activity as plain sentences under each issue and filters comments", async () => {
@@ -204,6 +246,10 @@ describe("OverviewPage", () => {
     expect(within(comment).getByText("MUL-1")).toBeTruthy();
     expect(screen.getByText("marked it Done")).toBeTruthy();
     expect(screen.getByText("Today")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Status changes" }));
+    expect(await screen.findByLabelText("→")).toBeTruthy();
+    expect(screen.queryByText("marked it Done")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Comments" }));
     await screen.findAllByText(/commented/);

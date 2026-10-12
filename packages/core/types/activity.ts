@@ -69,6 +69,23 @@ export interface WorkspaceActivityEntry extends TimelineEntry {
  */
 export type WorkspaceActivityKind = "all" | "comments" | "status" | "failures";
 
+/** An issue in a finished status and when it got there (GET /api/activity/completed). */
+export interface RecentlyCompletedEntry {
+  issue: WorkspaceActivityIssueRef;
+  completed_at: string;
+  /** Who moved it there; absent when no status change is on record. */
+  actor_type?: string;
+  actor_id?: string;
+}
+
+export interface RecentlyCompletedResponse {
+  entries: RecentlyCompletedEntry[];
+  /** Offset of the next page; null on the last page (and from older servers). */
+  next_offset: number | null;
+}
+
 export interface WorkspaceActivityResponse {
   entries: WorkspaceActivityEntry[];
+  /** `before` cursor for the next page; null on the last page (and from older servers). */
+  next_cursor: string | null;
 }

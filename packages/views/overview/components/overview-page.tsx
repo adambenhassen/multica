@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { Bot, CircleDot, DollarSign, Inbox, LayoutDashboard, SlidersHorizontal, type LucideIcon } from "lucide-react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import {
@@ -32,6 +32,7 @@ import {
   OVERVIEW_SECTIONS,
   RECENT_ISSUE_FILTERS,
   recentIssuesOptions,
+  recentlyCompletedOptions,
   useOverviewLayoutStore,
   type OverviewSection,
   type RecentIssueFilter,
@@ -58,11 +59,13 @@ import {
   summarizeIssueFacet,
 } from "../utils";
 import { SuccessRateChart } from "./success-rate-chart";
+import { InfiniteScrollSentinel } from "../../issues/components/infinite-scroll-sentinel";
 import { ActivityFeed } from "./activity-feed";
 import {
   EmptyBox,
   ErrorBox,
   LIST_CLASS,
+  LIST_SECTION_CLASS,
   LIST_ROW_CLASS,
   ListSkeleton,
   SectionHeading,
@@ -99,7 +102,7 @@ export function OverviewPage() {
         actions={<CustomizeMenu />}
       />
       <div className="flex-1 overflow-y-auto">
-        <div className={cn("space-y-6 py-6", PAGE_GUTTER)}>
+        <div className={cn("flex min-h-full flex-col gap-6 py-6", PAGE_GUTTER)}>
           {OVERVIEW_SECTIONS.every((section) => !shown(section)) && (
             <div className="flex items-center justify-between gap-2 rounded-lg border p-4 text-label text-muted-foreground">
               <span>{t(($) => $.customize.all_hidden)}</span>
@@ -114,7 +117,9 @@ export function OverviewPage() {
             <ChartsRow showRuns={shown("run_activity")} showRate={shown("success_rate")} />
           )}
           {listCount > 0 && (
-            <div className={cn("grid gap-4", listCount === 2 && "md:grid-cols-2")}>
+            // Takes the height left below the other sections (at least 30rem), so the
+            // lists reach the bottom of the window however many sections are hidden.
+            <div className="flex flex-col gap-4 md:min-h-[30rem] md:flex-1 md:basis-0 md:flex-row">
               {shown("activity") && <ActivityFeed />}
               {shown("issues") && <RecentIssuesList />}
             </div>
@@ -463,6 +468,10 @@ function ChartCard({ title, children }: { title: string; children: ReactNode }) 
 // Recent activity / issues
 // ---------------------------------------------------------------------------
 
+// Built-in started statuses minus Blocked, used for the In progress tab when the
+// workspace catalog cannot be read.
+const BUILT_IN_IN_PROGRESS = ["in_progress", "in_review"];
+
 function RecentIssuesList() {
   const { t } = useT("overview");
   const wsId = useWorkspaceId();
@@ -470,7 +479,30 @@ function RecentIssuesList() {
   const timeAgo = useTimeAgo();
   const catalog = useIssueStatuses(wsId);
   const [filter, setFilter] = useState<RecentIssueFilter>("all");
-  const { data: issues = [], isPending, isError, refetch } = useQuery(recentIssuesOptions(wsId, filter));
+
+  // In progress is every started status except Blocked, which has its own tab.
+  // Custom started statuses come from the catalog, so the tab waits for it.
+  const inProgressStatuses = useMemo(() => {
+    if (catalog.isLoaded) {
+      return catalog.statuses
+        .map((s) => s.key)
+        .filter((key) => key !== "blocked" && catalog.categoryOf(key) === "started");
+    }
+    return catalog.isError ? BUILT_IN_IN_PROGRESS : null;
+  }, [catalog]);
+
+  const completedTab = filter === "done" || filter === "cancelled";
+  const touchedQuery = useInfiniteQuery({
+    ...recentIssuesOptions(wsId, completedTab ? "all" : filter, inProgressStatuses ?? []),
+    enabled: !completedTab && (filter !== "in_progress" || inProgressStatuses !== null),
+  });
+  const completedQuery = useInfiniteQuery({
+    ...recentlyCompletedOptions(wsId, filter === "cancelled" ? "cancelled" : "done"),
+    enabled: completedTab,
+  });
+  const query = completedTab ? completedQuery : touchedQuery;
+  const rows = query.data ?? [];
+
   const filterLabels: Record<RecentIssueFilter, string> = {
     all: t(($) => $.issues.filters.all),
     in_progress: t(($) => $.issues.filters.in_progress),
@@ -480,7 +512,7 @@ function RecentIssuesList() {
   };
 
   return (
-    <section>
+    <section className={LIST_SECTION_CLASS}>
       <SectionHeading
         action={
           <Segmented
@@ -493,42 +525,51 @@ function RecentIssuesList() {
       >
         {t(($) => $.issues.heading)}
       </SectionHeading>
-      {isPending ? (
+      {query.isPending ? (
         <ListSkeleton />
-      ) : isError ? (
-        <ErrorBox onRetry={() => void refetch()} />
-      ) : issues.length === 0 ? (
+      ) : query.isError ? (
+        <ErrorBox onRetry={() => void query.refetch()} />
+      ) : rows.length === 0 ? (
         <EmptyBox>
           {filter === "all" ? t(($) => $.issues.empty) : t(($) => $.issues.empty_filtered)}
         </EmptyBox>
       ) : (
         <div className={LIST_CLASS}>
-          {issues.map((issue) => (
-            <AppLink key={issue.id} href={paths.issueDetail(issue.id)} className={LIST_ROW_CLASS}>
+          {rows.map((row) => (
+            <AppLink key={row.id} href={paths.issueDetail(row.id)} className={LIST_ROW_CLASS}>
               <StatusIcon
-                status={issue.status}
-                category={catalog.categoryOf(issue.status)}
-                color={catalog.colorOf(issue.status)}
-                icon={catalog.iconOf(issue.status)}
+                status={row.status}
+                category={catalog.categoryOf(row.status)}
+                color={catalog.colorOf(row.status)}
+                icon={catalog.iconOf(row.status)}
                 className="size-4 shrink-0"
               />
-              <span className="min-w-0 flex-1 truncate">{issue.title}</span>
-              {issue.assignee_type && issue.assignee_id && (
+              <span className="min-w-0 flex-1 truncate">{row.title}</span>
+              {/* The assignee, or on Done / Cancelled whoever finished it. */}
+              {row.actor && (
                 <ActorAvatar
-                  actorType={issue.assignee_type}
-                  actorId={issue.assignee_id}
+                  actorType={row.actor.type}
+                  actorId={row.actor.id}
                   size="sm"
                   profileLink={false}
                 />
               )}
               <span className="hidden shrink-0 font-mono text-caption text-muted-foreground sm:inline">
-                {issue.identifier}
+                {row.identifier}
               </span>
               <span className="w-16 shrink-0 text-right text-caption text-muted-foreground">
-                {timeAgo(issue.updated_at)}
+                {timeAgo(row.at)}
               </span>
             </AppLink>
           ))}
+          {query.hasNextPage && (
+            <InfiniteScrollSentinel
+              onVisible={() => {
+                if (!query.isFetchingNextPage) void query.fetchNextPage();
+              }}
+              loading={query.isFetchingNextPage}
+            />
+          )}
         </div>
       )}
     </section>
