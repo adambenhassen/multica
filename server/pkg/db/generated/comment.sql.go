@@ -1358,15 +1358,17 @@ JOIN issue i ON i.id = c.issue_id AND i.workspace_id = c.workspace_id
 WHERE c.workspace_id = $2
   AND c.type = 'comment'
   AND c.deleted_at IS NULL
-  AND ($3::timestamptz IS NULL
-       OR (c.created_at, c.id) < ($3::timestamptz, $4::uuid))
+  AND ($3::uuid IS NULL OR c.issue_id = $3::uuid)
+  AND ($4::timestamptz IS NULL
+       OR (c.created_at, c.id) < ($4::timestamptz, $5::uuid))
 ORDER BY c.created_at DESC, c.id DESC
-LIMIT $5
+LIMIT $6
 `
 
 type ListRecentWorkspaceCommentsParams struct {
 	ExcerptLength int32              `json:"excerpt_length"`
 	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	IssueID       pgtype.UUID        `json:"issue_id"`
 	BeforeAt      pgtype.Timestamptz `json:"before_at"`
 	BeforeID      pgtype.UUID        `json:"before_id"`
 	RowLimit      int32              `json:"row_limit"`
@@ -1388,11 +1390,13 @@ type ListRecentWorkspaceCommentsRow struct {
 // The newest user-written comments across a workspace, for the Dashboard feed.
 // Only an excerpt of the content is returned: the feed shows one line of it.
 // The literal type / deleted_at predicates let idx_comment_workspace_recent
-// (migration 582) serve the ORDER BY without a sort step.
+// (migration 582) serve the ORDER BY without a sort step. @issue_id, when set,
+// keeps one issue's comments.
 func (q *Queries) ListRecentWorkspaceComments(ctx context.Context, arg ListRecentWorkspaceCommentsParams) ([]ListRecentWorkspaceCommentsRow, error) {
 	rows, err := q.db.Query(ctx, listRecentWorkspaceComments,
 		arg.ExcerptLength,
 		arg.WorkspaceID,
+		arg.IssueID,
 		arg.BeforeAt,
 		arg.BeforeID,
 		arg.RowLimit,

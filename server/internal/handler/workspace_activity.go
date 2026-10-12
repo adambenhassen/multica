@@ -151,6 +151,15 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 		excludedActions = []string{}
 	}
 
+	// `issue` narrows the feed to one issue's history.
+	var issueID pgtype.UUID
+	if raw := r.URL.Query().Get("issue"); raw != "" {
+		var ok bool
+		if issueID, ok = parseUUIDOrBadRequest(w, raw, "issue"); !ok {
+			return
+		}
+	}
+
 	ctx := r.Context()
 	wsUUID := parseUUID(workspaceID)
 	var activities []db.ListRecentWorkspaceActivitiesRow
@@ -160,6 +169,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 			ExcludedActions: excludedActions,
 			OnlyActions:     onlyActions,
 			ToStatuses:      toStatuses,
+			IssueID:         issueID,
 			BeforeAt:        beforeAt,
 			BeforeID:        beforeID,
 			RowLimit:        int32(limit),
@@ -175,6 +185,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 		rows, err := h.Queries.ListRecentWorkspaceComments(ctx, db.ListRecentWorkspaceCommentsParams{
 			WorkspaceID:   wsUUID,
 			ExcerptLength: workspaceActivityExcerptLength,
+			IssueID:       issueID,
 			BeforeAt:      beforeAt,
 			BeforeID:      beforeID,
 			RowLimit:      int32(limit),
