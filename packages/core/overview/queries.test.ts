@@ -4,7 +4,7 @@ import { overviewKeys, workspaceActivityOptions } from "./queries";
 
 describe("overview query keys", () => {
   it("scopes the activity feed by workspace under the shared prefix", () => {
-    expect(workspaceActivityOptions("ws-1", "comments").queryKey).toEqual(["overview", "ws-1", "activity", "comments"]);
+    expect(workspaceActivityOptions("ws-1", "comments").queryKey).toEqual(["overview", "ws-1", "activity", "comments", null]);
     expect(overviewKeys.activityAll("ws-2")).toEqual(["overview", "ws-2", "activity"]);
   });
 
@@ -14,7 +14,18 @@ describe("overview query keys", () => {
       "ws-1",
       "activity",
       "status",
+      null,
       "blocked",
+    ]);
+  });
+
+  it("keys an issue's history separately from the whole feed", () => {
+    expect(workspaceActivityOptions("ws-1", "all", [], "issue-1").queryKey).toEqual([
+      "overview",
+      "ws-1",
+      "activity",
+      "all",
+      "issue-1",
     ]);
   });
 });

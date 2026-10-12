@@ -60,6 +60,11 @@
       "cancelled": "Cancelled"
     }
   },
+  "issue_filter": {
+    "label": "Filtered to",
+    "filter": "Show only this issue",
+    "clear": "Clear issue filter"
+  },
   "customize": {
     "button": "Customize",
     "label": "Show on dashboard",

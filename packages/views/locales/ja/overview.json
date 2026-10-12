@@ -60,6 +60,11 @@
       "cancelled": "キャンセル済み"
     }
   },
+  "issue_filter": {
+    "label": "絞り込み中",
+    "filter": "このタスクのみ表示",
+    "clear": "タスクの絞り込みを解除"
+  },
   "customize": {
     "button": "カスタマイズ",
     "label": "ダッシュボードに表示",

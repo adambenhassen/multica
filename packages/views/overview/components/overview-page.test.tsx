@@ -297,9 +297,62 @@ describe("OverviewPage", () => {
     // Hover shows what compact rows hide: the full title and who acted.
     expect(within(row()).getByText("Ship the dashboard").getAttribute("title")).toBe("Ship the dashboard");
     expect(within(row()).getByTestId("avatar").dataset.hoverCard).toBe("on");
+    // Every icon names itself on hover: the row's action and each status.
+    expect(row().querySelector('[title="marked it Done"]')).not.toBeNull();
+    expect(row().querySelector('[title="In Review"]')).not.toBeNull();
+    expect(row().querySelector('[title="Done"]')).not.toBeNull();
     const comment = within(activity).getByText("Fix the reconnect").closest("a")!;
     expect(within(comment).queryByText(/Waiting for green CI/)).toBeNull();
     useOverviewLayoutStore.setState({ compact: false });
+  });
+
+  it("tints an issue's rows in both feeds on hover and filters both to it", async () => {
+    const now = new Date().toISOString();
+    const ship = { id: "issue-1", identifier: "MUL-1", title: "Ship the dashboard", status: "done" };
+    const fix = { id: "issue-2", identifier: "MUL-2", title: "Fix the reconnect", status: "todo" };
+    const move = (id: string, issue: typeof ship) => ({
+      type: "activity",
+      id,
+      actor_type: "agent",
+      actor_id: "agent-1",
+      created_at: now,
+      action: "status_changed",
+      details: { from: "todo", to: issue.status },
+      issue,
+    });
+    const calls: { kind?: string; issue?: string }[] = [];
+    apiRef.current = {
+      listWorkspaceActivity: ((params: { kind?: string; issue?: string }) => {
+        calls.push(params);
+        const entries =
+          params.kind === "status" ? [move("s-1", ship), move("s-2", fix)] : [move("a-1", ship), move("a-2", fix)];
+        return Promise.resolve({ entries: params.issue ? entries.filter((e) => e.issue.id === params.issue) : entries });
+      }) as () => Promise<unknown>,
+    };
+    renderPage();
+    const activity = screen.getByRole("heading", { name: "Recent activity" }).closest("section")!;
+    const statusChanges = screen.getByRole("heading", { name: "Status changes" }).closest("section")!;
+    const rowOf = (section: HTMLElement, title: string) =>
+      within(section).getByText(title).closest("a")!.parentElement!;
+    await within(activity).findByText("Ship the dashboard");
+    await within(statusChanges).findByText("Ship the dashboard");
+
+    fireEvent.mouseEnter(rowOf(activity, "Ship the dashboard"));
+    expect(rowOf(statusChanges, "Ship the dashboard").className).toContain("bg-brand/10");
+    expect(rowOf(statusChanges, "Fix the reconnect").className).not.toContain("bg-brand/10");
+    fireEvent.mouseLeave(rowOf(activity, "Ship the dashboard"));
+    expect(rowOf(statusChanges, "Ship the dashboard").className).not.toContain("bg-brand/10");
+
+    // The filter button sits beside the row link, so clicking the row still opens the issue.
+    fireEvent.click(within(rowOf(activity, "Ship the dashboard")).getByRole("button", { name: "Show only this issue" }));
+    expect(await screen.findByText("Filtered to")).toBeTruthy();
+    await waitFor(() => expect(within(statusChanges).queryByText("Fix the reconnect")).toBeNull());
+    expect(within(activity).queryByText("Fix the reconnect")).toBeNull();
+    expect(calls.filter((c) => c.issue === "issue-1").map((c) => c.kind).sort()).toEqual(["all", "status"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear issue filter" }));
+    expect(screen.queryByText("Filtered to")).toBeNull();
+    expect(await within(statusChanges).findByText("Fix the reconnect")).toBeTruthy();
   });
 
   it("hides a section chosen in Customize", async () => {

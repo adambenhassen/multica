@@ -59,6 +59,15 @@ describe("workspace activity API", () => {
     expect(urls[1]?.has("to")).toBe(false);
   });
 
+  it("sends the issue whose history to read", async () => {
+    const { url } = await read({ entries: [] }, 50, "all");
+    expect(url).not.toContain("issue=");
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ entries: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+    await new ApiClient("https://api.example.test").listWorkspaceActivity({ issue: "issue-1" });
+    expect(new URL(String(fetch.mock.calls[0]?.[0])).searchParams.get("issue")).toBe("issue-1");
+  });
+
   // One bad row must not blank the whole feed.
   it("drops a malformed row and keeps the valid ones", async () => {
     const { result } = await read({

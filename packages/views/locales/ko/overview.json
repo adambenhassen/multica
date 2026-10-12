@@ -60,6 +60,11 @@
       "cancelled": "취소됨"
     }
   },
+  "issue_filter": {
+    "label": "필터 적용됨",
+    "filter": "이 태스크만 보기",
+    "clear": "태스크 필터 해제"
+  },
   "customize": {
     "button": "사용자 지정",
     "label": "대시보드에 표시",

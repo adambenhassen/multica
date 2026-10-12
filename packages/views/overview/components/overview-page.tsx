@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
-import { Bot, CircleDot, DollarSign, Inbox, LayoutDashboard, Rows3, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { Bot, CircleDot, DollarSign, Inbox, LayoutDashboard, Rows3, SlidersHorizontal, X, type LucideIcon } from "lucide-react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
@@ -29,7 +29,7 @@ import { useInboxUnreadCount } from "@multica/core/inbox/queries";
 import { dashboardRunTimeDailyOptions, dashboardUsageDailyOptions } from "@multica/core/dashboard";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import { OVERVIEW_SECTIONS, useOverviewLayoutStore, type OverviewSection } from "@multica/core/overview";
-import type { AgentTask, Issue, IssueTableFacetsRequest } from "@multica/core/types";
+import type { AgentTask, Issue, IssueTableFacetsRequest, WorkspaceActivityIssueRef } from "@multica/core/types";
 import { AppLink } from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
@@ -50,7 +50,7 @@ import {
   summarizeIssueFacet,
 } from "../utils";
 import { SuccessRateChart } from "./success-rate-chart";
-import { ActivityFeed, StatusChangesFeed } from "./activity-feed";
+import { ActivityFeed, StatusChangesFeed, type FeedFocus } from "./activity-feed";
 import { EmptyBox, ErrorBox, SectionHeading } from "./section-parts";
 import { cn } from "@multica/ui/lib/utils";
 
@@ -104,14 +104,51 @@ export function OverviewPage() {
             <ChartsRow showRuns={shown("run_activity")} showRate={shown("success_rate")} />
           )}
           {listCount > 0 && (
-            // Takes the height left below the other sections (at least 30rem), so the
-            // lists reach the bottom of the window however many sections are hidden.
-            <div className="flex flex-col gap-4 md:min-h-[30rem] md:flex-1 md:basis-0 md:flex-row">
-              {shown("activity") && <ActivityFeed />}
-              {shown("status_changes") && <StatusChangesFeed />}
-            </div>
+            <FeedLists showActivity={shown("activity")} showStatusChanges={shown("status_changes")} />
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The two feeds side by side. They share the hovered issue (its rows are
+ * tinted in both) and an optional issue filter, cleared from the chip above.
+ */
+function FeedLists({ showActivity, showStatusChanges }: { showActivity: boolean; showStatusChanges: boolean }) {
+  const { t } = useT("overview");
+  const [hoveredIssueId, setHoveredIssueId] = useState<string | null>(null);
+  const [issue, setIssue] = useState<WorkspaceActivityIssueRef | null>(null);
+  const focus: FeedFocus = { hoveredIssueId, onHoverIssue: setHoveredIssueId, issue, onFilterIssue: setIssue };
+
+  return (
+    // Takes the height left below the other sections (at least 30rem), so the
+    // lists reach the bottom of the window however many sections are hidden.
+    <div className="flex flex-col gap-3 md:min-h-[30rem] md:flex-1 md:basis-0">
+      {issue && (
+        <div className="flex min-w-0 items-center gap-2 text-label">
+          <span className="shrink-0 text-muted-foreground">{t(($) => $.issue_filter.label)}</span>
+          <span className="flex min-w-0 items-center gap-1.5 rounded-md border bg-card py-0.5 pr-0.5 pl-2">
+            <span className="shrink-0 font-mono text-caption text-muted-foreground">{issue.identifier}</span>
+            <span className="min-w-0 truncate" title={issue.title}>
+              {issue.title}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={t(($) => $.issue_filter.clear)}
+              title={t(($) => $.issue_filter.clear)}
+              onClick={() => setIssue(null)}
+            >
+              <X aria-hidden="true" />
+            </Button>
+          </span>
+        </div>
+      )}
+      <div className="flex flex-col gap-4 md:min-h-0 md:flex-1 md:flex-row">
+        {showActivity && <ActivityFeed focus={focus} />}
+        {showStatusChanges && <StatusChangesFeed focus={focus} />}
       </div>
     </div>
   );
