@@ -61,7 +61,7 @@ describe("resolveRouteIconName", () => {
     expect(resolveRouteIconName("/acme/chat")).toBe("MessageSquare");
     expect(resolveRouteIconName("/acme/squads")).toBe("Users");
     expect(resolveRouteIconName("/acme/usage")).toBe("BarChart3");
-    expect(resolveRouteIconName("/acme/dashboard")).toBe("LayoutDashboard");
+    expect(resolveRouteIconName("/acme/dashboard")).toBe("Activity");
     expect(resolveRouteIconName("/acme/my-issues")).toBe("CircleUser");
   });
 
