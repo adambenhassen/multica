@@ -145,6 +145,25 @@ func TestListWorkspaceActivityMergesCommentsAndFiltersByKind(t *testing.T) {
 	if got := ids(read("?kind=other")); !slices.Equal(got, []string{assigned}) {
 		t.Fatalf("kind=other = %v, want only the assignment", got)
 	}
+
+	// An issue creation belongs with status changes, not with other changes,
+	// and a status filter leaves it out (it has no `to`).
+	created := dbfx.Insert(t, "activity_log", testutil.Cols{
+		"workspace_id": ws, "issue_id": issue, "actor_type": "member", "actor_id": testUserID,
+		"action": "created", "created_at": base.Add(-time.Minute),
+	})
+	if got := ids(read("?kind=status")); !slices.Equal(got, []string{status, created}) {
+		t.Fatalf("kind=status = %v, want the status change and the creation", got)
+	}
+	if got := ids(read("?kind=status&to=done")); !slices.Equal(got, []string{status}) {
+		t.Fatalf("kind=status&to=done = %v, want only the change into done", got)
+	}
+	if got := ids(read("?kind=other")); slices.Contains(got, created) {
+		t.Fatalf("kind=other = %v, must not carry the creation", got)
+	}
+	if got := ids(read("?kind=changes")); !slices.Equal(got, []string{assigned, status, created}) {
+		t.Fatalf("kind=changes = %v, want every issue change without the comment", got)
+	}
 	if got := ids(read("?kind=all&limit=2")); !slices.Equal(got, []string{comment, assigned}) {
 		t.Fatalf("limit=2 = %v", got)
 	}

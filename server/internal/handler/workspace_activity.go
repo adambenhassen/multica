@@ -39,12 +39,15 @@ var workspaceActivityExcludedActions = []string{
 }
 
 // workspaceActivityKinds narrows the feed: "comments" is comments only,
-// "status" is status changes only, "status_comments" is status changes and
-// comments, "failures" is failed agent runs only, "other" is every other issue
-// change (created, reassigned, edited) without comments. An empty kind
-// returns everything except run outcomes.
+// "status" is status changes and issue creations, "status_comments" adds
+// comments to those, "failures" is failed agent runs only, "other" is every
+// other issue change (reassigned, edited) without comments, "changes" is
+// every issue change without comments. An empty kind returns everything
+// except run outcomes. A `to` filter keeps only status
+// changes, since a creation has no `to`.
 var workspaceActivityKinds = map[string]bool{
 	"": true, "all": true, "comments": true, "status": true, "status_comments": true, "failures": true, "other": true,
+	"changes": true,
 }
 
 // maxWorkspaceActivityToStatuses caps the `to` filter; a workspace catalog
@@ -126,7 +129,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 	}
 	kind := r.URL.Query().Get("kind")
 	if !workspaceActivityKinds[kind] {
-		writeError(w, http.StatusBadRequest, "kind must be all, comments, status, status_comments, failures or other")
+		writeError(w, http.StatusBadRequest, "kind must be all, comments, status, status_comments, failures, other or changes")
 		return
 	}
 	// `to` narrows the status feed to changes into any of the given status
@@ -149,14 +152,14 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 	excludedActions := workspaceActivityExcludedActions
 	switch kind {
 	case "status", "status_comments":
-		onlyActions = []string{"status_changed"}
+		onlyActions = []string{"status_changed", "created"}
 	case "failures":
 		// Failed runs are kept out of the main feed as noise, but a stuck
 		// agent has to be findable, so this tab opts back into them.
 		onlyActions = []string{"task_failed"}
 		excludedActions = []string{}
 	case "other":
-		excludedActions = append(slices.Clone(workspaceActivityExcludedActions), "status_changed")
+		excludedActions = append(slices.Clone(workspaceActivityExcludedActions), "status_changed", "created")
 	}
 
 	// `issue` narrows the feed to one issue's history, `project` to one
@@ -197,7 +200,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 		activities = rows
 	}
 	var comments []db.ListRecentWorkspaceCommentsRow
-	if kind != "status" && kind != "failures" && kind != "other" {
+	if kind != "status" && kind != "failures" && kind != "other" && kind != "changes" {
 		rows, err := h.Queries.ListRecentWorkspaceComments(ctx, db.ListRecentWorkspaceCommentsParams{
 			WorkspaceID:   wsUUID,
 			ExcerptLength: workspaceActivityExcerptLength,
