@@ -147,13 +147,13 @@ type NavLabelKey =
 // destination path at render time, so the sidebar and the desktop tab bar
 // always agree. See route-icon-components.tsx.
 const personalNav: { key: NavKey; labelKey: NavLabelKey }[] = [
-  { key: "dashboard", labelKey: "dashboard" },
   { key: "inbox", labelKey: "inbox" },
   { key: "myIssues", labelKey: "my_issues" },
   { key: "chat", labelKey: "chat" },
 ];
 
 const workNav: { key: NavKey; labelKey: NavLabelKey }[] = [
+  { key: "dashboard", labelKey: "dashboard" },
   { key: "issues", labelKey: "issues" },
   { key: "projects", labelKey: "projects" },
   { key: "autopilots", labelKey: "autopilots" },
