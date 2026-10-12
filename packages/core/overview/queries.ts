@@ -2,11 +2,23 @@ import { infiniteQueryOptions, keepPreviousData, type InfiniteData } from "@tans
 import { api } from "../api";
 import type { WorkspaceActivityKind, WorkspaceActivityResponse } from "../types";
 
+/**
+ * What a Dashboard feed shows. `to` narrows the status feed to changes into
+ * those status keys (empty keeps every change); `issue` and `project` (UUIDs)
+ * keep one issue's history or one project's issues.
+ */
+export interface ActivityFeedFilters {
+  kind?: WorkspaceActivityKind;
+  to?: readonly string[];
+  issue?: string | null;
+  project?: string | null;
+}
+
 export const overviewKeys = {
   all: (wsId: string) => ["overview", wsId] as const,
   activityAll: (wsId: string) => [...overviewKeys.all(wsId), "activity"] as const,
-  activity: (wsId: string, kind: WorkspaceActivityKind, to: readonly string[] = [], issue: string | null = null) =>
-    [...overviewKeys.activityAll(wsId), kind, issue, ...to] as const,
+  activity: (wsId: string, { kind = "all", to = [], issue = null, project = null }: ActivityFeedFilters = {}) =>
+    [...overviewKeys.activityAll(wsId), kind, issue, project, ...to] as const,
 };
 
 // The feed endpoint caps a page at 50; the Dashboard list scrolls inside it.
@@ -23,19 +35,11 @@ function uniqueById<T extends { id: string }>(rows: T[]): T[] {
   return rows.filter((row) => (seen.has(row.id) ? false : (seen.add(row.id), true)));
 }
 
-/**
- * The workspace feed, newest first. `to` narrows the status feed to changes
- * into those status keys; an empty list keeps every status change. `issue`
- * (an issue UUID) keeps one issue's history.
- */
-export function workspaceActivityOptions(
-  wsId: string,
-  kind: WorkspaceActivityKind = "all",
-  to: readonly string[] = [],
-  issue: string | null = null,
-) {
+/** The workspace feed, newest first, narrowed by `filters`. */
+export function workspaceActivityOptions(wsId: string, filters: ActivityFeedFilters = {}) {
+  const { kind = "all", to = [], issue = null, project = null } = filters;
   return infiniteQueryOptions({
-    queryKey: overviewKeys.activity(wsId, kind, to, issue),
+    queryKey: overviewKeys.activity(wsId, filters),
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) =>
       api.listWorkspaceActivity({
@@ -43,6 +47,7 @@ export function workspaceActivityOptions(
         kind,
         to,
         issue: issue ?? undefined,
+        project: project ?? undefined,
         before: pageParam ?? undefined,
       }),
     getNextPageParam: (last) => last.next_cursor ?? undefined,

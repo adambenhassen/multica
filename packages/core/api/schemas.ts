@@ -973,6 +973,7 @@ const WorkspaceActivityEntrySchema = TimelineEntrySchema.extend({
     identifier: z.string(),
     title: z.string(),
     status: z.string(),
+    project_id: z.string().nullable().optional().catch(null),
   }).loose(),
 });
 
