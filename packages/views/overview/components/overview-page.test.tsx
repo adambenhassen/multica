@@ -99,7 +99,7 @@ describe("OverviewPage", () => {
 
     const row = (await screen.findByText("Ship the dashboard")).closest("a");
     expect(row?.getAttribute("href")).toBe("/acme/issues/issue-1");
-    expect(within(row!).getByText("Builder")).toBeTruthy();
+    expect(within(row!).getAllByText("Builder").length).toBeGreaterThan(0);
     expect(within(row!).getByText("MUL-1")).toBeTruthy();
   });
 
@@ -257,10 +257,14 @@ describe("OverviewPage", () => {
     const activity = screen.getByRole("heading", { name: "Recent activity" }).closest("section")!;
     await within(activity).findByText("Ship the dashboard");
     const row = within(activity).getByText("Ship the dashboard").closest("a")!;
-    // The move as icons, then the avatar; names stay for screen readers.
+    // The move as icons, then the avatar. Each name has a screen-reader copy
+    // for narrow lists and a visible one a wide (56rem) list shows instead.
     expect(within(row).getByLabelText("→")).toBeTruthy();
-    expect(within(row).getByText("Done").className).toContain("sr-only");
-    expect(within(row).getByText("Builder").className).toContain("sr-only");
+    for (const name of ["Done", "Builder"]) {
+      const classes = within(row).getAllByText(name).map((el) => el.className);
+      expect(classes.some((c) => c.includes("sr-only") && c.includes("@4xl:hidden"))).toBe(true);
+      expect(classes.some((c) => c.includes("hidden") && c.includes("@4xl:inline"))).toBe(true);
+    }
     // Hover names the rest: the full title, who acted, the action and each status.
     expect(within(row).getByText("Ship the dashboard").getAttribute("title")).toBe("Ship the dashboard");
     expect(within(row).getByTestId("avatar").dataset.hoverCard).toBe("on");

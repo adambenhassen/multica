@@ -228,8 +228,9 @@ type RowProject = { id: string; title: string; icon: string | null };
 /**
  * One event on one line, the same in both feeds: what happened as an icon,
  * the issue, its project when labels are on, the move as status icons, the
- * actor's avatar, then when. Every icon names itself on hover, and the names
- * hidden from view stay for screen readers. Sized by the list's width (it is
+ * actor's avatar, then when. A wide list also names the statuses and the
+ * actor; otherwise every icon names itself on hover, and the names hidden
+ * from view stay for screen readers. Sized by the list's width (it is
  * the query container): a narrow list drops the project, then the detail, so
  * the title stays readable.
  */
@@ -344,24 +345,23 @@ const FeedRow = memo(function FeedRow({
             )}
           </span>
         )}
-        <span
-          className={cn(
-            "hidden shrink-0 items-center justify-end gap-1.5 text-caption text-muted-foreground @sm:flex",
-            showProjects && "w-20",
-          )}
-        >
-          {isMove && (
-            <>
-              {details.from && (
-                <>
-                  <StatusChip statusKey={details.from} />
-                  <ArrowRight aria-label="→" className="size-3 shrink-0" />
-                </>
-              )}
-              <StatusChip statusKey={details.to!} />
-            </>
-          )}
-          <span className={cn("flex shrink-0 items-center", isMove && "pl-1.5")}>
+        {/* The move and the actor each get a fixed column: icons only, or with
+            their names once the list is wide (56rem) enough to spare them. */}
+        <span className="hidden shrink-0 items-center gap-2 text-caption text-muted-foreground @sm:flex">
+          <span className="flex w-14 items-center justify-end gap-1.5 @4xl:w-56 @4xl:justify-start">
+            {isMove && (
+              <>
+                {details.from && (
+                  <>
+                    <StatusChip statusKey={details.from} />
+                    <ArrowRight aria-label="→" className="size-3 shrink-0" />
+                  </>
+                )}
+                <StatusChip statusKey={details.to!} />
+              </>
+            )}
+          </span>
+          <span className="flex min-w-0 items-center gap-1.5 @4xl:w-36">
             <ActorAvatar
               actorType={entry.actor_type}
               actorId={entry.actor_id}
@@ -371,7 +371,8 @@ const FeedRow = memo(function FeedRow({
               profileLink={false}
               enableHoverCard
             />
-            <span className="sr-only">{actorName}</span>
+            <span className="sr-only @4xl:hidden">{actorName}</span>
+            <span className="hidden truncate font-medium text-foreground @4xl:inline">{actorName}</span>
           </span>
           {!isMove && <span className="sr-only">{action}</span>}
           {(entry.coalesced_count ?? 1) > 1 && (
@@ -406,13 +407,16 @@ const FeedRow = memo(function FeedRow({
   );
 });
 
-/** A status as its icon; its name is the hover tooltip and the screen-reader text. */
+/**
+ * A status as its icon, named beside it once the list is wide (56rem);
+ * narrower, the name is the hover tooltip and the screen-reader text.
+ */
 function StatusChip({ statusKey }: { statusKey: string }) {
   const wsId = useWorkspaceId();
   const catalog = useIssueStatuses(wsId);
   const label = catalog.labelOf(statusKey);
   return (
-    <span className="flex shrink-0 items-center" title={label}>
+    <span className="flex shrink-0 items-center gap-1 @4xl:min-w-0 @4xl:shrink" title={label}>
       <StatusIcon
         status={statusKey}
         category={catalog.categoryOf(statusKey)}
@@ -420,7 +424,8 @@ function StatusChip({ statusKey }: { statusKey: string }) {
         icon={catalog.iconOf(statusKey)}
         className="size-3.5 shrink-0"
       />
-      <span className="sr-only">{label}</span>
+      <span className="sr-only @4xl:hidden">{label}</span>
+      <span className="hidden truncate text-foreground @4xl:inline">{label}</span>
     </span>
   );
 }
