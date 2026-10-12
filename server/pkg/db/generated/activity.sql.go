@@ -282,7 +282,8 @@ func (q *Queries) ListIssuesByStatusEnteredAt(ctx context.Context, arg ListIssue
 
 const listRecentWorkspaceActivities = `-- name: ListRecentWorkspaceActivities :many
 SELECT a.id, a.workspace_id, a.issue_id, a.actor_type, a.actor_id, a.action, a.details, a.created_at,
-       i.number AS issue_number, i.title AS issue_title, i.status AS issue_status
+       i.number AS issue_number, i.title AS issue_title, i.status AS issue_status,
+       i.project_id AS issue_project_id
 FROM activity_log a
 JOIN issue i ON i.id = a.issue_id AND i.workspace_id = a.workspace_id
 WHERE a.workspace_id = $1
@@ -291,10 +292,11 @@ WHERE a.workspace_id = $1
   AND (cardinality($3::text[]) = 0 OR a.action = ANY($3::text[]))
   AND (cardinality($4::text[]) = 0 OR a.details->>'to' = ANY($4::text[]))
   AND ($5::uuid IS NULL OR a.issue_id = $5::uuid)
-  AND ($6::timestamptz IS NULL
-       OR (a.created_at, a.id) < ($6::timestamptz, $7::uuid))
+  AND ($6::uuid IS NULL OR i.project_id = $6::uuid)
+  AND ($7::timestamptz IS NULL
+       OR (a.created_at, a.id) < ($7::timestamptz, $8::uuid))
 ORDER BY a.created_at DESC, a.id DESC
-LIMIT $8
+LIMIT $9
 `
 
 type ListRecentWorkspaceActivitiesParams struct {
@@ -303,23 +305,25 @@ type ListRecentWorkspaceActivitiesParams struct {
 	OnlyActions     []string           `json:"only_actions"`
 	ToStatuses      []string           `json:"to_statuses"`
 	IssueID         pgtype.UUID        `json:"issue_id"`
+	ProjectID       pgtype.UUID        `json:"project_id"`
 	BeforeAt        pgtype.Timestamptz `json:"before_at"`
 	BeforeID        pgtype.UUID        `json:"before_id"`
 	RowLimit        int32              `json:"row_limit"`
 }
 
 type ListRecentWorkspaceActivitiesRow struct {
-	ID          pgtype.UUID        `json:"id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	IssueID     pgtype.UUID        `json:"issue_id"`
-	ActorType   pgtype.Text        `json:"actor_type"`
-	ActorID     pgtype.UUID        `json:"actor_id"`
-	Action      string             `json:"action"`
-	Details     []byte             `json:"details"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	IssueNumber int32              `json:"issue_number"`
-	IssueTitle  string             `json:"issue_title"`
-	IssueStatus string             `json:"issue_status"`
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	IssueID        pgtype.UUID        `json:"issue_id"`
+	ActorType      pgtype.Text        `json:"actor_type"`
+	ActorID        pgtype.UUID        `json:"actor_id"`
+	Action         string             `json:"action"`
+	Details        []byte             `json:"details"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	IssueNumber    int32              `json:"issue_number"`
+	IssueTitle     string             `json:"issue_title"`
+	IssueStatus    string             `json:"issue_status"`
+	IssueProjectID pgtype.UUID        `json:"issue_project_id"`
 }
 
 // The newest issue activity across a workspace, for the Dashboard feed.
@@ -328,7 +332,7 @@ type ListRecentWorkspaceActivitiesRow struct {
 // `issue_id IS NOT NULL` predicate lets idx_activity_log_workspace_recent
 // (migration 581) serve the ORDER BY without a sort step. @to_statuses keeps
 // only rows whose details `to` is one of the keys (status changes into them);
-// @issue_id, when set, keeps one issue's rows.
+// @issue_id, when set, keeps one issue's rows; @project_id, one project's.
 func (q *Queries) ListRecentWorkspaceActivities(ctx context.Context, arg ListRecentWorkspaceActivitiesParams) ([]ListRecentWorkspaceActivitiesRow, error) {
 	rows, err := q.db.Query(ctx, listRecentWorkspaceActivities,
 		arg.WorkspaceID,
@@ -336,6 +340,7 @@ func (q *Queries) ListRecentWorkspaceActivities(ctx context.Context, arg ListRec
 		arg.OnlyActions,
 		arg.ToStatuses,
 		arg.IssueID,
+		arg.ProjectID,
 		arg.BeforeAt,
 		arg.BeforeID,
 		arg.RowLimit,
@@ -359,6 +364,7 @@ func (q *Queries) ListRecentWorkspaceActivities(ctx context.Context, arg ListRec
 			&i.IssueNumber,
 			&i.IssueTitle,
 			&i.IssueStatus,
+			&i.IssueProjectID,
 		); err != nil {
 			return nil, err
 		}
