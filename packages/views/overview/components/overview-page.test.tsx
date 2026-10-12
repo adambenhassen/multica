@@ -84,7 +84,7 @@ function comment(id: string, issue: typeof SHIP, content: string) {
   return { type: "comment", id, actor_type: "agent", actor_id: "agent-1", created_at: NOW, content, issue };
 }
 
-type FeedCall = { kind?: string; to?: string[]; issue?: string; project?: string };
+type FeedCall = { kind?: string; to?: string[]; issues?: string[]; project?: string };
 
 /** Scripts the feed endpoint and records every call's parameters. */
 function scriptFeed(entries: (params: FeedCall) => unknown[]) {
@@ -226,6 +226,20 @@ describe("OverviewPage", () => {
     expect(count.parentElement!.className).toContain("@4xl:w-56");
   });
 
+  it("shows a new issue as its icon and \"Issue created\"", async () => {
+    const created = {
+      type: "activity", id: "k-1", actor_type: "agent", actor_id: "agent-1", created_at: NOW, action: "created", details: {}, issue: FIX,
+    };
+    scriptFeed(() => [created]);
+    renderPage();
+    const row = (await within(feed()).findByText("Fix the reconnect")).closest("a")!;
+    const words = within(row).getAllByText("Issue created");
+    // Visible beside its icon in a wide list, in the fixed action column.
+    expect(words.some((el) => el.className.includes("@4xl:inline") && el.closest('[class*="w-14"]'))).toBe(true);
+    expect(row.querySelector('[title="Issue created"]')).not.toBeNull();
+    expect(within(row).queryByText(/created this issue/)).toBeNull();
+  });
+
   it("keeps only each issue's latest move when asked", async () => {
     const older = { ...move("a-2", SHIP), details: { from: "todo", to: "in_review" } };
     scriptFeed(() => [move("a-1", SHIP), move("a-3", FIX), older]);
@@ -245,9 +259,7 @@ describe("OverviewPage", () => {
         { id: "t-2", agent_id: "agent-2", issue_id: "", status: "running", started_at: NOW, created_at: NOW },
         { id: "t-3", agent_id: "agent-3", issue_id: "issue-2", status: "queued", started_at: null, created_at: NOW },
       ]);
-    apiRef.current.listIssues = () =>
-      Promise.resolve({ issues: [{ id: "issue-1", identifier: "MUL-1", title: "Ship the dashboard", status: "in_progress" }], total: 1 });
-    scriptFeed(() => []);
+    scriptFeed((p) => (p.issues?.includes("issue-1") ? [move("a-1", SHIP)] : []));
     renderPage();
 
     const chip = await screen.findByRole("button", { name: "2 agents working" });
@@ -258,29 +270,35 @@ describe("OverviewPage", () => {
     expect(await within(feed()).findByText("Ship the dashboard")).toBeTruthy();
   });
 
-  it("lists the issues agents are working on now on the Active tab", async () => {
+  it("shows the All feed for the issues agents are working on now on the Active tab", async () => {
     apiRef.current.getAgentTaskSnapshot = () =>
       Promise.resolve([
         { id: "t-1", agent_id: "agent-1", issue_id: "issue-1", status: "running", started_at: NOW, created_at: NOW },
         { id: "t-2", agent_id: "agent-2", issue_id: "issue-2", status: "queued", started_at: null, created_at: NOW },
       ]);
-    const issueCalls: { ids?: string[] }[] = [];
-    apiRef.current.listIssues = ((params: { ids?: string[] }) => {
-      issueCalls.push(params);
-      return Promise.resolve({
-        issues: [{ id: "issue-1", identifier: "MUL-1", title: "Ship the dashboard", status: "in_progress", project_id: null }],
-        total: 1,
-      });
-    }) as () => Promise<unknown>;
-    scriptFeed(() => []);
+    const calls = scriptFeed((p) =>
+      p.issues?.length ? [move("a-1", SHIP)].filter((e) => p.issues!.includes(e.issue.id)) : [move("a-1", SHIP), move("a-2", FIX)],
+    );
     renderPage();
+    await within(feed()).findByText("Fix the reconnect");
 
-    fireEvent.click(await within(feed()).findByRole("button", { name: "Active" }));
-    const row = (await within(feed()).findByText("Ship the dashboard")).closest("a")!;
-    expect(row.getAttribute("href")).toBe("/acme/issues/issue-1");
-    expect(within(row).getByText("Working now: Builder")).toBeTruthy();
-    // Only running tasks count: the queued one's issue is not asked for.
-    expect(issueCalls.at(-1)?.ids).toEqual(["issue-1"]);
+    fireEvent.click(within(feed()).getByRole("button", { name: "Active" }));
+    await waitFor(() => expect(within(feed()).queryByText("Fix the reconnect")).toBeNull());
+    // Same rows as All, asked for only the issue with a running task.
+    const row = within(feed()).getByText("Ship the dashboard").closest("a")!;
+    expect(within(row).getByLabelText("→")).toBeTruthy();
+    expect(calls.at(-1)).toMatchObject({ kind: "status", issues: ["issue-1"] });
+  });
+
+  it("says nobody is working when no agent runs, without asking for every issue", async () => {
+    apiRef.current.getAgentTaskSnapshot = () => Promise.resolve([]);
+    const calls = scriptFeed(() => [move("a-1", SHIP)]);
+    renderPage();
+    await within(feed()).findByText("Ship the dashboard");
+    const before = calls.length;
+    fireEvent.click(within(feed()).getByRole("button", { name: "Active" }));
+    expect(await within(feed()).findByText("No agent is working on an issue right now")).toBeTruthy();
+    expect(calls.length).toBe(before);
   });
 
   it("shows each event on one line and names what it hides on hover", async () => {
@@ -337,7 +355,7 @@ describe("OverviewPage", () => {
   it("tints an issue's rows on hover and filters the feed to it", async () => {
     const calls = scriptFeed((p) => {
       const entries = [move("a-1", SHIP), move("a-2", FIX), move("a-3", SHIP)];
-      return p.issue ? entries.filter((e) => e.issue.id === p.issue) : entries;
+      return p.issues?.length ? entries.filter((e) => p.issues!.includes(e.issue.id)) : entries;
     });
     renderPage();
     const rows = (title: string) => within(feed()).getAllByText(title).map((el) => el.closest("a")!.parentElement!);
@@ -353,7 +371,7 @@ describe("OverviewPage", () => {
     fireEvent.click(within(rows("Ship the dashboard")[0]!).getByRole("button", { name: "Show only this issue" }));
     expect(await screen.findByText("Filtered to")).toBeTruthy();
     await waitFor(() => expect(within(feed()).queryByText("Fix the reconnect")).toBeNull());
-    expect(calls.at(-1)).toMatchObject({ issue: "issue-1" });
+    expect(calls.at(-1)).toMatchObject({ issues: ["issue-1"] });
 
     fireEvent.click(screen.getByRole("button", { name: "Clear issue filter" }));
     expect(screen.queryByText("Filtered to")).toBeNull();

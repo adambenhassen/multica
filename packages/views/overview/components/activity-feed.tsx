@@ -9,9 +9,8 @@ import { useActorName } from "@multica/core/workspace/hooks";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { agentTaskSnapshotOptions } from "@multica/core/agents";
-import { activeIssuesOptions, useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
+import { useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
 import type {
-  Issue,
   WorkspaceActivityEntry,
   WorkspaceActivityIssueRef,
   WorkspaceActivityKind,
@@ -113,12 +112,19 @@ export function StatusChangesFeed({
     () => (tab === "failures" || tab === "active" ? [] : statusChangeTargets(tab, catalog)),
     [tab, catalog],
   );
+  // Active is the All feed for the issues agents are working on right now.
+  const running = useRunningTasks(wsId);
+  const activeIssues = useMemo(() => {
+    const ids = [...running.byIssue.keys()].sort();
+    return focus.issue ? ids.filter((id) => id === focus.issue!.id) : ids;
+  }, [running.byIssue, focus.issue]);
+  const allLike = tab === "all" || tab === "active";
   // Comments and other changes are not moves into a status, so only the All
-  // tab mixes them in.
+  // (and Active) tab mixes them in.
   const kind: WorkspaceActivityKind =
     tab === "failures"
       ? "failures"
-      : tab !== "all"
+      : !allLike
         ? "status"
         : showComments && showOther
           ? "all"
@@ -131,11 +137,12 @@ export function StatusChangesFeed({
     ...workspaceActivityOptions(wsId, {
       kind,
       to: targets ?? [],
-      issue: focus.issue?.id,
+      issues: tab === "active" ? activeIssues : focus.issue ? [focus.issue.id] : [],
       project: focus.projectId,
     }),
-    // The Active tab lists issues, not events.
-    enabled: targets !== null && tab !== "active",
+    // With nobody working, Active has no issues to ask for: an empty filter
+    // would mean every issue.
+    enabled: targets !== null && (tab !== "active" || (!running.pending && activeIssues.length > 0)),
   });
   const tabLabels: Record<FeedTab, string> = {
     all: t(($) => $.status_changes.filters.all),
@@ -164,14 +171,14 @@ export function StatusChangesFeed({
       >
         {t(($) => $.activity.heading)}
       </SectionHeading>
-      {tab === "active" ? (
-        <ActiveIssues focus={focus} />
+      {tab === "active" && !running.pending && activeIssues.length === 0 ? (
+        <EmptyBox>{t(($) => $.status_changes.empty_active)}</EmptyBox>
       ) : (
         <FeedBody
           query={query}
           focus={focus}
           empty={
-            tab === "all"
+            allLike
               ? t(($) => $.status_changes.empty)
               : tab === "failures"
                 ? t(($) => $.status_changes.empty_failures)
@@ -180,115 +187,6 @@ export function StatusChangesFeed({
         />
       )}
     </section>
-  );
-}
-
-/**
- * The issues agents are working on right now (a running task, from the live
- * task snapshot), newest run first: status, issue, its project, the agents,
- * and when the work started. Narrowed by the page's project and issue filters.
- */
-function ActiveIssues({ focus }: { focus: FeedFocus }) {
-  const { t } = useT("overview");
-  const wsId = useWorkspaceId();
-  const { pending: snapshotPending, byIssue: running } = useRunningTasks(wsId);
-  const ids = useMemo(
-    () => [...running.keys()].filter((id) => !focus.issue || id === focus.issue.id).sort(),
-    [running, focus.issue],
-  );
-  const query = useQuery({ ...activeIssuesOptions(wsId, ids, focus.projectId), enabled: !snapshotPending });
-  const { data: projectList } = useQuery(projectListOptions(wsId));
-  const projects = useMemo(() => new Map((projectList ?? []).map((p) => [p.id, p] as const)), [projectList]);
-
-  if (snapshotPending || query.isPending) return <ListSkeleton />;
-  if (query.isError) return <ErrorBox onRetry={() => void query.refetch()} />;
-  const issues = [...query.data].sort((a, b) =>
-    (running.get(b.id)?.since ?? "").localeCompare(running.get(a.id)?.since ?? ""),
-  );
-  if (issues.length === 0) return <EmptyBox>{t(($) => $.status_changes.empty_active)}</EmptyBox>;
-  return (
-    <div className={cn(LIST_CLASS, "@container")}>
-      <div className="divide-y">
-        {issues.map((issue) => (
-          <ActiveIssueRow
-            key={issue.id}
-            issue={issue}
-            agentIds={running.get(issue.id)?.agentIds ?? []}
-            since={running.get(issue.id)?.since ?? ""}
-            project={issue.project_id ? projects.get(issue.project_id) : undefined}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** One issue on the Active tab, on the same columns as a feed row. */
-function ActiveIssueRow({
-  issue,
-  agentIds,
-  since,
-  project,
-}: {
-  issue: Issue;
-  agentIds: string[];
-  since: string;
-  project: RowProject | undefined;
-}) {
-  const { t } = useT("overview");
-  const wsId = useWorkspaceId();
-  const paths = useWorkspacePaths();
-  const timeAgo = useTimeAgo();
-  const catalog = useIssueStatuses(wsId);
-  const { getActorName } = useActorName();
-  const names = agentIds.map((id) => getActorName("agent", id)).join(", ");
-  return (
-    <AppLink
-      href={paths.issueDetail(issue.id)}
-      className="flex min-w-0 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/50"
-    >
-      <span
-        aria-hidden="true"
-        className="flex size-4 shrink-0 items-center justify-center"
-        title={catalog.labelOf(issue.status)}
-      >
-        <StatusIcon
-          status={issue.status}
-          category={catalog.categoryOf(issue.status)}
-          color={catalog.colorOf(issue.status)}
-          icon={catalog.iconOf(issue.status)}
-          className="size-4"
-        />
-      </span>
-      <span className="shrink-0 font-mono text-caption text-muted-foreground">{issue.identifier}</span>
-      <span className="min-w-32 flex-1 truncate text-label" title={issue.title}>
-        {issue.title}
-      </span>
-      <span
-        className="hidden w-32 shrink-0 items-center gap-1 text-caption text-muted-foreground @lg:flex"
-        title={project?.title}
-      >
-        {project && (
-          <>
-            <ProjectIcon project={project} size="sm" />
-            <span className="truncate">{project.title}</span>
-          </>
-        )}
-      </span>
-      {/* The agents, named once the list has room. */}
-      <span className="hidden min-w-0 shrink-0 items-center gap-1.5 text-caption @sm:flex @4xl:w-56" title={names}>
-        <span className="sr-only">{t(($) => $.working_now, { names })}</span>
-        <span aria-hidden="true" className="flex shrink-0 items-center -space-x-1">
-          {agentIds.slice(0, 3).map((id) => (
-            <ActorAvatar key={id} actorType="agent" actorId={id} size="xs" profileLink={false} showStatusDot />
-          ))}
-        </span>
-        <span aria-hidden="true" className="hidden truncate font-medium text-foreground @4xl:inline">
-          {names}
-        </span>
-      </span>
-      <span className="w-16 shrink-0 text-right text-caption text-muted-foreground">{since && timeAgo(since)}</span>
-    </AppLink>
   );
 }
 
@@ -413,6 +311,7 @@ const FeedRow = memo(function FeedRow({
   const details = (entry.details ?? {}) as Record<string, string>;
   const isComment = entry.type === "comment";
   const isMove = entry.action === "status_changed" && !!details.to;
+  const isCreated = entry.type === "activity" && entry.action === "created";
   const actorName = entry.actor_name || getActorName(entry.actor_type, entry.actor_id);
   const excerpt = isComment ? commentExcerpt(entry.content ?? "") : "";
 
@@ -440,12 +339,13 @@ const FeedRow = memo(function FeedRow({
   } else if (entry.action === "task_failed") {
     phrase = t(($) => $.activity.run_failed);
     lead = <CircleX className="size-4 text-destructive" />;
+  } else if (isCreated) {
+    phrase = t(($) => $.activity.issue_created);
+    lead = <CirclePlus className="size-4 text-muted-foreground" />;
   } else {
     phrase = formatActivity(entry, tIssues, locale, getActorName, catalog.labelOf);
     lead =
-      entry.action === "created" ? (
-        <CirclePlus className="size-4 text-muted-foreground" />
-      ) : entry.action === "assignee_changed" ? (
+      entry.action === "assignee_changed" ? (
         <UserRound className="size-4 text-muted-foreground" />
       ) : entry.action === "priority_changed" && details.to ? (
         <PriorityIcon priority={details.to} className="size-4" />
@@ -500,10 +400,18 @@ const FeedRow = memo(function FeedRow({
             {/* What happened, in words, once the list has room: a comment's
                 text, or the change ("assigned to Builder"). Screen readers get
                 the full sentence from the sr-only copy below. */}
-            {!isMove && (
-              <span aria-hidden="true" className="hidden min-w-0 truncate @4xl:inline">
-                {excerpt || phrase}
+            {isCreated ? (
+              // A new issue reads like a move: its icon, then (wide) its name.
+              <span aria-hidden="true" className="flex min-w-0 shrink-0 items-center gap-1 @4xl:shrink" title={phrase}>
+                <CirclePlus className="size-3.5 shrink-0" />
+                <span className="hidden truncate text-foreground @4xl:inline">{phrase}</span>
               </span>
+            ) : (
+              !isMove && (
+                <span aria-hidden="true" className="hidden min-w-0 truncate @4xl:inline">
+                  {excerpt || phrase}
+                </span>
+              )
             )}
             {isMove && (
               <>

@@ -4,21 +4,21 @@ import type { WorkspaceActivityKind, WorkspaceActivityResponse } from "../types"
 
 /**
  * What a Dashboard feed shows. `to` narrows the status feed to changes into
- * those status keys (empty keeps every change); `issue` and `project` (UUIDs)
- * keep one issue's history or one project's issues.
+ * those status keys (empty keeps every change); `issues` and `project` (UUIDs)
+ * keep those issues' history (empty keeps every issue) or one project's.
  */
 export interface ActivityFeedFilters {
   kind?: WorkspaceActivityKind;
   to?: readonly string[];
-  issue?: string | null;
+  issues?: readonly string[];
   project?: string | null;
 }
 
 export const overviewKeys = {
   all: (wsId: string) => ["overview", wsId] as const,
   activityAll: (wsId: string) => [...overviewKeys.all(wsId), "activity"] as const,
-  activity: (wsId: string, { kind = "all", to = [], issue = null, project = null }: ActivityFeedFilters = {}) =>
-    [...overviewKeys.activityAll(wsId), kind, issue, project, ...to] as const,
+  activity: (wsId: string, { kind = "all", to = [], issues = [], project = null }: ActivityFeedFilters = {}) =>
+    [...overviewKeys.activityAll(wsId), kind, issues, project, ...to] as const,
   // Under the feed prefix, so the same activity events refresh it.
   activeIssues: (wsId: string, ids: readonly string[], project: string | null) =>
     [...overviewKeys.activityAll(wsId), "active-issues", project, ...ids] as const,
@@ -40,7 +40,7 @@ function uniqueById<T extends { id: string }>(rows: T[]): T[] {
 
 /** The workspace feed, newest first, narrowed by `filters`. */
 export function workspaceActivityOptions(wsId: string, filters: ActivityFeedFilters = {}) {
-  const { kind = "all", to = [], issue = null, project = null } = filters;
+  const { kind = "all", to = [], issues = [], project = null } = filters;
   return infiniteQueryOptions({
     queryKey: overviewKeys.activity(wsId, filters),
     initialPageParam: null as string | null,
@@ -49,7 +49,7 @@ export function workspaceActivityOptions(wsId: string, filters: ActivityFeedFilt
         limit: WORKSPACE_ACTIVITY_LIMIT,
         kind,
         to,
-        issue: issue ?? undefined,
+        issues,
         project: project ?? undefined,
         before: pageParam ?? undefined,
       }),

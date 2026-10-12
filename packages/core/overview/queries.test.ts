@@ -9,7 +9,7 @@ describe("overview query keys", () => {
       "ws-1",
       "activity",
       "comments",
-      null,
+      [],
       null,
     ]);
     expect(overviewKeys.activityAll("ws-2")).toEqual(["overview", "ws-2", "activity"]);
@@ -21,19 +21,19 @@ describe("overview query keys", () => {
       "ws-1",
       "activity",
       "status",
-      null,
+      [],
       null,
       "blocked",
     ]);
   });
 
   it("keys an issue's history and a project's feed separately from the whole feed", () => {
-    expect(workspaceActivityOptions("ws-1", { issue: "issue-1" }).queryKey).toEqual([
+    expect(workspaceActivityOptions("ws-1", { issues: ["issue-1"] }).queryKey).toEqual([
       "overview",
       "ws-1",
       "activity",
       "all",
-      "issue-1",
+      ["issue-1"],
       null,
     ]);
     expect(workspaceActivityOptions("ws-1", { project: "project-1" }).queryKey).toEqual([
@@ -41,7 +41,7 @@ describe("overview query keys", () => {
       "ws-1",
       "activity",
       "all",
-      null,
+      [],
       "project-1",
     ]);
   });

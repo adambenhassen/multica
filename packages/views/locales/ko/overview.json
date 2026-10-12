@@ -7,7 +7,7 @@
     "on_all": "전체에 표시",
     "comments": "댓글",
     "other": "기타 변경",
-    "latest_only": "태스크별 최신 변경만"
+    "latest_only": "태스크의 이전 이동 숨기기"
   },
   "working_now": "작업 중: {{names}}",
   "activity": {
@@ -19,7 +19,8 @@
     "marked": "{{status}}(으)로 표시했습니다",
     "moved": "{{status}}(으)로 옮겼습니다",
     "with_excerpt": "{{phrase}}: “{{excerpt}}”",
-    "run_failed": "실행이 실패했습니다"
+    "run_failed": "실행이 실패했습니다",
+    "issue_created": "태스크 생성됨"
   },
   "status_changes": {
     "empty": "아직 상태 변경 없음",
