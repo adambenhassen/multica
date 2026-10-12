@@ -34,7 +34,6 @@
     "filters": {
       "all": "전체",
       "comments": "댓글",
-      "status": "상태 변경",
       "failures": "실패"
     },
     "empty_filtered": "아직 항목이 없습니다",
@@ -47,11 +46,11 @@
     "with_excerpt": "{{phrase}}: “{{excerpt}}”",
     "run_failed": "실행이 실패했습니다"
   },
-  "issues": {
-    "heading": "최근 태스크",
-    "empty": "아직 태스크 없음",
-    "empty_filtered": "이 상태의 태스크 없음",
-    "filter_label": "상태로 필터",
+  "status_changes": {
+    "heading": "상태 변경",
+    "empty": "아직 상태 변경 없음",
+    "empty_filtered": "이 상태로의 변경 없음",
+    "filter_label": "변경된 상태로 필터",
     "filters": {
       "all": "전체",
       "in_progress": "진행 중",

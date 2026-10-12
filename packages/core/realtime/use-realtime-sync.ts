@@ -1038,18 +1038,15 @@ export function useRealtimeSync(
       }, 1_000));
     };
 
-    // The Dashboard lists refetch once per second at most. Like the
+    // The Dashboard feeds refetch once per second at most. Like the
     // working-agent refresh, each flushes one second after the FIRST event so a
     // busy workspace's continuous activity cannot starve it.
     const overviewTimers = new Map<string, ReturnType<typeof setTimeout>>();
-    const scheduleOverviewRefresh = (wsId: string, part: "activity" | "issues") => {
-      const timerKey = `${wsId}:${part}`;
-      if (overviewTimers.has(timerKey)) return;
-      overviewTimers.set(timerKey, setTimeout(() => {
-        overviewTimers.delete(timerKey);
-        qc.invalidateQueries({
-          queryKey: part === "activity" ? overviewKeys.activityAll(wsId) : overviewKeys.issuesAll(wsId),
-        });
+    const scheduleOverviewRefresh = (wsId: string) => {
+      if (overviewTimers.has(wsId)) return;
+      overviewTimers.set(wsId, setTimeout(() => {
+        overviewTimers.delete(wsId);
+        qc.invalidateQueries({ queryKey: overviewKeys.activityAll(wsId) });
       }, 1_000));
     };
 
@@ -1129,7 +1126,6 @@ export function useRealtimeSync(
         if (issue.status) {
           onInboxIssueStatusChanged(qc, wsId, issue.id, issue.status);
         }
-        scheduleOverviewRefresh(wsId, "issues");
       }
     });
 
@@ -1139,7 +1135,6 @@ export function useRealtimeSync(
       const wsId = getCurrentWsId();
       if (wsId) {
         onIssueCreated(qc, wsId, issue);
-        scheduleOverviewRefresh(wsId, "issues");
       }
     });
 
@@ -1152,8 +1147,7 @@ export function useRealtimeSync(
         void onInboxIssueDeleted(qc, wsId, issue_id);
         // The feed joins activity to its issue, so the deleted issue's rows
         // are gone server-side.
-        scheduleOverviewRefresh(wsId, "activity");
-        scheduleOverviewRefresh(wsId, "issues");
+        scheduleOverviewRefresh(wsId);
       }
     });
 
@@ -1240,7 +1234,7 @@ export function useRealtimeSync(
       if (!comment?.issue_id) return;
       invalidateTimeline(comment.issue_id);
       const feedWsId = getCurrentWsId();
-      if (feedWsId) scheduleOverviewRefresh(feedWsId, "activity");
+      if (feedWsId) scheduleOverviewRefresh(feedWsId);
       // A new comment bumps the parent issue's updated_at server-side
       // (MUL-5009), so any open board/list sorted by "Updated date" has
       // drifted. Refetch just those keys to re-sort the commented card into
@@ -1282,7 +1276,7 @@ export function useRealtimeSync(
       invalidateTimeline(issue_id);
       const wsId = getCurrentWsId();
       if (wsId) {
-        scheduleOverviewRefresh(wsId, "activity");
+        scheduleOverviewRefresh(wsId);
         invalidateLastActivitySortedIssueLists(qc, wsId);
         if (issue_revision) {
           onIssueAuxiliaryRevision(qc, wsId, issue_id, issue_revision);
@@ -1306,7 +1300,7 @@ export function useRealtimeSync(
       const { issue_id } = p as ActivityCreatedPayload;
       if (issue_id) invalidateTimeline(issue_id);
       const wsId = getCurrentWsId();
-      if (wsId) scheduleOverviewRefresh(wsId, "activity");
+      if (wsId) scheduleOverviewRefresh(wsId);
     });
 
     const unsubReactionAdded = ws.on("reaction:added", (p) => {

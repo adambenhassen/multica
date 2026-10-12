@@ -92,7 +92,6 @@ import type {
   TimelineEntry,
   AssigneeFrequencyEntry,
   WorkspaceActivityKind,
-  RecentlyCompletedResponse,
   WorkspaceActivityResponse,
   TaskMessagePayload,
   Attachment,
@@ -313,7 +312,6 @@ import {
   EMPTY_SQUAD_MEMBER_STATUS_LIST,
   EMPTY_TIMELINE_ENTRIES,
   EMPTY_WORKSPACE_ACTIVITY,
-  EMPTY_RECENTLY_COMPLETED,
   EMPTY_USER,
   EMPTY_LIST_WEBHOOK_DELIVERIES_RESPONSE,
   EMPTY_WEBHOOK_DELIVERY,
@@ -356,7 +354,6 @@ import {
   TaskMessageListSchema,
   TimelineEntriesSchema,
   WorkspaceActivityResponseSchema,
-  RecentlyCompletedResponseSchema,
   UserSchema,
   WebhookDeliveryResponseSchema,
   BillingBalanceSchema,
@@ -1723,31 +1720,18 @@ export class ApiClient {
 
   // Newest issue activity across the current workspace, for the Dashboard.
   async listWorkspaceActivity(
-    params: { limit?: number; kind?: WorkspaceActivityKind; before?: string } = {},
+    params: { limit?: number; kind?: WorkspaceActivityKind; to?: readonly string[]; before?: string } = {},
   ): Promise<WorkspaceActivityResponse> {
     const search = new URLSearchParams();
     if (params.limit !== undefined) search.set("limit", String(params.limit));
     if (params.kind && params.kind !== "all") search.set("kind", params.kind);
+    // Status keys the changes went into; the server takes it with kind=status only.
+    if (params.to?.length) search.set("to", params.to.join(","));
     if (params.before) search.set("before", params.before);
     const qs = search.toString();
     const raw = await this.fetch<unknown>(`/api/activity${qs ? `?${qs}` : ""}`);
     return parseWithFallback(raw, WorkspaceActivityResponseSchema, EMPTY_WORKSPACE_ACTIVITY, {
       endpoint: "GET /api/activity",
-    });
-  }
-
-  // Issues in a finished category, newest first by when they got there.
-  async listRecentlyCompleted(params: {
-    category: "done" | "closed";
-    limit?: number;
-    offset?: number;
-  }): Promise<RecentlyCompletedResponse> {
-    const search = new URLSearchParams({ category: params.category });
-    if (params.limit !== undefined) search.set("limit", String(params.limit));
-    if (params.offset) search.set("offset", String(params.offset));
-    const raw = await this.fetch<unknown>(`/api/activity/completed?${search.toString()}`);
-    return parseWithFallback(raw, RecentlyCompletedResponseSchema, EMPTY_RECENTLY_COMPLETED, {
-      endpoint: "GET /api/activity/completed",
     });
   }
 

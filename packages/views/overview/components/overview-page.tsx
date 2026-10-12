@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Bot, CircleDot, DollarSign, Inbox, LayoutDashboard, SlidersHorizontal, type LucideIcon } from "lucide-react";
-import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import {
@@ -28,15 +28,7 @@ import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { useInboxUnreadCount } from "@multica/core/inbox/queries";
 import { dashboardRunTimeDailyOptions, dashboardUsageDailyOptions } from "@multica/core/dashboard";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
-import {
-  OVERVIEW_SECTIONS,
-  RECENT_ISSUE_FILTERS,
-  recentIssuesOptions,
-  recentlyCompletedOptions,
-  useOverviewLayoutStore,
-  type OverviewSection,
-  type RecentIssueFilter,
-} from "@multica/core/overview";
+import { OVERVIEW_SECTIONS, useOverviewLayoutStore, type OverviewSection } from "@multica/core/overview";
 import type { AgentTask, Issue, IssueTableFacetsRequest } from "@multica/core/types";
 import { AppLink } from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
@@ -48,7 +40,6 @@ import { taskStatusConfig } from "../../agents/config";
 import { DailyTasksChart } from "../../runtimes/components/charts";
 import { addDaysIso, todayIso } from "../../runtimes/utils";
 import { computeDailyTotals } from "../../dashboard/utils";
-import { Segmented } from "../../dashboard/components/dashboard-shared";
 import { useLocale, useT, useTimeAgo } from "../../i18n";
 import {
   OVERVIEW_CHART_DAYS,
@@ -59,17 +50,8 @@ import {
   summarizeIssueFacet,
 } from "../utils";
 import { SuccessRateChart } from "./success-rate-chart";
-import { InfiniteScrollSentinel } from "../../issues/components/infinite-scroll-sentinel";
-import { ActivityFeed } from "./activity-feed";
-import {
-  EmptyBox,
-  ErrorBox,
-  LIST_CLASS,
-  LIST_SECTION_CLASS,
-  LIST_ROW_CLASS,
-  ListSkeleton,
-  SectionHeading,
-} from "./section-parts";
+import { ActivityFeed, StatusChangesFeed } from "./activity-feed";
+import { EmptyBox, ErrorBox, SectionHeading } from "./section-parts";
 import { cn } from "@multica/ui/lib/utils";
 
 const SPEND_DAYS = 30;
@@ -92,7 +74,7 @@ export function OverviewPage() {
   const showAll = useOverviewLayoutStore((s) => s.showAll);
   // Hidden sections are not rendered at all, so they also stop fetching.
   const shown = (section: OverviewSection) => !hidden.includes(section);
-  const listCount = Number(shown("activity")) + Number(shown("issues"));
+  const listCount = Number(shown("activity")) + Number(shown("status_changes"));
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -121,7 +103,7 @@ export function OverviewPage() {
             // lists reach the bottom of the window however many sections are hidden.
             <div className="flex flex-col gap-4 md:min-h-[30rem] md:flex-1 md:basis-0 md:flex-row">
               {shown("activity") && <ActivityFeed />}
-              {shown("issues") && <RecentIssuesList />}
+              {shown("status_changes") && <StatusChangesFeed />}
             </div>
           )}
         </div>
@@ -141,7 +123,7 @@ function CustomizeMenu() {
     run_activity: t(($) => $.charts.run_activity),
     success_rate: t(($) => $.charts.success_rate),
     activity: t(($) => $.activity.heading),
-    issues: t(($) => $.issues.heading),
+    status_changes: t(($) => $.status_changes.heading),
   };
 
   return (
@@ -460,118 +442,6 @@ function ChartCard({ title, children }: { title: string; children: ReactNode }) 
         <p className="text-micro text-muted-foreground">{t(($) => $.charts.last_14_days)}</p>
       </div>
       {children}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Recent activity / issues
-// ---------------------------------------------------------------------------
-
-// Built-in started statuses minus Blocked, used for the In progress tab when the
-// workspace catalog cannot be read.
-const BUILT_IN_IN_PROGRESS = ["in_progress", "in_review"];
-
-function RecentIssuesList() {
-  const { t } = useT("overview");
-  const wsId = useWorkspaceId();
-  const paths = useWorkspacePaths();
-  const timeAgo = useTimeAgo();
-  const catalog = useIssueStatuses(wsId);
-  const [filter, setFilter] = useState<RecentIssueFilter>("all");
-
-  // In progress is every started status except Blocked, which has its own tab.
-  // Custom started statuses come from the catalog, so the tab waits for it.
-  const inProgressStatuses = useMemo(() => {
-    if (catalog.isLoaded) {
-      return catalog.statuses
-        .map((s) => s.key)
-        .filter((key) => key !== "blocked" && catalog.categoryOf(key) === "started");
-    }
-    return catalog.isError ? BUILT_IN_IN_PROGRESS : null;
-  }, [catalog]);
-
-  const completedTab = filter === "done" || filter === "cancelled";
-  const touchedQuery = useInfiniteQuery({
-    ...recentIssuesOptions(wsId, completedTab ? "all" : filter, inProgressStatuses ?? []),
-    enabled: !completedTab && (filter !== "in_progress" || inProgressStatuses !== null),
-  });
-  const completedQuery = useInfiniteQuery({
-    ...recentlyCompletedOptions(wsId, filter === "cancelled" ? "cancelled" : "done"),
-    enabled: completedTab,
-  });
-  const query = completedTab ? completedQuery : touchedQuery;
-  const rows = query.data ?? [];
-
-  const filterLabels: Record<RecentIssueFilter, string> = {
-    all: t(($) => $.issues.filters.all),
-    in_progress: t(($) => $.issues.filters.in_progress),
-    blocked: t(($) => $.issues.filters.blocked),
-    done: t(($) => $.issues.filters.done),
-    cancelled: t(($) => $.issues.filters.cancelled),
-  };
-
-  return (
-    <section className={LIST_SECTION_CLASS}>
-      <SectionHeading
-        action={
-          <Segmented
-            label={t(($) => $.issues.filter_label)}
-            value={filter}
-            onChange={setFilter}
-            options={RECENT_ISSUE_FILTERS.map((value) => ({ value, label: filterLabels[value] }))}
-          />
-        }
-      >
-        {t(($) => $.issues.heading)}
-      </SectionHeading>
-      {query.isPending ? (
-        <ListSkeleton />
-      ) : query.isError ? (
-        <ErrorBox onRetry={() => void query.refetch()} />
-      ) : rows.length === 0 ? (
-        <EmptyBox>
-          {filter === "all" ? t(($) => $.issues.empty) : t(($) => $.issues.empty_filtered)}
-        </EmptyBox>
-      ) : (
-        <div className={LIST_CLASS}>
-          {rows.map((row) => (
-            <AppLink key={row.id} href={paths.issueDetail(row.id)} className={LIST_ROW_CLASS}>
-              <StatusIcon
-                status={row.status}
-                category={catalog.categoryOf(row.status)}
-                color={catalog.colorOf(row.status)}
-                icon={catalog.iconOf(row.status)}
-                className="size-4 shrink-0"
-              />
-              <span className="min-w-0 flex-1 truncate">{row.title}</span>
-              {/* The assignee, or on Done / Cancelled whoever finished it. */}
-              {row.actor && (
-                <ActorAvatar
-                  actorType={row.actor.type}
-                  actorId={row.actor.id}
-                  size="sm"
-                  profileLink={false}
-                />
-              )}
-              <span className="hidden shrink-0 font-mono text-caption text-muted-foreground sm:inline">
-                {row.identifier}
-              </span>
-              <span className="w-16 shrink-0 text-right text-caption text-muted-foreground">
-                {timeAgo(row.at)}
-              </span>
-            </AppLink>
-          ))}
-          {query.hasNextPage && (
-            <InfiniteScrollSentinel
-              onVisible={() => {
-                if (!query.isFetchingNextPage) void query.fetchNextPage();
-              }}
-              loading={query.isFetchingNextPage}
-            />
-          )}
-        </div>
-      )}
     </section>
   );
 }
