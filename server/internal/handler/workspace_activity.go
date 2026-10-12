@@ -1,11 +1,17 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/issuestatus"
+	"github.com/multica-ai/multica/server/internal/logger"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
@@ -52,6 +58,31 @@ type WorkspaceActivityEntry struct {
 
 type WorkspaceActivityResponse struct {
 	Entries []WorkspaceActivityEntry `json:"entries"`
+	// Pass back as `before` for the next page; null on the last page.
+	NextCursor *string `json:"next_cursor"`
+}
+
+// A feed cursor is the (created_at, id) of the last entry on a page. Both
+// sources page on that tuple, so the merged stream continues exactly where the
+// previous page stopped.
+func formatActivityCursor(at time.Time, id string) string {
+	return at.UTC().Format(time.RFC3339Nano) + "|" + id
+}
+
+func parseActivityCursor(raw string) (pgtype.Timestamptz, pgtype.UUID, bool) {
+	atRaw, idRaw, ok := strings.Cut(raw, "|")
+	if !ok {
+		return pgtype.Timestamptz{}, pgtype.UUID{}, false
+	}
+	at, err := time.Parse(time.RFC3339Nano, atRaw)
+	if err != nil {
+		return pgtype.Timestamptz{}, pgtype.UUID{}, false
+	}
+	id, err := util.ParseUUID(idRaw)
+	if err != nil {
+		return pgtype.Timestamptz{}, pgtype.UUID{}, false
+	}
+	return pgtype.Timestamptz{Time: at, Valid: true}, id, true
 }
 
 // ListWorkspaceActivity returns the newest issue activity and comments across
@@ -72,6 +103,15 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		limit = min(n, maxWorkspaceActivityLimit)
+	}
+	var beforeAt pgtype.Timestamptz
+	var beforeID pgtype.UUID
+	if raw := r.URL.Query().Get("before"); raw != "" {
+		var ok bool
+		if beforeAt, beforeID, ok = parseActivityCursor(raw); !ok {
+			writeError(w, http.StatusBadRequest, "invalid before cursor")
+			return
+		}
 	}
 	kind := r.URL.Query().Get("kind")
 	if !workspaceActivityKinds[kind] {
@@ -100,6 +140,8 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 			WorkspaceID:     wsUUID,
 			ExcludedActions: excludedActions,
 			OnlyActions:     onlyActions,
+			BeforeAt:        beforeAt,
+			BeforeID:        beforeID,
 			RowLimit:        int32(limit),
 		})
 		if err != nil {
@@ -113,6 +155,8 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 		rows, err := h.Queries.ListRecentWorkspaceComments(ctx, db.ListRecentWorkspaceCommentsParams{
 			WorkspaceID:   wsUUID,
 			ExcerptLength: workspaceActivityExcerptLength,
+			BeforeAt:      beforeAt,
+			BeforeID:      beforeID,
 			RowLimit:      int32(limit),
 		})
 		if err != nil {
@@ -171,9 +215,20 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 	}
 	// Each source is already newest-first and capped at limit, so the merged
 	// head is the true newest `limit` across both.
-	sort.SliceStable(rows, func(i, j int) bool { return rows[i].at.Time.After(rows[j].at.Time) })
-	if len(rows) > limit {
+	// Ordered like the SQL (created_at DESC, id DESC): uuid order in Postgres
+	// is the order of the canonical lowercase strings.
+	sort.SliceStable(rows, func(i, j int) bool {
+		if !rows[i].at.Time.Equal(rows[j].at.Time) {
+			return rows[i].at.Time.After(rows[j].at.Time)
+		}
+		return rows[i].entry.ID > rows[j].entry.ID
+	})
+	var nextCursor *string
+	if len(rows) >= limit {
 		rows = rows[:limit]
+		last := rows[len(rows)-1]
+		cursor := formatActivityCursor(last.at.Time, last.entry.ID)
+		nextCursor = &cursor
 	}
 
 	timeline := make([]TimelineEntry, len(rows))
@@ -186,5 +241,101 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 	for i, row := range rows {
 		entries[i] = WorkspaceActivityEntry{TimelineEntry: timeline[i], Issue: row.issue}
 	}
-	writeJSON(w, http.StatusOK, WorkspaceActivityResponse{Entries: entries})
+	writeJSON(w, http.StatusOK, WorkspaceActivityResponse{Entries: entries, NextCursor: nextCursor})
+}
+
+// RecentlyCompletedEntry is an issue in a finished status and when it got
+// there, for the Dashboard's Done / Cancelled tabs.
+type RecentlyCompletedEntry struct {
+	Issue WorkspaceActivityIssueRef `json:"issue"`
+	// When the issue entered its current status: the latest status change to
+	// it, or the issue's updated_at when it never changed into it.
+	CompletedAt string `json:"completed_at"`
+	// Who moved it there; empty when no status change is on record.
+	ActorType string `json:"actor_type,omitempty"`
+	ActorID   string `json:"actor_id,omitempty"`
+}
+
+type RecentlyCompletedResponse struct {
+	Entries []RecentlyCompletedEntry `json:"entries"`
+	// Pass back as `offset` for the next page; null on the last page.
+	NextOffset *int `json:"next_offset"`
+}
+
+// recentlyCompletedCategories are the lifecycle categories whose tab orders by
+// when an issue got there rather than by when it was last touched.
+var recentlyCompletedCategories = map[string]bool{"done": true, "closed": true}
+
+// ListRecentlyCompletedIssues returns issues in the requested finished
+// category (`done` or `closed`), newest first by when they entered their
+// current status, so a done issue that later gets a comment keeps its place.
+func (h *Handler) ListRecentlyCompletedIssues(w http.ResponseWriter, r *http.Request) {
+	workspaceID := h.resolveWorkspaceID(r)
+	if _, ok := h.workspaceMember(w, r, workspaceID); !ok {
+		return
+	}
+	category := r.URL.Query().Get("category")
+	if !recentlyCompletedCategories[category] {
+		writeError(w, http.StatusBadRequest, "category must be done or closed")
+		return
+	}
+	limit := defaultWorkspaceActivityLimit
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 {
+			writeError(w, http.StatusBadRequest, "limit must be a positive integer")
+			return
+		}
+		limit = min(n, maxWorkspaceActivityLimit)
+	}
+	offset := 0
+	if raw := r.URL.Query().Get("offset"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 {
+			writeError(w, http.StatusBadRequest, "offset must be a non-negative integer")
+			return
+		}
+		offset = n
+	}
+
+	ctx := r.Context()
+	wsUUID := parseUUID(workspaceID)
+	statuses, err := issuestatus.ExpandCategories(ctx, h.Queries, wsUUID, []string{category})
+	if err != nil {
+		slog.Warn("expand status categories failed", append(logger.RequestAttrs(r), "error", err)...)
+		writeError(w, http.StatusInternalServerError, "failed to resolve status categories")
+		return
+	}
+	rows, err := h.Queries.ListIssuesByStatusEnteredAt(ctx, db.ListIssuesByStatusEnteredAtParams{
+		WorkspaceID: wsUUID,
+		Statuses:    statuses,
+		RowLimit:    int32(limit),
+		RowOffset:   int32(offset),
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list completed issues")
+		return
+	}
+
+	prefix := h.getIssuePrefix(ctx, wsUUID)
+	entries := make([]RecentlyCompletedEntry, len(rows))
+	for i, row := range rows {
+		entries[i] = RecentlyCompletedEntry{
+			Issue: WorkspaceActivityIssueRef{
+				ID:         uuidToString(row.ID),
+				Identifier: prefix + "-" + strconv.Itoa(int(row.Number)),
+				Title:      row.Title,
+				Status:     row.Status,
+			},
+			CompletedAt: timestampToString(row.EnteredAt),
+			ActorType:   row.ActorType.String,
+			ActorID:     uuidToString(row.ActorID),
+		}
+	}
+	var nextOffset *int
+	if len(entries) == limit {
+		next := offset + limit
+		nextOffset = &next
+	}
+	writeJSON(w, http.StatusOK, RecentlyCompletedResponse{Entries: entries, NextOffset: nextOffset})
 }

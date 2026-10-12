@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -153,4 +154,131 @@ func TestListWorkspaceActivityMergesCommentsAndFiltersByKind(t *testing.T) {
 	}
 	testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity?kind=runs", ws, testUserID)).
 		Want(http.StatusBadRequest)
+}
+
+func TestListRecentlyCompletedIssuesOrdersByCompletion(t *testing.T) {
+	ws := dbfx.Workspace(t, "Completed feed", "completed-feed-"+uuid.NewString(), testutil.Cols{"issue_prefix": "CF"})
+	dbfx.Member(t, ws, testUserID, "owner")
+	base := time.Now().UTC().Add(-48 * time.Hour).Truncate(time.Microsecond)
+
+	// Finished long ago, but touched recently: must sort by when it finished.
+	early := dbfx.Issue(t, "Done early, commented later", testutil.Cols{"workspace_id": ws, "status": "done", "updated_at": base.Add(40 * time.Hour)})
+	late := dbfx.Issue(t, "Done late", testutil.Cols{"workspace_id": ws, "status": "done", "updated_at": base.Add(10 * time.Hour)})
+	// Created directly as done: no status change on record, falls back to updated_at.
+	direct := dbfx.Issue(t, "Created done", testutil.Cols{"workspace_id": ws, "status": "done", "updated_at": base.Add(5 * time.Hour)})
+	open := dbfx.Issue(t, "Still open", testutil.Cols{"workspace_id": ws, "status": "in_progress"})
+	cancelled := dbfx.Issue(t, "Dropped", testutil.Cols{"workspace_id": ws, "status": "cancelled"})
+	statusChange := func(issue, to string, at time.Time) {
+		dbfx.Insert(t, "activity_log", testutil.Cols{
+			"workspace_id": ws, "issue_id": issue, "actor_type": "member", "actor_id": testUserID,
+			"action": "status_changed", "details": `{"from":"in_progress","to":"` + to + `"}`, "created_at": at,
+		})
+	}
+	statusChange(early, "done", base.Add(1*time.Hour))
+	statusChange(late, "done", base.Add(9*time.Hour))
+	statusChange(open, "done", base.Add(20*time.Hour)) // reopened since; not done now
+	statusChange(cancelled, "cancelled", base.Add(30*time.Hour))
+
+	read := func(query string) RecentlyCompletedResponse {
+		var out RecentlyCompletedResponse
+		testutil.Call(t, testHandler.ListRecentlyCompletedIssues, workspaceActivityRequest("/api/activity/completed"+query, ws, testUserID)).
+			Want(http.StatusOK).JSON(&out)
+		return out
+	}
+	done := read("?category=done")
+	got := make([]string, len(done.Entries))
+	for i, e := range done.Entries {
+		got[i] = e.Issue.ID
+	}
+	if want := []string{late, direct, early}; !slices.Equal(got, want) {
+		t.Fatalf("done order = %v, want by completion time %v", got, want)
+	}
+	if e := done.Entries[0]; e.ActorID != testUserID || e.ActorType != "member" || e.Issue.Identifier == "" {
+		t.Fatalf("latest completion = %+v, want the member who moved it", e)
+	}
+	if e := done.Entries[1]; e.ActorID != "" {
+		t.Fatalf("created-as-done entry = %+v, want no actor", e)
+	}
+	closed := read("?category=closed")
+	if len(closed.Entries) != 1 || closed.Entries[0].Issue.ID != cancelled {
+		t.Fatalf("closed = %+v, want only the cancelled issue", closed.Entries)
+	}
+	for _, query := range []string{"", "?category=started", "?category=done&limit=0"} {
+		testutil.Call(t, testHandler.ListRecentlyCompletedIssues, workspaceActivityRequest("/api/activity/completed"+query, ws, testUserID)).
+			Want(http.StatusBadRequest)
+	}
+}
+
+func TestListWorkspaceActivityPagesThroughBothSources(t *testing.T) {
+	ws := dbfx.Workspace(t, "Feed pages", "feed-pages-"+uuid.NewString(), testutil.Cols{"issue_prefix": "FP"})
+	dbfx.Member(t, ws, testUserID, "owner")
+	issue := dbfx.Issue(t, "Paged issue", testutil.Cols{"workspace_id": ws})
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
+
+	// Interleaved sources, plus a timestamp shared across both tables, so a
+	// page boundary has to fall between rows of different kinds.
+	var want []string
+	for i := range 7 {
+		at := base.Add(time.Duration(i) * time.Minute)
+		if i%2 == 0 {
+			want = append(want, dbfx.Comment(t, issue, "c", testutil.Cols{"workspace_id": ws, "created_at": at}))
+		} else {
+			want = append(want, dbfx.Insert(t, "activity_log", testutil.Cols{
+				"workspace_id": ws, "issue_id": issue, "actor_type": "member", "actor_id": testUserID,
+				"action": "status_changed", "created_at": at,
+			}))
+		}
+	}
+	tie := base.Add(3 * time.Minute)
+	want = append(want, dbfx.Comment(t, issue, "tie", testutil.Cols{"workspace_id": ws, "created_at": tie}))
+
+	var got []string
+	cursor := ""
+	for page := 0; ; page++ {
+		if page > 10 {
+			t.Fatal("paging did not terminate")
+		}
+		path := "/api/activity?limit=2"
+		if cursor != "" {
+			path += "&before=" + url.QueryEscape(cursor)
+		}
+		var out WorkspaceActivityResponse
+		testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest(path, ws, testUserID)).
+			Want(http.StatusOK).JSON(&out)
+		for _, e := range out.Entries {
+			got = append(got, e.ID)
+		}
+		if out.NextCursor == nil {
+			break
+		}
+		cursor = *out.NextCursor
+	}
+	slices.Sort(want)
+	sortedGot := slices.Clone(got)
+	slices.Sort(sortedGot)
+	if !slices.Equal(sortedGot, want) {
+		t.Fatalf("paged entries = %v, want each of %v exactly once", got, want)
+	}
+	testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity?before=nope", ws, testUserID)).
+		Want(http.StatusBadRequest)
+}
+
+func TestListRecentlyCompletedIssuesPagesByOffset(t *testing.T) {
+	ws := dbfx.Workspace(t, "Completed pages", "completed-pages-"+uuid.NewString(), testutil.Cols{"issue_prefix": "CP"})
+	dbfx.Member(t, ws, testUserID, "owner")
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
+	for i := range 3 {
+		dbfx.Issue(t, "Done", testutil.Cols{"workspace_id": ws, "status": "done", "updated_at": base.Add(time.Duration(i) * time.Minute)})
+	}
+	var first, second RecentlyCompletedResponse
+	testutil.Call(t, testHandler.ListRecentlyCompletedIssues, workspaceActivityRequest("/api/activity/completed?category=done&limit=2", ws, testUserID)).
+		Want(http.StatusOK).JSON(&first)
+	if len(first.Entries) != 2 || first.NextOffset == nil || *first.NextOffset != 2 {
+		t.Fatalf("first page = %+v", first)
+	}
+	testutil.Call(t, testHandler.ListRecentlyCompletedIssues, workspaceActivityRequest("/api/activity/completed?category=done&limit=2&offset=2", ws, testUserID)).
+		Want(http.StatusOK).JSON(&second)
+	if len(second.Entries) != 1 || second.NextOffset != nil {
+		t.Fatalf("second page = %+v", second)
+	}
 }

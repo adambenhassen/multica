@@ -1358,14 +1358,18 @@ JOIN issue i ON i.id = c.issue_id AND i.workspace_id = c.workspace_id
 WHERE c.workspace_id = $2
   AND c.type = 'comment'
   AND c.deleted_at IS NULL
+  AND ($3::timestamptz IS NULL
+       OR (c.created_at, c.id) < ($3::timestamptz, $4::uuid))
 ORDER BY c.created_at DESC, c.id DESC
-LIMIT $3
+LIMIT $5
 `
 
 type ListRecentWorkspaceCommentsParams struct {
-	ExcerptLength int32       `json:"excerpt_length"`
-	WorkspaceID   pgtype.UUID `json:"workspace_id"`
-	RowLimit      int32       `json:"row_limit"`
+	ExcerptLength int32              `json:"excerpt_length"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	BeforeAt      pgtype.Timestamptz `json:"before_at"`
+	BeforeID      pgtype.UUID        `json:"before_id"`
+	RowLimit      int32              `json:"row_limit"`
 }
 
 type ListRecentWorkspaceCommentsRow struct {
@@ -1386,7 +1390,13 @@ type ListRecentWorkspaceCommentsRow struct {
 // The literal type / deleted_at predicates let idx_comment_workspace_recent
 // (migration 582) serve the ORDER BY without a sort step.
 func (q *Queries) ListRecentWorkspaceComments(ctx context.Context, arg ListRecentWorkspaceCommentsParams) ([]ListRecentWorkspaceCommentsRow, error) {
-	rows, err := q.db.Query(ctx, listRecentWorkspaceComments, arg.ExcerptLength, arg.WorkspaceID, arg.RowLimit)
+	rows, err := q.db.Query(ctx, listRecentWorkspaceComments,
+		arg.ExcerptLength,
+		arg.WorkspaceID,
+		arg.BeforeAt,
+		arg.BeforeID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

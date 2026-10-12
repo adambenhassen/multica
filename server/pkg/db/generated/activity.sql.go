@@ -205,6 +205,81 @@ func (q *Queries) ListActivitiesForIssue(ctx context.Context, arg ListActivities
 	return items, nil
 }
 
+const listIssuesByStatusEnteredAt = `-- name: ListIssuesByStatusEnteredAt :many
+SELECT i.id, i.number, i.title, i.status,
+       COALESCE(entered.created_at, i.updated_at)::timestamptz AS entered_at,
+       entered.actor_type, entered.actor_id
+FROM issue i
+LEFT JOIN LATERAL (
+    SELECT a.created_at, a.actor_type, a.actor_id
+    FROM activity_log a
+    WHERE a.issue_id = i.id
+      AND a.action = 'status_changed'
+      AND a.details->>'to' = i.status
+    ORDER BY a.created_at DESC, a.id DESC
+    LIMIT 1
+) entered ON true
+WHERE i.workspace_id = $1
+  AND i.status = ANY($2::text[])
+ORDER BY entered_at DESC, i.id DESC
+LIMIT $4 OFFSET $3
+`
+
+type ListIssuesByStatusEnteredAtParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Statuses    []string    `json:"statuses"`
+	RowOffset   int32       `json:"row_offset"`
+	RowLimit    int32       `json:"row_limit"`
+}
+
+type ListIssuesByStatusEnteredAtRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	Number    int32              `json:"number"`
+	Title     string             `json:"title"`
+	Status    string             `json:"status"`
+	EnteredAt pgtype.Timestamptz `json:"entered_at"`
+	ActorType pgtype.Text        `json:"actor_type"`
+	ActorID   pgtype.UUID        `json:"actor_id"`
+}
+
+// Issues currently in one of @statuses, newest first by when they entered
+// that status: the latest status_changed activity whose `to` is the issue's
+// current status. Backs the Dashboard's Done / Cancelled tabs, where "recent"
+// means recently completed, not recently touched. An issue with no such row
+// (created directly in the status) falls back to its updated_at.
+func (q *Queries) ListIssuesByStatusEnteredAt(ctx context.Context, arg ListIssuesByStatusEnteredAtParams) ([]ListIssuesByStatusEnteredAtRow, error) {
+	rows, err := q.db.Query(ctx, listIssuesByStatusEnteredAt,
+		arg.WorkspaceID,
+		arg.Statuses,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIssuesByStatusEnteredAtRow{}
+	for rows.Next() {
+		var i ListIssuesByStatusEnteredAtRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Number,
+			&i.Title,
+			&i.Status,
+			&i.EnteredAt,
+			&i.ActorType,
+			&i.ActorID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecentWorkspaceActivities = `-- name: ListRecentWorkspaceActivities :many
 SELECT a.id, a.workspace_id, a.issue_id, a.actor_type, a.actor_id, a.action, a.details, a.created_at,
        i.number AS issue_number, i.title AS issue_title, i.status AS issue_status
@@ -214,15 +289,19 @@ WHERE a.workspace_id = $1
   AND a.issue_id IS NOT NULL
   AND NOT (a.action = ANY($2::text[]))
   AND (cardinality($3::text[]) = 0 OR a.action = ANY($3::text[]))
+  AND ($4::timestamptz IS NULL
+       OR (a.created_at, a.id) < ($4::timestamptz, $5::uuid))
 ORDER BY a.created_at DESC, a.id DESC
-LIMIT $4
+LIMIT $6
 `
 
 type ListRecentWorkspaceActivitiesParams struct {
-	WorkspaceID     pgtype.UUID `json:"workspace_id"`
-	ExcludedActions []string    `json:"excluded_actions"`
-	OnlyActions     []string    `json:"only_actions"`
-	RowLimit        int32       `json:"row_limit"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	ExcludedActions []string           `json:"excluded_actions"`
+	OnlyActions     []string           `json:"only_actions"`
+	BeforeAt        pgtype.Timestamptz `json:"before_at"`
+	BeforeID        pgtype.UUID        `json:"before_id"`
+	RowLimit        int32              `json:"row_limit"`
 }
 
 type ListRecentWorkspaceActivitiesRow struct {
@@ -249,6 +328,8 @@ func (q *Queries) ListRecentWorkspaceActivities(ctx context.Context, arg ListRec
 		arg.WorkspaceID,
 		arg.ExcludedActions,
 		arg.OnlyActions,
+		arg.BeforeAt,
+		arg.BeforeID,
 		arg.RowLimit,
 	)
 	if err != nil {
