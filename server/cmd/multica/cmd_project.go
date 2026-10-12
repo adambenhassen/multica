@@ -119,14 +119,14 @@ var projectSkillRemoveCmd = &cobra.Command{
 
 var projectSkillAudienceCmd = &cobra.Command{
 	Use:   "audience <project-id> <skill-id>",
-	Short: "Set which agents a project skill reaches (--all, or --agents/--labels)",
+	Short: "Set which agents a project skill reaches (--all, --agents/--labels, or --except with them)",
 	Args:  exactArgs(2),
 	RunE:  func(cmd *cobra.Command, args []string) error { return runProjectAudience(cmd, args, "skills") },
 }
 
 var projectMcpAudienceCmd = &cobra.Command{
 	Use:   "audience <project-id> <server-id>",
-	Short: "Set which agents a project MCP server reaches (--all, or --agents/--labels)",
+	Short: "Set which agents a project MCP server reaches (--all, --agents/--labels, or --except with them)",
 	Args:  exactArgs(2),
 	RunE:  func(cmd *cobra.Command, args []string) error { return runProjectAudience(cmd, args, "mcp-servers") },
 }
@@ -268,6 +268,7 @@ func init() {
 		c.Flags().StringSlice("agents", nil, "Comma-separated agent IDs that may receive it")
 		c.Flags().StringSlice("labels", nil, "Comma-separated agent label IDs whose agents may receive it")
 		c.Flags().Bool("nobody", false, "Restrict it to no agents (keeps the link, delivers it to nobody)")
+		c.Flags().Bool("except", false, "Reach every agent except the --agents / --labels given")
 		c.Flags().String("output", "table", "Output format: table or json")
 	}
 
@@ -1220,17 +1221,22 @@ func runProjectMcpRemove(cmd *cobra.Command, args []string) error {
 func runProjectAudience(cmd *cobra.Command, args []string, kind string) error {
 	all, _ := cmd.Flags().GetBool("all")
 	nobody, _ := cmd.Flags().GetBool("nobody")
+	except, _ := cmd.Flags().GetBool("except")
 	agents := cleanIDsFlag(cmd, "agents")
 	labels := cleanIDsFlag(cmd, "labels")
-	restricted := !all
 	switch {
-	case all && (nobody || len(agents) > 0 || len(labels) > 0):
-		return fmt.Errorf("--all cannot be combined with --nobody, --agents or --labels")
-	case nobody && (len(agents) > 0 || len(labels) > 0):
-		return fmt.Errorf("--nobody cannot be combined with --agents or --labels")
+	case all && (nobody || except || len(agents) > 0 || len(labels) > 0):
+		return fmt.Errorf("--all cannot be combined with --nobody, --except, --agents or --labels")
+	case nobody && (except || len(agents) > 0 || len(labels) > 0):
+		return fmt.Errorf("--nobody cannot be combined with --except, --agents or --labels")
+	case except && len(agents) == 0 && len(labels) == 0:
+		return fmt.Errorf("--except needs at least one of --agents / --labels")
 	case !all && !nobody && len(agents) == 0 && len(labels) == 0:
 		return fmt.Errorf("pass --all, --nobody, or at least one of --agents / --labels")
 	}
+	// --except lists who is left out; otherwise anything but --all lists who
+	// is let in.
+	restricted := !all && !except
 	itemID := strings.TrimSpace(args[1])
 	if itemID == "" {
 		return fmt.Errorf("item id is required")
@@ -1247,7 +1253,7 @@ func runProjectAudience(cmd *cobra.Command, args []string, kind string) error {
 	if err != nil {
 		return fmt.Errorf("resolve project: %w", err)
 	}
-	body := map[string]any{"restricted": restricted, "agent_ids": agents, "label_ids": labels}
+	body := map[string]any{"restricted": restricted, "excluded": except, "agent_ids": agents, "label_ids": labels}
 	var items []map[string]any
 	path := "/api/projects/" + projectRef.ID + "/" + kind + "/" + url.PathEscape(itemID) + "/audience"
 	if err := client.PutJSON(ctx, path, body, &items); err != nil {
@@ -1276,11 +1282,14 @@ func audienceSummary(item map[string]any) string {
 	if !ok {
 		return "all"
 	}
+	agents, _ := a["agent_ids"].([]any)
+	labels, _ := a["label_ids"].([]any)
+	if excluded, _ := a["excluded"].(bool); excluded && (len(agents) > 0 || len(labels) > 0) {
+		return fmt.Sprintf("all except %d agents, %d labels", len(agents), len(labels))
+	}
 	if restricted, _ := a["restricted"].(bool); !restricted {
 		return "all"
 	}
-	agents, _ := a["agent_ids"].([]any)
-	labels, _ := a["label_ids"].([]any)
 	if len(agents) == 0 && len(labels) == 0 {
 		return "nobody"
 	}

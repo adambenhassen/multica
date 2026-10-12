@@ -54,7 +54,7 @@ func (h *Handler) writeProjectMcpServers(w http.ResponseWriter, r *http.Request,
 	for i, row := range servers {
 		resp[i] = ProjectMcpServerResponse{
 			WorkspaceMcpServerResponse: workspaceMcpServerToResponse(row.WorkspaceMcpServer),
-			Audience:                   audienceFor(targets, projectAttachmentMcpServer, row.WorkspaceMcpServer.ID, row.Restricted),
+			Audience:                   audienceFor(targets, projectAttachmentMcpServer, row.WorkspaceMcpServer.ID, row.Restricted, row.Excluded),
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)

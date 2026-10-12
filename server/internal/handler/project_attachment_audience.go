@@ -20,11 +20,14 @@ const (
 )
 
 // ProjectAttachmentAudience says which agents a project skill / MCP server
-// link reaches. Unrestricted links reach every agent in the project. A
+// link reaches. By default a link reaches every agent in the project. A
 // restricted link reaches only the listed agents and agents carrying a listed
-// label; with no targets it reaches nobody.
+// label; with no targets it reaches nobody. An excluded link reaches every
+// agent except those; with no targets it reaches everyone. At most one of
+// Restricted and Excluded is set.
 type ProjectAttachmentAudience struct {
 	Restricted bool     `json:"restricted"`
+	Excluded   bool     `json:"excluded"`
 	AgentIDs   []string `json:"agent_ids"`
 	LabelIDs   []string `json:"label_ids"`
 }
@@ -42,9 +45,11 @@ type ProjectMcpServerResponse struct {
 	Audience ProjectAttachmentAudience `json:"audience"`
 }
 
-// SetProjectAttachmentAudienceRequest replaces one link's audience.
+// SetProjectAttachmentAudienceRequest replaces one link's audience. Clients
+// that predate exclusions omit Excluded, which reads as false.
 type SetProjectAttachmentAudienceRequest struct {
 	Restricted bool     `json:"restricted"`
+	Excluded   bool     `json:"excluded"`
 	AgentIDs   []string `json:"agent_ids"`
 	LabelIDs   []string `json:"label_ids"`
 }
@@ -78,9 +83,10 @@ func (h *Handler) loadProjectAudienceTargets(ctx context.Context, project db.Pro
 	return out, nil
 }
 
-func audienceFor(targets map[string]ProjectAttachmentAudience, itemType string, itemID pgtype.UUID, restricted bool) ProjectAttachmentAudience {
+func audienceFor(targets map[string]ProjectAttachmentAudience, itemType string, itemID pgtype.UUID, restricted, excluded bool) ProjectAttachmentAudience {
 	a := targets[projectAttachmentKey(itemType, itemID)]
 	a.Restricted = restricted
+	a.Excluded = excluded
 	if a.AgentIDs == nil {
 		a.AgentIDs = []string{}
 	}
@@ -121,8 +127,12 @@ func (h *Handler) setProjectAttachmentAudience(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if !req.Restricted && (len(req.AgentIDs) > 0 || len(req.LabelIDs) > 0) {
-		writeError(w, http.StatusBadRequest, "agent_ids and label_ids require restricted: true")
+	if req.Restricted && req.Excluded {
+		writeError(w, http.StatusBadRequest, "restricted and excluded cannot both be set")
+		return
+	}
+	if !req.Restricted && !req.Excluded && (len(req.AgentIDs) > 0 || len(req.LabelIDs) > 0) {
+		writeError(w, http.StatusBadRequest, "agent_ids and label_ids require restricted or excluded")
 		return
 	}
 	if len(req.AgentIDs)+len(req.LabelIDs) > maxProjectAttachmentAudienceTargets {
@@ -187,12 +197,14 @@ func (h *Handler) setProjectAttachmentAudience(w http.ResponseWriter, r *http.Re
 	var updated int64
 	switch itemType {
 	case projectAttachmentSkill:
-		updated, err = qtx.SetProjectSkillRestricted(r.Context(), db.SetProjectSkillRestrictedParams{
-			Restricted: req.Restricted, ProjectID: project.ID, SkillID: itemID, WorkspaceID: project.WorkspaceID,
+		updated, err = qtx.SetProjectSkillAudienceMode(r.Context(), db.SetProjectSkillAudienceModeParams{
+			Restricted: req.Restricted, Excluded: req.Excluded,
+			ProjectID: project.ID, SkillID: itemID, WorkspaceID: project.WorkspaceID,
 		})
 	case projectAttachmentMcpServer:
-		updated, err = qtx.SetProjectMcpServerRestricted(r.Context(), db.SetProjectMcpServerRestrictedParams{
-			Restricted: req.Restricted, ProjectID: project.ID, ServerID: itemID, WorkspaceID: project.WorkspaceID,
+		updated, err = qtx.SetProjectMcpServerAudienceMode(r.Context(), db.SetProjectMcpServerAudienceModeParams{
+			Restricted: req.Restricted, Excluded: req.Excluded,
+			ProjectID: project.ID, ServerID: itemID, WorkspaceID: project.WorkspaceID,
 		})
 	}
 	if err != nil {

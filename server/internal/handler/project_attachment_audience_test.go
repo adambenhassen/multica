@@ -351,3 +351,128 @@ func TestListAgentProjectItems_FollowsAudience(t *testing.T) {
 		t.Fatalf("project MCP servers = %+v", servers)
 	}
 }
+
+// An excluded link reaches every agent in the project except its audience:
+// listed agents and agents carrying a listed label are left out, at claim,
+// bundle-resolve and on the agent's own "From projects" list. With no targets
+// it reaches everyone.
+func TestProjectAttachmentAudience_ExcludesAudience(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	projectID := dbfx.Project(t, "Audience except")
+	dbfx.Cleanup(t, `DELETE FROM project_attachment_audience WHERE project_id = $1`, projectID)
+	dbfx.Cleanup(t, `DELETE FROM project_skill WHERE project_id = $1`, projectID)
+	dbfx.Cleanup(t, `DELETE FROM project_mcp_server WHERE project_id = $1`, projectID)
+
+	excluded := newAudienceAgent(t, ctx, "audience-except-listed", projectID)
+	labelled := newAudienceAgent(t, ctx, "audience-except-labelled", projectID)
+	included := newAudienceAgent(t, ctx, "audience-except-included", projectID)
+	labelID := insertAgentLabel(t, "audience-except-interns")
+	dbfx.Exec(t, `INSERT INTO agent_to_label (agent_id, label_id) VALUES ($1, $2)`, labelled.agentID, labelID)
+
+	skillID := insertProjectSkillFixtureSkill(t, testWorkspaceID, "audience-except-skill")
+	addProjectSkillCall(t, projectID, skillID).Want(http.StatusOK)
+	var resp []ProjectSkillResponse
+	setAudienceCall(t, "skills", projectID, skillID, map[string]any{
+		"excluded": true, "agent_ids": []string{excluded.agentID}, "label_ids": []string{labelID},
+	}).Want(http.StatusOK).JSON(&resp)
+	if len(resp) != 1 || !resp[0].Audience.Excluded || resp[0].Audience.Restricted ||
+		len(resp[0].Audience.AgentIDs) != 1 || len(resp[0].Audience.LabelIDs) != 1 {
+		t.Fatalf("audience response = %+v", resp)
+	}
+
+	excludedTask := excluded.queueTask(t)
+	if excluded.claimSkillIDs(t)[skillID] {
+		t.Fatal("excluded agent received the skill")
+	}
+	resolveBundles(t, testHandler, excluded.runtimeID, excludedTask, workspaceRef(skillID)).Want(http.StatusNotFound)
+	labelled.queueTask(t)
+	if labelled.claimSkillIDs(t)[skillID] {
+		t.Fatal("agent carrying an excluded label received the skill")
+	}
+	included.queueTask(t)
+	if !included.claimSkillIDs(t)[skillID] {
+		t.Fatal("agent outside the exclusion did not receive the skill")
+	}
+
+	listSkills := func(a audienceAgent) map[string]bool {
+		req := withURLParam(newRequest("GET", "/api/agents/"+a.agentID+"/project-skills", nil), "id", a.agentID)
+		var skills []AgentProjectSkillResponse
+		testutil.Call(t, testHandler.ListAgentProjectSkills, req).Want(http.StatusOK).JSON(&skills)
+		ids := map[string]bool{}
+		for _, s := range skills {
+			ids[s.ID] = true
+		}
+		return ids
+	}
+	if listSkills(excluded)[skillID] || !listSkills(included)[skillID] {
+		t.Fatal("the agents' project skill lists do not follow the exclusion")
+	}
+
+	// The same rule holds for MCP servers.
+	serverID := createWorkspaceMcpServerForTest(t, "audience-except-mcp", `{"url":"https://except.example"}`)
+	dbfx.Cleanup(t, `DELETE FROM project_attachment_audience WHERE item_id = $1`, serverID)
+	addProjectMcpServerCall(t, projectID, serverID).Want(http.StatusOK)
+	setAudienceCall(t, "mcp-servers", projectID, serverID, map[string]any{
+		"excluded": true, "agent_ids": []string{excluded.agentID},
+	}).Want(http.StatusOK)
+	excluded.queueTask(t)
+	if decodeServers(t, claimAgentMcpConfigForTest(t, excluded.runtimeID))["audience-except-mcp"] != nil {
+		t.Fatal("excluded agent received the MCP server")
+	}
+	included.queueTask(t)
+	if decodeServers(t, claimAgentMcpConfigForTest(t, included.runtimeID))["audience-except-mcp"] == nil {
+		t.Fatal("agent outside the exclusion did not receive the MCP server")
+	}
+
+	// Excluding nobody reaches everyone.
+	setAudienceCall(t, "skills", projectID, skillID, map[string]any{"excluded": true}).Want(http.StatusOK)
+	excluded.queueTask(t)
+	if !excluded.claimSkillIDs(t)[skillID] {
+		t.Fatal("an exclusion with no targets did not reach every agent")
+	}
+
+	setAudienceCall(t, "skills", projectID, skillID, map[string]any{
+		"restricted": true, "excluded": true, "agent_ids": []string{excluded.agentID},
+	}).Want(http.StatusBadRequest)
+}
+
+// Removing an excluded label from an agent hands it the item, so on an agent
+// the owner manages, only a workspace admin may detach such a label.
+func TestDetachLabelFromAgent_ExcludedLabelRequiresAdmin(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	projectID := dbfx.Project(t, "Audience detach gate")
+	dbfx.Cleanup(t, `DELETE FROM project_attachment_audience WHERE project_id = $1`, projectID)
+	dbfx.Cleanup(t, `DELETE FROM project_skill WHERE project_id = $1`, projectID)
+
+	memberID := dbfx.User(t, "Detach gate member", "detach-gate-member@multica.test")
+	dbfx.Member(t, testWorkspaceID, memberID, "member")
+	runtimeID := createClaimReclaimRuntime(t, ctx, "detach gate runtime")
+	agentID := dbfx.Agent(t, "detach gate agent", runtimeID, testutil.Cols{"owner_id": memberID})
+	dbfx.Cleanup(t, `DELETE FROM agent_to_label WHERE agent_id = $1`, agentID)
+
+	plainLabel := insertAgentLabel(t, "detach-gate-plain")
+	gatedLabel := insertAgentLabel(t, "detach-gate-interns")
+	for _, l := range []string{plainLabel, gatedLabel} {
+		dbfx.Exec(t, `INSERT INTO agent_to_label (agent_id, label_id) VALUES ($1, $2)`, agentID, l)
+	}
+	skillID := insertProjectSkillFixtureSkill(t, testWorkspaceID, "detach-gate-skill")
+	addProjectSkillCall(t, projectID, skillID).Want(http.StatusOK)
+	setAudienceCall(t, "skills", projectID, skillID, map[string]any{
+		"excluded": true, "label_ids": []string{gatedLabel},
+	}).Want(http.StatusOK)
+
+	detach := func(userID, labelID string) *testutil.Response {
+		req := withURLParams(newRequestAs(userID, "DELETE", "/api/agents/"+agentID+"/labels/"+labelID, nil),
+			"id", agentID, "labelId", labelID)
+		return testutil.Call(t, testHandler.DetachLabelFromAgent, req)
+	}
+	detach(memberID, plainLabel).Want(http.StatusOK)
+	detach(memberID, gatedLabel).Want(http.StatusForbidden)
+	detach(testUserID, gatedLabel).Want(http.StatusOK)
+}
