@@ -1744,7 +1744,7 @@ export class ApiClient {
       limit?: number;
       kind?: WorkspaceActivityKind;
       to?: readonly string[];
-      issue?: string;
+      issues?: readonly string[];
       project?: string;
       before?: string;
     } = {},
@@ -1754,8 +1754,8 @@ export class ApiClient {
     if (params.kind && params.kind !== "all") search.set("kind", params.kind);
     // Status keys the changes went into; the server takes it with kind=status only.
     if (params.to?.length) search.set("to", params.to.join(","));
-    // One issue's history (the issue's UUID).
-    if (params.issue) search.set("issue", params.issue);
+    // Those issues' history (UUIDs); the server takes them comma-separated.
+    if (params.issues?.length) search.set("issue", params.issues.join(","));
     // One project's issues (the project's UUID).
     if (params.project) search.set("project", params.project);
     if (params.before) search.set("before", params.before);

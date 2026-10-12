@@ -7,7 +7,7 @@
     "on_all": "Afficher dans Tout",
     "comments": "Commentaires",
     "other": "Autres changements",
-    "latest_only": "Dernier changement par tâche"
+    "latest_only": "Masquer les déplacements précédents d'une tâche"
   },
   "working_now": "En cours : {{names}}",
   "activity": {
@@ -19,7 +19,8 @@
     "marked": "l'a marquée {{status}}",
     "moved": "l'a déplacée vers {{status}}",
     "with_excerpt": "{{phrase}} : « {{excerpt}} »",
-    "run_failed": "a eu une exécution en échec"
+    "run_failed": "a eu une exécution en échec",
+    "issue_created": "Tâche créée"
   },
   "status_changes": {
     "empty": "Aucun changement de statut",

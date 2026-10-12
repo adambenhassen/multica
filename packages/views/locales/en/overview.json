@@ -7,7 +7,7 @@
     "on_all": "Show on All",
     "comments": "Comments",
     "other": "Other changes",
-    "latest_only": "Latest change per issue"
+    "latest_only": "Hide earlier moves of an issue"
   },
   "working_now": "Working now: {{names}}",
   "activity": {
@@ -19,7 +19,8 @@
     "marked": "marked it {{status}}",
     "moved": "moved it to {{status}}",
     "with_excerpt": "{{phrase}}: “{{excerpt}}”",
-    "run_failed": "had a failed run"
+    "run_failed": "had a failed run",
+    "issue_created": "Issue created"
   },
   "status_changes": {
     "empty": "No status changes yet",

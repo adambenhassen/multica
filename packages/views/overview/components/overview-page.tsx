@@ -145,7 +145,7 @@ function DisplayMenu() {
       <DropdownMenuTrigger
         render={<CollectionPageHeaderAction icon={SlidersHorizontal} label={t(($) => $.display.button)} />}
       />
-      <DropdownMenuContent align="end" className="w-60">
+      <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuGroup>
           <DropdownMenuLabel>{t(($) => $.display.on_all)}</DropdownMenuLabel>
           <DropdownMenuCheckboxItem checked={showComments} onCheckedChange={toggleComments}>
