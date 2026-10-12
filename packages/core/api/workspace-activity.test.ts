@@ -46,6 +46,19 @@ describe("workspace activity API", () => {
     expect((await read({ entries: [] }, 50, "all")).url).not.toContain("kind=");
   });
 
+  it("sends the status keys a change went into, and nothing when there are none", async () => {
+    const fetch = vi.fn().mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ entries: [] }), { status: 200 })),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const client = new ApiClient("https://api.example.test");
+    await client.listWorkspaceActivity({ kind: "status", to: ["in_progress", "in_review"] });
+    await client.listWorkspaceActivity({ kind: "status", to: [] });
+    const urls = fetch.mock.calls.map(([url]) => new URL(String(url)).searchParams);
+    expect(urls[0]?.get("to")).toBe("in_progress,in_review");
+    expect(urls[1]?.has("to")).toBe(false);
+  });
+
   // One bad row must not blank the whole feed.
   it("drops a malformed row and keeps the valid ones", async () => {
     const { result } = await read({

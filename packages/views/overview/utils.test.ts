@@ -1,13 +1,15 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { AgentPresenceDetail } from "@multica/core/agents";
-import type { AgentTask, IssueStatusCategory, WorkspaceActivityEntry } from "@multica/core/types";
+import { buildIssueStatusCatalog } from "@multica/core/issue-statuses";
+import type { AgentTask, IssueStatusCategory, IssueStatusEntry, WorkspaceActivityEntry } from "@multica/core/types";
 import {
   coalesceFeed,
   commentExcerpt,
   groupFeedByDay,
   fillRunSeries,
   pickRunCards,
+  statusChangeTargets,
   successRateSeries,
   successTone,
   summarizeAgents,
@@ -160,5 +162,35 @@ describe("feed shaping", () => {
       "Europe/Berlin",
     );
     expect(groups.map((g) => [g.day, g.entries.map((e) => e.id)])).toEqual([["2026-10-12", ["late", "early"]]]);
+  });
+});
+
+describe("statusChangeTargets", () => {
+  const entry = (key: string, category: string, archived = false) =>
+    ({ key, category, archived_at: archived ? "2026-10-01T00:00:00Z" : null }) as IssueStatusEntry;
+  const catalog = buildIssueStatusCatalog([
+    entry("todo", "unstarted"),
+    entry("in_progress", "started"),
+    entry("qa", "started"),
+    entry("blocked", "started"),
+    entry("done", "done"),
+    entry("shipped", "done", true),
+    entry("cancelled", "closed"),
+  ]);
+
+  it("narrows by the category a change went into, keeping Blocked separate", () => {
+    expect(statusChangeTargets("all", catalog)).toEqual([]);
+    expect(statusChangeTargets("blocked", catalog)).toEqual(["blocked"]);
+    expect(statusChangeTargets("in_progress", catalog)).toEqual(["in_progress", "qa"]);
+    expect(statusChangeTargets("done", catalog)).toEqual(["done", "shipped"]);
+    expect(statusChangeTargets("cancelled", catalog)).toEqual(["cancelled"]);
+  });
+
+  it("waits for the catalog, then falls back to built-ins when it fails", () => {
+    expect(statusChangeTargets("in_progress", buildIssueStatusCatalog(undefined))).toBeNull();
+    expect(statusChangeTargets("blocked", buildIssueStatusCatalog(undefined))).toEqual(["blocked"]);
+    const failed = buildIssueStatusCatalog(undefined, { isError: true });
+    expect(statusChangeTargets("in_progress", failed)).toEqual(["in_progress", "in_review"]);
+    expect(statusChangeTargets("cancelled", failed)).toEqual(["cancelled"]);
   });
 });

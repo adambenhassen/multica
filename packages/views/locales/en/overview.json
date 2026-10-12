@@ -34,7 +34,6 @@
     "filters": {
       "all": "All",
       "comments": "Comments",
-      "status": "Status changes",
       "failures": "Failures"
     },
     "empty_filtered": "Nothing here yet",
@@ -47,11 +46,11 @@
     "with_excerpt": "{{phrase}}: “{{excerpt}}”",
     "run_failed": "had a failed run"
   },
-  "issues": {
-    "heading": "Recent issues",
-    "empty": "No issues yet",
-    "empty_filtered": "No issues with this status",
-    "filter_label": "Filter by status",
+  "status_changes": {
+    "heading": "Status changes",
+    "empty": "No status changes yet",
+    "empty_filtered": "No changes into this status",
+    "filter_label": "Filter by new status",
     "filters": {
       "all": "All",
       "in_progress": "In progress",

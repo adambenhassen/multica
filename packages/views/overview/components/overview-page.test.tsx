@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderWithI18n } from "../../test/i18n";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
@@ -57,25 +57,24 @@ afterEach(() => {
 });
 
 describe("OverviewPage", () => {
-  it("shows empty states when the workspace has no runs, activity or issues", async () => {
+  it("shows empty states when the workspace has no runs, activity or status changes", async () => {
     apiRef.current = {
       getAgentTaskSnapshot: () => Promise.resolve([]),
       listWorkspaceActivity: () => Promise.resolve({ entries: [] }),
-      listIssues: () => Promise.resolve({ issues: [], total: 0 }),
     };
     renderPage();
 
     expect(screen.getByRole("heading", { name: "Dashboard" })).toBeTruthy();
     expect(await screen.findByText("No recent agent runs")).toBeTruthy();
     expect(await screen.findByText("No activity yet")).toBeTruthy();
-    expect(await screen.findByText("No issues yet")).toBeTruthy();
+    expect(await screen.findByText("No status changes yet")).toBeTruthy();
   });
 
   it("links activity rows and metric cards to their pages", async () => {
     apiRef.current = {
-      listWorkspaceActivity: () =>
+      listWorkspaceActivity: ((params: { kind?: string }) =>
         Promise.resolve({
-          entries: [
+          entries: params.kind === "status" ? [] : [
             {
               type: "activity",
               id: "act-1",
@@ -86,7 +85,7 @@ describe("OverviewPage", () => {
               issue: { id: "issue-1", identifier: "MUL-1", title: "Ship the dashboard", status: "todo" },
             },
           ],
-        }),
+        })) as () => Promise<unknown>,
       listIssueTableFacets: () =>
         Promise.resolve({
           query_fingerprint: "",
@@ -144,35 +143,12 @@ describe("OverviewPage", () => {
     expect(await within(activity).findByText("No activity yet")).toBeTruthy();
   });
 
-  it("filters recent issues by status on the server", async () => {
-    const calls: unknown[] = [];
-    apiRef.current = {
-      listIssues: ((params: unknown) => {
-        calls.push(params);
-        return Promise.resolve({ issues: [], total: 0 });
-      }) as () => Promise<unknown>,
-    };
-    renderPage();
-
-    expect(await screen.findByText("No issues yet")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Blocked" }));
-    expect(await screen.findByText("No issues with this status")).toBeTruthy();
-    expect(calls.at(-1)).toEqual({
-      statuses: ["blocked"],
-      sort_by: "updated_at",
-      sort_direction: "desc",
-      limit: 50,
-      offset: 0,
-    });
-  });
-
-  it("keeps Blocked out of In progress and orders Done by completion", async () => {
+  it("filters status changes by the status they went into", async () => {
     const status = (key: string, category: string, position: number) => ({
       id: key, workspace_id: "ws-1", key, name: key, description: "", category, color: "#888888",
       icon: null, is_system: false, position, archived_at: null, created_at: "", updated_at: "",
     });
-    const issueCalls: unknown[] = [];
-    const completedCalls: unknown[] = [];
+    const calls: { kind?: string; to?: string[] }[] = [];
     apiRef.current = {
       listIssueStatuses: () =>
         Promise.resolve({
@@ -186,34 +162,47 @@ describe("OverviewPage", () => {
           categories: ["unstarted", "started", "done", "closed"],
           total: 5,
         }),
-      listIssues: ((params: unknown) => {
-        issueCalls.push(params);
-        return Promise.resolve({ issues: [], total: 0 });
-      }) as () => Promise<unknown>,
-      listRecentlyCompleted: ((params: unknown) => {
-        completedCalls.push(params);
-        return Promise.resolve({ entries: [], next_offset: null });
+      listWorkspaceActivity: ((params: { kind?: string; to?: string[] }) => {
+        calls.push(params);
+        return Promise.resolve({ entries: [] });
       }) as () => Promise<unknown>,
     };
     renderPage();
 
-    await screen.findByText("No issues yet");
-    fireEvent.click(screen.getByRole("button", { name: "In progress" }));
-    await screen.findByText("No issues with this status");
-    expect(issueCalls.at(-1)).toMatchObject({ statuses: ["in_progress", "qa"] });
+    const section = screen.getByRole("heading", { name: "Status changes" }).closest("section")!;
+    await within(section).findByText("No status changes yet");
+    const statusCalls = () => calls.filter((c) => c.kind === "status");
+    expect(statusCalls().at(-1)).toEqual({ limit: 50, kind: "status", to: [] });
 
-    fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    await screen.findByText("No issues with this status");
-    expect(completedCalls.at(-1)).toEqual({ category: "done", limit: 50, offset: 0 });
+    fireEvent.click(within(section).getByRole("button", { name: "Blocked" }));
+    await within(section).findByText("No changes into this status");
+    expect(statusCalls().at(-1)?.to).toEqual(["blocked"]);
+
+    fireEvent.click(within(section).getByRole("button", { name: "In progress" }));
+    await waitFor(() => expect(statusCalls().at(-1)?.to).toEqual(["in_progress", "qa"]));
+
+    fireEvent.click(within(section).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(statusCalls().at(-1)?.to).toEqual(["done"]));
   });
 
   it("reads activity as plain sentences under each issue and filters comments", async () => {
     const calls: unknown[] = [];
     const now = new Date().toISOString();
     const issue = { id: "issue-1", identifier: "MUL-1", title: "Ship the dashboard", status: "done" };
+    const statusEntry = {
+      type: "activity",
+      id: "a-1",
+      actor_type: "agent",
+      actor_id: "agent-1",
+      created_at: now,
+      action: "status_changed",
+      details: { from: "in_review", to: "done" },
+      issue,
+    };
     apiRef.current = {
-      listWorkspaceActivity: ((params: unknown) => {
+      listWorkspaceActivity: ((params: { kind?: string }) => {
         calls.push(params);
+        if (params.kind === "status") return Promise.resolve({ entries: [statusEntry] });
         return Promise.resolve({
           entries: [
             {
@@ -225,39 +214,33 @@ describe("OverviewPage", () => {
               content: "Looks **good**, merging [@Ada](mention://member/u1)",
               issue,
             },
-            {
-              type: "activity",
-              id: "a-1",
-              actor_type: "agent",
-              actor_id: "agent-1",
-              created_at: now,
-              action: "status_changed",
-              details: { from: "in_review", to: "done" },
-              issue,
-            },
+            statusEntry,
           ],
         });
       }) as () => Promise<unknown>,
     };
     renderPage();
 
-    const comment = (await screen.findByText(/commented: “Looks good, merging @Ada”/)).closest("a")!;
+    const activity = screen.getByRole("heading", { name: "Recent activity" }).closest("section")!;
+    const comment = (await within(activity).findByText(/commented: “Looks good, merging @Ada”/)).closest("a")!;
     expect(comment.getAttribute("href")).toBe("/acme/issues/issue-1#comment-c-1");
     expect(within(comment).getByText("MUL-1")).toBeTruthy();
-    expect(screen.getByText("marked it Done")).toBeTruthy();
-    expect(screen.getByText("Today")).toBeTruthy();
+    expect(within(activity).getByText("marked it Done")).toBeTruthy();
+    expect(within(activity).getByText("Today")).toBeTruthy();
+    expect(within(activity).queryByRole("button", { name: "Status changes" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Status changes" }));
-    expect(await screen.findByLabelText("→")).toBeTruthy();
-    expect(screen.queryByText("marked it Done")).toBeNull();
+    // The Status changes section shows each move itself instead of a sentence.
+    const statusChanges = screen.getByRole("heading", { name: "Status changes" }).closest("section")!;
+    expect(await within(statusChanges).findByLabelText("→")).toBeTruthy();
+    expect(within(statusChanges).queryByText("marked it Done")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Comments" }));
+    fireEvent.click(within(activity).getByRole("button", { name: "Comments" }));
     await screen.findAllByText(/commented/);
-    expect(calls.at(-1)).toEqual({ limit: 50, kind: "comments" });
+    expect(calls.at(-1)).toEqual({ limit: 50, kind: "comments", to: [] });
 
-    fireEvent.click(screen.getByRole("button", { name: "Failures" }));
+    fireEvent.click(within(activity).getByRole("button", { name: "Failures" }));
     await screen.findAllByText(/commented/);
-    expect(calls.at(-1)).toEqual({ limit: 50, kind: "failures" });
+    expect(calls.at(-1)).toEqual({ limit: 50, kind: "failures", to: [] });
   });
 
   it("hides a section chosen in Customize", async () => {

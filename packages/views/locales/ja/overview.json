@@ -34,7 +34,6 @@
     "filters": {
       "all": "すべて",
       "comments": "コメント",
-      "status": "ステータス変更",
       "failures": "失敗"
     },
     "empty_filtered": "まだ何もありません",
@@ -47,11 +46,11 @@
     "with_excerpt": "{{phrase}}：「{{excerpt}}」",
     "run_failed": "実行が失敗しました"
   },
-  "issues": {
-    "heading": "最近のタスク",
-    "empty": "タスクはまだありません",
-    "empty_filtered": "このステータスのタスクはありません",
-    "filter_label": "ステータスで絞り込む",
+  "status_changes": {
+    "heading": "ステータス変更",
+    "empty": "ステータス変更はまだありません",
+    "empty_filtered": "このステータスへの変更はありません",
+    "filter_label": "変更後のステータスで絞り込む",
     "filters": {
       "all": "すべて",
       "in_progress": "進行中",

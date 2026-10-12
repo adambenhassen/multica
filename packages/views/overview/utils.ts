@@ -6,6 +6,8 @@ import type {
   IssueStatusCategory,
   IssueTableFacetValue,
 } from "@multica/core/types";
+import { BUILT_IN_STATUS_ORDER } from "@multica/core/issues/config";
+import type { IssueStatusCatalog } from "@multica/core/issue-statuses";
 import type { DailyTasksData } from "../runtimes/components/charts";
 import { aggregateDailyTasks, formatDateLabel } from "../dashboard/utils";
 import { addDaysIso } from "../runtimes/utils";
@@ -202,4 +204,33 @@ export function groupFeedByDay(
     else groups.push({ day, entries: [entry] });
   }
   return groups;
+}
+
+/** Tabs on the Dashboard's status-changes feed, by the status a change went into. */
+export const STATUS_CHANGE_FILTERS = ["all", "in_progress", "blocked", "done", "cancelled"] as const;
+export type StatusChangeFilter = (typeof STATUS_CHANGE_FILTERS)[number];
+
+const STATUS_CHANGE_CATEGORY = { in_progress: "started", done: "done", cancelled: "closed" } as const;
+
+/**
+ * The status keys a filter's changes went into, or null while the workspace
+ * catalog is still loading. In progress is every started status except
+ * Blocked, which has its own tab; custom statuses count by their category.
+ * Archived statuses stay in, so changes into them before archiving still show.
+ */
+export function statusChangeTargets(
+  filter: StatusChangeFilter,
+  catalog: Pick<IssueStatusCatalog, "statuses" | "categoryOf" | "isLoaded" | "isError">,
+): string[] | null {
+  if (filter === "all") return [];
+  if (filter === "blocked") return ["blocked"];
+  // A catalog that cannot be read falls back to the built-in statuses.
+  const keys = catalog.isLoaded
+    ? catalog.statuses.map((s) => s.key)
+    : catalog.isError
+      ? [...BUILT_IN_STATUS_ORDER]
+      : null;
+  if (!keys) return null;
+  const category = STATUS_CHANGE_CATEGORY[filter];
+  return keys.filter((key) => key !== "blocked" && catalog.categoryOf(key) === category);
 }

@@ -12,8 +12,6 @@ export const LIST_CLASS =
 // A list section is a column so its list can take the height left under the
 // heading.
 export const LIST_SECTION_CLASS = "flex min-w-0 flex-col md:min-h-0 md:flex-1";
-export const LIST_ROW_CLASS =
-  "flex min-h-12 items-center gap-3 px-4 py-3 text-label transition-colors hover:bg-accent/50";
 
 export function SectionHeading({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (

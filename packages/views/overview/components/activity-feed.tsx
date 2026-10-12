@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { Activity, ArrowRight, CirclePlus, CircleX, MessageSquare, Pencil, UserRound } from "lucide-react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useActorName } from "@multica/core/workspace/hooks";
@@ -19,10 +19,19 @@ import { Segmented } from "../../dashboard/components/dashboard-shared";
 import { InfiniteScrollSentinel } from "../../issues/components/infinite-scroll-sentinel";
 import { addDaysIso, todayIso } from "../../runtimes/utils";
 import { useLocale, useT, useTimeAgo } from "../../i18n";
-import { coalesceFeed, commentExcerpt, groupFeedByDay } from "../utils";
+import {
+  STATUS_CHANGE_FILTERS,
+  coalesceFeed,
+  commentExcerpt,
+  groupFeedByDay,
+  statusChangeTargets,
+  type StatusChangeFilter,
+} from "../utils";
 import { EmptyBox, ErrorBox, LIST_CLASS, LIST_SECTION_CLASS, ListSkeleton, SectionHeading } from "./section-parts";
 
-const FEED_KINDS: readonly WorkspaceActivityKind[] = ["all", "comments", "status", "failures"];
+// Status changes have their own section (StatusChangesFeed).
+const FEED_KINDS = ["all", "comments", "failures"] as const satisfies readonly WorkspaceActivityKind[];
+type FeedKind = (typeof FEED_KINDS)[number];
 
 /**
  * What is happening across the workspace, issue first: each row names the
@@ -31,29 +40,12 @@ const FEED_KINDS: readonly WorkspaceActivityKind[] = ["all", "comments", "status
  */
 export function ActivityFeed() {
   const { t } = useT("overview");
-  const locale = useLocale();
   const wsId = useWorkspaceId();
-  const tz = useViewingTimezone();
-  const [kind, setKind] = useState<WorkspaceActivityKind>("all");
-  const { data: entries, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useInfiniteQuery(workspaceActivityOptions(wsId, kind));
-  const groups = useMemo(() => groupFeedByDay(coalesceFeed(entries ?? []), tz), [entries, tz]);
-
-  const today = todayIso(tz);
-  const dayLabel = (day: string) => {
-    if (day === today) return t(($) => $.activity.today);
-    if (day === addDaysIso(today, -1)) return t(($) => $.activity.yesterday);
-    return new Intl.DateTimeFormat(locale, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      timeZone: "UTC",
-    }).format(new Date(`${day}T00:00:00Z`));
-  };
-  const kindLabels: Record<WorkspaceActivityKind, string> = {
+  const [kind, setKind] = useState<FeedKind>("all");
+  const query = useInfiniteQuery(workspaceActivityOptions(wsId, kind));
+  const kindLabels: Record<FeedKind, string> = {
     all: t(($) => $.activity.filters.all),
     comments: t(($) => $.activity.filters.comments),
-    status: t(($) => $.activity.filters.status),
     failures: t(($) => $.activity.filters.failures),
   };
 
@@ -71,44 +63,122 @@ export function ActivityFeed() {
       >
         {t(($) => $.activity.heading)}
       </SectionHeading>
-      {isPending ? (
-        <ListSkeleton />
-      ) : isError ? (
-        <ErrorBox onRetry={() => void refetch()} />
-      ) : groups.length === 0 ? (
-        <EmptyBox>
-          {kind === "all" ? t(($) => $.activity.empty) : t(($) => $.activity.empty_filtered)}
-        </EmptyBox>
-      ) : (
-        <div className={LIST_CLASS}>
-          {groups.map((group) => (
-            <div key={group.day}>
-              <div className="sticky top-0 z-10 border-b bg-card px-4 py-1.5 text-micro font-medium uppercase tracking-wide text-muted-foreground">
-                {dayLabel(group.day)}
-              </div>
-              <div className="divide-y">
-                {group.entries.map((entry) => (
-                  <FeedRow key={entry.id} entry={entry} transitionOnly={kind === "status"} />
-                ))}
-              </div>
-            </div>
-          ))}
-          {hasNextPage && (
-            <InfiniteScrollSentinel
-              onVisible={() => {
-                if (!isFetchingNextPage) void fetchNextPage();
-              }}
-              loading={isFetchingNextPage}
-            />
-          )}
-        </div>
-      )}
+      <FeedBody
+        query={query}
+        transitionOnly={false}
+        empty={kind === "all" ? t(($) => $.activity.empty) : t(($) => $.activity.empty_filtered)}
+      />
     </section>
   );
 }
 
 /**
- * `transitionOnly` is the Status changes tab: every row there is a status
+ * Every status change across the workspace, newest first, each shown as the
+ * move itself. The tabs narrow it by the status a change went into.
+ */
+export function StatusChangesFeed() {
+  const { t } = useT("overview");
+  const wsId = useWorkspaceId();
+  const catalog = useIssueStatuses(wsId);
+  const [filter, setFilter] = useState<StatusChangeFilter>("all");
+  // Custom statuses come from the catalog, so a category tab waits for it.
+  const targets = useMemo(() => statusChangeTargets(filter, catalog), [filter, catalog]);
+  const query = useInfiniteQuery({
+    ...workspaceActivityOptions(wsId, "status", targets ?? []),
+    enabled: targets !== null,
+  });
+  const filterLabels: Record<StatusChangeFilter, string> = {
+    all: t(($) => $.status_changes.filters.all),
+    in_progress: t(($) => $.status_changes.filters.in_progress),
+    blocked: t(($) => $.status_changes.filters.blocked),
+    done: t(($) => $.status_changes.filters.done),
+    cancelled: t(($) => $.status_changes.filters.cancelled),
+  };
+
+  return (
+    <section className={LIST_SECTION_CLASS}>
+      <SectionHeading
+        action={
+          <Segmented
+            label={t(($) => $.status_changes.filter_label)}
+            value={filter}
+            onChange={setFilter}
+            options={STATUS_CHANGE_FILTERS.map((value) => ({ value, label: filterLabels[value] }))}
+          />
+        }
+      >
+        {t(($) => $.status_changes.heading)}
+      </SectionHeading>
+      <FeedBody
+        query={query}
+        transitionOnly
+        empty={
+          filter === "all" ? t(($) => $.status_changes.empty) : t(($) => $.status_changes.empty_filtered)
+        }
+      />
+    </section>
+  );
+}
+
+/** A paged feed grouped under day headings, with its loading, error and empty states. */
+function FeedBody({
+  query,
+  transitionOnly,
+  empty,
+}: {
+  query: UseInfiniteQueryResult<WorkspaceActivityEntry[]>;
+  transitionOnly: boolean;
+  empty: string;
+}) {
+  const { t } = useT("overview");
+  const locale = useLocale();
+  const tz = useViewingTimezone();
+  const { data: entries, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  const groups = useMemo(() => groupFeedByDay(coalesceFeed(entries ?? []), tz), [entries, tz]);
+
+  const today = todayIso(tz);
+  const dayLabel = (day: string) => {
+    if (day === today) return t(($) => $.activity.today);
+    if (day === addDaysIso(today, -1)) return t(($) => $.activity.yesterday);
+    return new Intl.DateTimeFormat(locale, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(`${day}T00:00:00Z`));
+  };
+
+  if (isPending) return <ListSkeleton />;
+  if (isError) return <ErrorBox onRetry={() => void refetch()} />;
+  if (groups.length === 0) return <EmptyBox>{empty}</EmptyBox>;
+  return (
+    <div className={LIST_CLASS}>
+      {groups.map((group) => (
+        <div key={group.day}>
+          <div className="sticky top-0 z-10 border-b bg-card px-4 py-1.5 text-micro font-medium uppercase tracking-wide text-muted-foreground">
+            {dayLabel(group.day)}
+          </div>
+          <div className="divide-y">
+            {group.entries.map((entry) => (
+              <FeedRow key={entry.id} entry={entry} transitionOnly={transitionOnly} />
+            ))}
+          </div>
+        </div>
+      ))}
+      {hasNextPage && (
+        <InfiniteScrollSentinel
+          onVisible={() => {
+            if (!isFetchingNextPage) void fetchNextPage();
+          }}
+          loading={isFetchingNextPage}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * `transitionOnly` is the Status changes feed: every row there is a status
  * change, so its second line shows the move itself ("In Review → Todo") and
  * who made it, instead of a sentence.
  */

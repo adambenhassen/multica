@@ -34,7 +34,6 @@
     "filters": {
       "all": "全部",
       "comments": "评论",
-      "status": "状态变更",
       "failures": "失败"
     },
     "empty_filtered": "暂无内容",
@@ -47,11 +46,11 @@
     "with_excerpt": "{{phrase}}：“{{excerpt}}”",
     "run_failed": "运行失败"
   },
-  "issues": {
-    "heading": "最近任务",
-    "empty": "暂无任务",
-    "empty_filtered": "没有此状态的任务",
-    "filter_label": "按状态筛选",
+  "status_changes": {
+    "heading": "状态变更",
+    "empty": "暂无状态变更",
+    "empty_filtered": "没有变更为此状态的记录",
+    "filter_label": "按新状态筛选",
     "filters": {
       "all": "全部",
       "in_progress": "进行中",

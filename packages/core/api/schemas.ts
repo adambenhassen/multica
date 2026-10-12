@@ -92,8 +92,6 @@ import type {
   TimelineEntry,
   WorkspaceActivityEntry,
   WorkspaceActivityResponse,
-  RecentlyCompletedEntry,
-  RecentlyCompletedResponse,
   User,
   WebhookDelivery,
   WorkspaceMcpServer,
@@ -1116,32 +1114,6 @@ export const WorkspaceActivityResponseSchema = z.object({
 }).loose();
 
 export const EMPTY_WORKSPACE_ACTIVITY: WorkspaceActivityResponse = { entries: [], next_cursor: null };
-
-const RecentlyCompletedEntrySchema = z.object({
-  issue: z.object({
-    id: z.string(),
-    identifier: z.string(),
-    title: z.string(),
-    status: z.string(),
-  }).loose(),
-  completed_at: z.string(),
-  actor_type: z.string().optional().catch(undefined),
-  actor_id: z.string().optional().catch(undefined),
-}).loose();
-
-// GET /api/activity/completed — like the feed, a malformed row is dropped
-// rather than blanking the tab.
-export const RecentlyCompletedResponseSchema = z.object({
-  entries: z.array(z.unknown()).transform((entries) =>
-    entries.flatMap((entry) => {
-      const parsed = RecentlyCompletedEntrySchema.safeParse(entry);
-      return parsed.success ? [parsed.data as RecentlyCompletedEntry] : [];
-    }),
-  ),
-  next_offset: z.number().int().nonnegative().nullable().optional().catch(null).transform((v) => v ?? null),
-}).loose();
-
-export const EMPTY_RECENTLY_COMPLETED: RecentlyCompletedResponse = { entries: [], next_offset: null };
 
 const OptionalStringSchema = z.preprocess(
   (value) => (typeof value === "string" ? value : undefined),

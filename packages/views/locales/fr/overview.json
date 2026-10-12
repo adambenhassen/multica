@@ -34,7 +34,6 @@
     "filters": {
       "all": "Tout",
       "comments": "Commentaires",
-      "status": "Changements de statut",
       "failures": "Échecs"
     },
     "empty_filtered": "Rien pour le moment",
@@ -47,13 +46,13 @@
     "with_excerpt": "{{phrase}} : « {{excerpt}} »",
     "run_failed": "a eu une exécution en échec"
   },
-  "issues": {
-    "heading": "Tâches récentes",
-    "empty": "Aucune tâche",
-    "empty_filtered": "Aucune tâche avec ce statut",
-    "filter_label": "Filtrer par statut",
+  "status_changes": {
+    "heading": "Changements de statut",
+    "empty": "Aucun changement de statut",
+    "empty_filtered": "Aucun passage à ce statut",
+    "filter_label": "Filtrer par nouveau statut",
     "filters": {
-      "all": "Toutes",
+      "all": "Tous",
       "in_progress": "En cours",
       "blocked": "Bloqué",
       "done": "Terminé",

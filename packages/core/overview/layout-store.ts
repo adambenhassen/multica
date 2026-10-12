@@ -11,7 +11,7 @@ export const OVERVIEW_SECTIONS = [
   "run_activity",
   "success_rate",
   "activity",
-  "issues",
+  "status_changes",
 ] as const;
 export type OverviewSection = (typeof OVERVIEW_SECTIONS)[number];
 
