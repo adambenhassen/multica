@@ -240,15 +240,47 @@ describe("OverviewPage", () => {
     expect(within(row).queryByText(/created this issue/)).toBeNull();
   });
 
+  it("shows one row per issue on the Active tab, loading pages until each issue has one", async () => {
+    apiRef.current.getAgentTaskSnapshot = () =>
+      Promise.resolve([
+        { id: "t-1", agent_id: "agent-1", issue_id: "issue-1", status: "running", started_at: NOW, created_at: NOW },
+        { id: "t-2", agent_id: "agent-1", issue_id: "issue-2", status: "running", started_at: NOW, created_at: NOW },
+      ]);
+    // The busy issue fills the first page; the quiet one only shows on page two.
+    const pages: Record<string, { entries: unknown[]; next_cursor: string | null }> = {
+      first: { entries: [move("a-1", SHIP), move("a-2", SHIP), move("a-3", SHIP)], next_cursor: "c1" },
+      c1: { entries: [move("a-4", FIX), move("a-5", SHIP)], next_cursor: "c2" },
+      c2: { entries: [move("a-6", SHIP)], next_cursor: null },
+    };
+    const before: (string | undefined)[] = [];
+    apiRef.current.listWorkspaceActivity = ((params: { issues?: string[]; before?: string }) => {
+      if (!params.issues?.length) return Promise.resolve({ entries: [move("a-1", SHIP)], next_cursor: null });
+      before.push(params.before);
+      return Promise.resolve(pages[params.before ?? "first"]);
+    }) as () => Promise<unknown>;
+    renderPage();
+    await within(feed()).findByText("Ship the dashboard");
+
+    fireEvent.click(within(feed()).getByRole("button", { name: "Active" }));
+    expect(await within(feed()).findByText("Fix the reconnect")).toBeTruthy();
+    expect(within(feed()).getAllByText("Ship the dashboard")).toHaveLength(1);
+    // It stops once both issues have a row: page three is never asked for.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(before).toEqual([undefined, "c1"]);
+  });
+
   it("keeps only each issue's latest move when asked", async () => {
     const older = { ...move("a-2", SHIP), details: { from: "todo", to: "in_review" } };
-    scriptFeed(() => [move("a-1", SHIP), move("a-3", FIX), older]);
+    const created = { ...move("k-1", SHIP), action: "created", details: {} };
+    scriptFeed(() => [move("a-1", SHIP), move("a-3", FIX), older, created]);
     renderPage();
     await within(feed()).findAllByText("Ship the dashboard");
-    expect(within(feed()).getAllByText("Ship the dashboard")).toHaveLength(2);
+    expect(within(feed()).getAllByText("Ship the dashboard")).toHaveLength(3);
 
+    // The older move and the creation both give way to the latest move.
     useOverviewLayoutStore.setState({ latestOnly: true });
     await waitFor(() => expect(within(feed()).getAllByText("Ship the dashboard")).toHaveLength(1));
+    expect(within(feed()).queryAllByText("Issue created")).toHaveLength(0);
     expect(within(feed()).getByText("Fix the reconnect")).toBeTruthy();
   });
 
