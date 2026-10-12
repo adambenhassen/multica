@@ -2,7 +2,13 @@
 import { describe, expect, it } from "vitest";
 import { buildIssueStatusCatalog } from "@multica/core/issue-statuses";
 import type { IssueStatusEntry, WorkspaceActivityEntry } from "@multica/core/types";
-import { coalesceFeed, commentExcerpt, groupFeedByDay, statusChangeTargets } from "./utils";
+import {
+  coalesceFeed,
+  commentExcerpt,
+  groupFeedByDay,
+  latestStatusChangePerIssue,
+  statusChangeTargets,
+} from "./utils";
 
 describe("commentExcerpt", () => {
   it("reads as one line of plain text", () => {
@@ -76,5 +82,30 @@ describe("statusChangeTargets", () => {
     const failed = buildIssueStatusCatalog(undefined, { isError: true });
     expect(statusChangeTargets("in_progress", failed)).toEqual(["in_progress", "in_review"]);
     expect(statusChangeTargets("cancelled", failed)).toEqual(["cancelled"]);
+  });
+});
+
+describe("latestStatusChangePerIssue", () => {
+  const row = (id: string, issueId: string, over: Partial<WorkspaceActivityEntry> = {}) =>
+    ({
+      type: "activity",
+      id,
+      action: "status_changed",
+      actor_type: "agent",
+      actor_id: "a",
+      created_at: "",
+      issue: { id: issueId, identifier: issueId, title: "", status: "" },
+      ...over,
+    }) as WorkspaceActivityEntry;
+
+  it("keeps each issue's newest move and every other row", () => {
+    const entries = [
+      row("s3", "i1"),
+      row("c1", "i1", { type: "comment", action: undefined }),
+      row("s2", "i2"),
+      row("s1", "i1"),
+      row("k1", "i1", { action: "created" }),
+    ];
+    expect(latestStatusChangePerIssue(entries).map((e) => e.id)).toEqual(["s3", "c1", "s2", "k1"]);
   });
 });

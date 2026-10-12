@@ -2,7 +2,13 @@
   "title": "활동",
   "load_failed": "불러오지 못했습니다",
   "retry": "다시 시도",
-  "show_comments": "댓글",
+  "display": {
+    "button": "표시",
+    "on_all": "전체에 표시",
+    "comments": "댓글",
+    "other": "기타 변경",
+    "latest_only": "태스크별 최신 변경만"
+  },
   "working_now": "작업 중: {{names}}",
   "activity": {
     "heading": "최근 활동",
@@ -17,18 +23,18 @@
   },
   "status_changes": {
     "empty": "아직 상태 변경 없음",
+    "empty_active": "지금 작업 중인 에이전트 없음",
     "empty_filtered": "이 상태로의 변경 없음",
     "empty_failures": "실패한 실행 없음",
-    "empty_other_changes": "다른 변경 없음",
     "filter_label": "변경된 상태로 필터",
     "filters": {
       "all": "전체",
+      "active": "작업 중",
       "in_progress": "진행 중",
       "blocked": "막힘",
       "done": "완료",
       "cancelled": "취소됨",
-      "failures": "실패한 실행",
-      "other": "기타"
+      "failures": "실패한 실행"
     }
   },
   "issue_filter": {

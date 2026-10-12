@@ -2,7 +2,13 @@
   "title": "アクティビティ",
   "load_failed": "読み込めませんでした",
   "retry": "再試行",
-  "show_comments": "コメント",
+  "display": {
+    "button": "表示",
+    "on_all": "「すべて」に表示",
+    "comments": "コメント",
+    "other": "その他の変更",
+    "latest_only": "タスクごとに最新の変更のみ"
+  },
   "working_now": "作業中: {{names}}",
   "activity": {
     "heading": "最近のアクティビティ",
@@ -17,18 +23,18 @@
   },
   "status_changes": {
     "empty": "ステータス変更はまだありません",
+    "empty_active": "現在作業中のエージェントはいません",
     "empty_filtered": "このステータスへの変更はありません",
     "empty_failures": "失敗した実行はありません",
-    "empty_other_changes": "ほかの変更はまだありません",
     "filter_label": "変更後のステータスで絞り込む",
     "filters": {
       "all": "すべて",
+      "active": "稼働中",
       "in_progress": "進行中",
       "blocked": "ブロック中",
       "done": "完了",
       "cancelled": "キャンセル済み",
-      "failures": "失敗した実行",
-      "other": "その他"
+      "failures": "失敗した実行"
     }
   },
   "issue_filter": {

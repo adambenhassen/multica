@@ -4,10 +4,17 @@ import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import { defaultStorage } from "../platform/storage";
 
+/** What the Activity feed shows beyond status changes and creations. */
 export interface OverviewLayoutState {
-  /** The Activity feed mixes comments in with status changes. */
+  /** Mix comments into the All tab. */
   showComments: boolean;
+  /** Mix other issue changes (reassigned, edited) into the All tab. */
+  showOther: boolean;
+  /** Keep only each issue's latest status change. */
+  latestOnly: boolean;
   toggleComments: () => void;
+  toggleOther: () => void;
+  toggleLatestOnly: () => void;
 }
 
 const stateStorage = defaultStorage as unknown as StateStorage;
@@ -18,17 +25,26 @@ export const useOverviewLayoutStore = create<OverviewLayoutState>()(
   persist(
     (set) => ({
       showComments: false,
+      showOther: false,
+      latestOnly: false,
       toggleComments: () => set((state) => ({ showComments: !state.showComments })),
+      toggleOther: () => set((state) => ({ showOther: !state.showOther })),
+      toggleLatestOnly: () => set((state) => ({ latestOnly: !state.latestOnly })),
     }),
     {
       name: "multica_dashboard_layout",
       storage: createJSONStorage(() => stateStorage),
       // Older builds saved other keys here (hidden sections, project labels);
-      // keep only what this build reads.
-      merge: (persisted, current) => ({
-        ...current,
-        showComments: (persisted as { showComments?: unknown } | undefined)?.showComments === true,
-      }),
+      // keep only what this build reads, and only a saved true turns one on.
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Record<string, unknown>;
+        return {
+          ...current,
+          showComments: saved.showComments === true,
+          showOther: saved.showOther === true,
+          latestOnly: saved.latestOnly === true,
+        };
+      },
     },
   ),
 );

@@ -45,6 +45,21 @@ export function coalesceFeed(entries: WorkspaceActivityEntry[]): WorkspaceActivi
   return out;
 }
 
+/**
+ * Keeps each issue's newest status change and drops its older ones, so an
+ * issue that moved several times shows once, at its latest move. Other rows
+ * pass through. `entries` are newest first.
+ */
+export function latestStatusChangePerIssue(entries: WorkspaceActivityEntry[]): WorkspaceActivityEntry[] {
+  const seen = new Set<string>();
+  return entries.filter((entry) => {
+    if (entry.type !== "activity" || entry.action !== "status_changed") return true;
+    if (seen.has(entry.issue.id)) return false;
+    seen.add(entry.issue.id);
+    return true;
+  });
+}
+
 /** The calendar day (YYYY-MM-DD) an instant falls on in `tz`. */
 export function dayInTimezone(iso: string, tz: string): string {
   return new Intl.DateTimeFormat("en-CA", {

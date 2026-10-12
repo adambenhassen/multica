@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { overviewKeys, workspaceActivityOptions } from "./queries";
+import { activeIssuesOptions, overviewKeys, workspaceActivityOptions } from "./queries";
 
 describe("overview query keys", () => {
   it("scopes the activity feed by workspace under the shared prefix", () => {
@@ -43,6 +43,18 @@ describe("overview query keys", () => {
       "all",
       null,
       "project-1",
+    ]);
+  });
+
+  it("keys the active-issue list under the feed prefix, so feed events refresh it", () => {
+    expect(activeIssuesOptions("ws-1", ["i-1", "i-2"], "p-1").queryKey).toEqual([
+      "overview",
+      "ws-1",
+      "activity",
+      "active-issues",
+      "p-1",
+      "i-1",
+      "i-2",
     ]);
   });
 });

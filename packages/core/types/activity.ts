@@ -67,10 +67,18 @@ export interface WorkspaceActivityEntry extends TimelineEntry {
 
 /**
  * Feed filter for GET /api/activity: everything except run outcomes, comments
- * only, status changes only, status changes and comments, failed agent runs
- * only, or every other issue change (created, reassigned, edited).
+ * only, status changes and issue creations, those plus comments, failed agent
+ * runs only, every other issue change (reassigned, edited), or every issue
+ * change without comments.
  */
-export type WorkspaceActivityKind = "all" | "comments" | "status" | "status_comments" | "failures" | "other";
+export type WorkspaceActivityKind =
+  | "all"
+  | "comments"
+  | "status"
+  | "status_comments"
+  | "failures"
+  | "other"
+  | "changes";
 
 export interface WorkspaceActivityResponse {
   entries: WorkspaceActivityEntry[];
