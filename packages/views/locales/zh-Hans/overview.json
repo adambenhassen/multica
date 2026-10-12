@@ -2,17 +2,10 @@
   "title": "动态",
   "load_failed": "加载失败",
   "retry": "重试",
-  "project_labels": "项目标签",
+  "show_comments": "评论",
+  "working_now": "正在处理：{{names}}",
   "activity": {
     "heading": "最近动态",
-    "empty": "暂无动态",
-    "filter_label": "显示",
-    "filters": {
-      "all": "全部",
-      "comments": "评论",
-      "failures": "失败"
-    },
-    "empty_filtered": "暂无内容",
     "today": "今天",
     "yesterday": "昨天",
     "commented": "发表了评论",
@@ -23,27 +16,24 @@
     "run_failed": "运行失败"
   },
   "status_changes": {
-    "heading": "状态变更",
     "empty": "暂无状态变更",
     "empty_filtered": "没有变更为此状态的记录",
+    "empty_failures": "没有失败的运行",
+    "empty_other_changes": "暂无其他变更",
     "filter_label": "按新状态筛选",
     "filters": {
       "all": "全部",
       "in_progress": "进行中",
       "blocked": "已阻塞",
       "done": "已完成",
-      "cancelled": "已取消"
+      "cancelled": "已取消",
+      "failures": "失败的运行",
+      "other": "其他"
     }
   },
   "issue_filter": {
     "label": "已筛选",
     "filter": "仅显示此任务",
     "clear": "清除任务筛选"
-  },
-  "customize": {
-    "button": "自定义",
-    "label": "在仪表盘中显示",
-    "show_all": "全部显示",
-    "all_hidden": "所有模块均已隐藏"
   }
 }

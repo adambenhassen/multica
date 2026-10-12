@@ -3,33 +3,22 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { useOverviewLayoutStore } from "./layout-store";
 
 describe("useOverviewLayoutStore", () => {
-  beforeEach(() => useOverviewLayoutStore.setState({ hidden: [], showProjects: false }));
+  beforeEach(() => useOverviewLayoutStore.setState({ showComments: false }));
 
-  it("toggles a section off and back on", () => {
-    const { toggleSection } = useOverviewLayoutStore.getState();
-    toggleSection("status_changes");
-    expect(useOverviewLayoutStore.getState().hidden).toEqual(["status_changes"]);
-    toggleSection("status_changes");
-    expect(useOverviewLayoutStore.getState().hidden).toEqual([]);
+  it("toggles comments in the feed", () => {
+    useOverviewLayoutStore.getState().toggleComments();
+    expect(useOverviewLayoutStore.getState().showComments).toBe(true);
+    useOverviewLayoutStore.getState().toggleComments();
+    expect(useOverviewLayoutStore.getState().showComments).toBe(false);
   });
 
-  it("drops unknown sections when restoring a saved layout", () => {
-    const merge = useOverviewLayoutStore.persist.getOptions().merge!;
-    const restored = merge({ hidden: ["activity", "metrics", 3] }, useOverviewLayoutStore.getState());
-    expect(restored.hidden).toEqual(["activity"]);
-  });
-
-  it("restores project labels only from a saved true", () => {
+  it("restores comments only from a saved true and drops retired keys", () => {
     const merge = useOverviewLayoutStore.persist.getOptions().merge!;
     const current = useOverviewLayoutStore.getState();
-    expect(merge({ hidden: [], showProjects: true }, current).showProjects).toBe(true);
-    expect(merge({ hidden: [], showProjects: "yes" }, current).showProjects).toBe(false);
-    // The retired compact toggle is dropped.
-    expect(merge({ hidden: [], compact: true }, current)).not.toHaveProperty("compact");
-  });
-
-  it("toggles project labels", () => {
-    useOverviewLayoutStore.getState().toggleProjects();
-    expect(useOverviewLayoutStore.getState().showProjects).toBe(true);
+    expect(merge({ showComments: true }, current).showComments).toBe(true);
+    expect(merge({ showComments: "yes" }, current).showComments).toBe(false);
+    const restored = merge({ hidden: ["agents"], showProjects: true }, current);
+    expect(restored).not.toHaveProperty("hidden");
+    expect(restored).not.toHaveProperty("showProjects");
   });
 });

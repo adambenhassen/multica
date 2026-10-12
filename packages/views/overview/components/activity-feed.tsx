@@ -8,12 +8,9 @@ import { useWorkspacePaths } from "@multica/core/paths";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { projectListOptions } from "@multica/core/projects/queries";
+import { agentTaskSnapshotOptions } from "@multica/core/agents";
 import { useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
-import type {
-  WorkspaceActivityEntry,
-  WorkspaceActivityIssueRef,
-  WorkspaceActivityKind,
-} from "@multica/core/types";
+import type { WorkspaceActivityEntry, WorkspaceActivityIssueRef } from "@multica/core/types";
 import { cn } from "@multica/ui/lib/utils";
 import { Button } from "@multica/ui/components/ui/button";
 import { AppLink } from "../../navigation";
@@ -33,18 +30,13 @@ import {
   commentExcerpt,
   groupFeedByDay,
   statusChangeTargets,
-  type StatusChangeFilter,
 } from "../utils";
 import { EmptyBox, ErrorBox, LIST_CLASS, LIST_SECTION_CLASS, ListSkeleton, SectionHeading } from "./section-parts";
 
-// Status changes have their own section (StatusChangesFeed).
-const FEED_KINDS = ["all", "comments", "failures"] as const satisfies readonly WorkspaceActivityKind[];
-type FeedKind = (typeof FEED_KINDS)[number];
-
 /**
- * What both feeds point at, owned by the page: the hovered issue's rows are
- * tinted, `issue` narrows both feeds to one issue's history, and `projectId`
- * to one project's issues.
+ * What the feed points at, owned by the page: the hovered issue's rows are
+ * tinted, `issue` narrows the feed to one issue's history, and `projectId` to
+ * one project's issues.
  */
 export interface FeedFocus {
   hoveredIssueId: string | null;
@@ -55,33 +47,68 @@ export interface FeedFocus {
 }
 
 /**
- * What is happening across the workspace, issue first: each row names the
- * issue, then who did what to it in plain words. Run completions and other
- * machine bookkeeping are filtered out server-side.
+ * The feed's tabs: the status a change went into, failed agent runs, or every
+ * other issue change (created, reassigned, edited).
  */
-export function ActivityFeed({ focus }: { focus: FeedFocus }) {
+const FEED_TABS = [...STATUS_CHANGE_FILTERS, "failures", "other"] as const;
+type FeedTab = (typeof FEED_TABS)[number];
+
+/**
+ * Every status change across the workspace, newest first, each shown as the
+ * move itself. The tabs narrow it by the status a change went into, or switch
+ * to failed agent runs or other issue changes. With comments on, the All tab
+ * mixes them in.
+ */
+export function StatusChangesFeed({ focus }: { focus: FeedFocus }) {
   const { t } = useT("overview");
   const wsId = useWorkspaceId();
-  const [kind, setKind] = useState<FeedKind>("all");
-  const query = useInfiniteQuery(
-    workspaceActivityOptions(wsId, { kind, issue: focus.issue?.id, project: focus.projectId }),
+  const catalog = useIssueStatuses(wsId);
+  const showComments = useOverviewLayoutStore((s) => s.showComments);
+  const [tab, setTab] = useState<FeedTab>("all");
+  // Custom statuses come from the catalog, so a category tab waits for it.
+  const targets = useMemo(
+    () => (tab === "failures" || tab === "other" ? [] : statusChangeTargets(tab, catalog)),
+    [tab, catalog],
   );
-  const kindLabels: Record<FeedKind, string> = {
-    all: t(($) => $.activity.filters.all),
-    comments: t(($) => $.activity.filters.comments),
-    failures: t(($) => $.activity.filters.failures),
+  // A comment is not a move into a status, so only the All tab mixes them in.
+  const kind =
+    tab === "failures" || tab === "other"
+      ? tab
+      : showComments && tab === "all"
+        ? "status_comments"
+        : "status";
+  const query = useInfiniteQuery({
+    ...workspaceActivityOptions(wsId, {
+      kind,
+      to: targets ?? [],
+      issue: focus.issue?.id,
+      project: focus.projectId,
+    }),
+    enabled: targets !== null,
+  });
+  const tabLabels: Record<FeedTab, string> = {
+    all: t(($) => $.status_changes.filters.all),
+    in_progress: t(($) => $.status_changes.filters.in_progress),
+    blocked: t(($) => $.status_changes.filters.blocked),
+    done: t(($) => $.status_changes.filters.done),
+    cancelled: t(($) => $.status_changes.filters.cancelled),
+    failures: t(($) => $.status_changes.filters.failures),
+    other: t(($) => $.status_changes.filters.other),
   };
 
   return (
     <section className={LIST_SECTION_CLASS}>
       <SectionHeading
         action={
-          <Segmented
-            label={t(($) => $.activity.filter_label)}
-            value={kind}
-            onChange={setKind}
-            options={FEED_KINDS.map((value) => ({ value, label: kindLabels[value] }))}
-          />
+          // Seven tabs outgrow a phone: they scroll sideways rather than wrap.
+          <div className="max-w-full overflow-x-auto">
+            <Segmented
+              label={t(($) => $.status_changes.filter_label)}
+              value={tab}
+              onChange={setTab}
+              options={FEED_TABS.map((value) => ({ value, label: tabLabels[value] }))}
+            />
+          </div>
         }
       >
         {t(($) => $.activity.heading)}
@@ -89,59 +116,14 @@ export function ActivityFeed({ focus }: { focus: FeedFocus }) {
       <FeedBody
         query={query}
         focus={focus}
-        empty={kind === "all" ? t(($) => $.activity.empty) : t(($) => $.activity.empty_filtered)}
-      />
-    </section>
-  );
-}
-
-/**
- * Every status change across the workspace, newest first, each shown as the
- * move itself. The tabs narrow it by the status a change went into.
- */
-export function StatusChangesFeed({ focus }: { focus: FeedFocus }) {
-  const { t } = useT("overview");
-  const wsId = useWorkspaceId();
-  const catalog = useIssueStatuses(wsId);
-  const [filter, setFilter] = useState<StatusChangeFilter>("all");
-  // Custom statuses come from the catalog, so a category tab waits for it.
-  const targets = useMemo(() => statusChangeTargets(filter, catalog), [filter, catalog]);
-  const query = useInfiniteQuery({
-    ...workspaceActivityOptions(wsId, {
-      kind: "status",
-      to: targets ?? [],
-      issue: focus.issue?.id,
-      project: focus.projectId,
-    }),
-    enabled: targets !== null,
-  });
-  const filterLabels: Record<StatusChangeFilter, string> = {
-    all: t(($) => $.status_changes.filters.all),
-    in_progress: t(($) => $.status_changes.filters.in_progress),
-    blocked: t(($) => $.status_changes.filters.blocked),
-    done: t(($) => $.status_changes.filters.done),
-    cancelled: t(($) => $.status_changes.filters.cancelled),
-  };
-
-  return (
-    <section className={LIST_SECTION_CLASS}>
-      <SectionHeading
-        action={
-          <Segmented
-            label={t(($) => $.status_changes.filter_label)}
-            value={filter}
-            onChange={setFilter}
-            options={STATUS_CHANGE_FILTERS.map((value) => ({ value, label: filterLabels[value] }))}
-          />
-        }
-      >
-        {t(($) => $.status_changes.heading)}
-      </SectionHeading>
-      <FeedBody
-        query={query}
-        focus={focus}
         empty={
-          filter === "all" ? t(($) => $.status_changes.empty) : t(($) => $.status_changes.empty_filtered)
+          tab === "all"
+            ? t(($) => $.status_changes.empty)
+            : tab === "failures"
+              ? t(($) => $.status_changes.empty_failures)
+              : tab === "other"
+                ? t(($) => $.status_changes.empty_other_changes)
+                : t(($) => $.status_changes.empty_filtered)
         }
       />
     </section>
@@ -162,13 +144,21 @@ function FeedBody({
   const locale = useLocale();
   const tz = useViewingTimezone();
   const wsId = useWorkspaceId();
-  const showProjects = useOverviewLayoutStore((s) => s.showProjects);
-  // Labels resolve through the project list the app already caches.
-  const { data: projectList } = useQuery({ ...projectListOptions(wsId), enabled: showProjects });
-  const projects = useMemo(
-    () => new Map((showProjects ? (projectList ?? []) : []).map((p) => [p.id, p] as const)),
-    [showProjects, projectList],
-  );
+  // Project labels resolve through the project list the app already caches.
+  const { data: projectList } = useQuery(projectListOptions(wsId));
+  const projects = useMemo(() => new Map((projectList ?? []).map((p) => [p.id, p] as const)), [projectList]);
+  // Agents working on each issue right now, from the live task snapshot the
+  // app already keeps fresh over WebSocket.
+  const { data: snapshot } = useQuery(agentTaskSnapshotOptions(wsId));
+  const workingByIssue = useMemo(() => {
+    const out = new Map<string, string[]>();
+    for (const task of snapshot ?? []) {
+      if (task.status !== "running" || !task.issue_id) continue;
+      const ids = out.get(task.issue_id) ?? [];
+      if (!ids.includes(task.agent_id)) out.set(task.issue_id, [...ids, task.agent_id]);
+    }
+    return out;
+  }, [snapshot]);
   const { data: entries, isPending, isError, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = query;
   const groups = useMemo(() => groupFeedByDay(coalesceFeed(entries ?? []), tz), [entries, tz]);
 
@@ -199,8 +189,8 @@ function FeedBody({
               <FeedRow
                 key={entry.id}
                 entry={entry}
-                showProjects={showProjects}
                 project={entry.issue.project_id ? projects.get(entry.issue.project_id) : undefined}
+                workingAgentIds={workingByIssue.get(entry.issue.id)}
                 // Filtered to one issue, every row is that issue: no tint, no filter button.
                 highlighted={!focus.issue && focus.hoveredIssueId === entry.issue.id}
                 onHoverIssue={focus.onHoverIssue}
@@ -226,26 +216,28 @@ function FeedBody({
 type RowProject = { id: string; title: string; icon: string | null };
 
 /**
- * One event on one line, the same in both feeds: what happened as an icon,
- * the issue, its project when labels are on, the move as status icons, the
- * actor's avatar, then when. A wide list also names the statuses and the
- * actor; otherwise every icon names itself on hover, and the names hidden
- * from view stay for screen readers. Sized by the list's width (it is
+ * One event on one line: what happened as an icon, the issue, the agents
+ * working on it now, its project,
+ * the move as status icons, the actor's avatar, then when. A wide list also
+ * names the statuses and the actor and puts any other event into words; otherwise
+ * every icon names itself on hover, and the names hidden from view stay for
+ * screen readers. Sized by the list's width (it is
  * the query container): a narrow list drops the project, then the detail, so
  * the title stays readable.
  */
 const FeedRow = memo(function FeedRow({
   entry,
-  showProjects,
   project,
+  workingAgentIds,
   highlighted,
   onHoverIssue,
   onFilterIssue,
 }: {
   entry: WorkspaceActivityEntry;
-  /** Project labels are on: the row keeps a project column, empty without one. */
-  showProjects: boolean;
+  /** The issue's project; its column stays (empty) without one. */
   project: RowProject | undefined;
+  /** Agents with a task running on the issue right now. */
+  workingAgentIds: string[] | undefined;
   /** Another row of the same issue is hovered. */
   highlighted: boolean;
   onHoverIssue: (issueId: string | null) => void;
@@ -331,24 +323,31 @@ const FeedRow = memo(function FeedRow({
         <span className="min-w-32 flex-1 truncate text-label" title={entry.issue.title}>
           {entry.issue.title}
         </span>
-        {/* Fixed-width columns keep project labels aligned down the list. */}
-        {showProjects && (
-          <span
-            className="hidden w-32 shrink-0 items-center gap-1 text-caption text-muted-foreground @lg:flex"
-            title={project?.title}
-          >
-            {project && (
-              <>
-                <ProjectIcon project={project} size="sm" />
-                <span className="truncate">{project.title}</span>
-              </>
-            )}
-          </span>
-        )}
+        {/* Fixed-width columns keep working agents and project labels aligned down the list. */}
+        <WorkingAgents agentIds={workingAgentIds} />
+        <span
+          className="hidden w-32 shrink-0 items-center gap-1 text-caption text-muted-foreground @lg:flex"
+          title={project?.title}
+        >
+          {project && (
+            <>
+              <ProjectIcon project={project} size="sm" />
+              <span className="truncate">{project.title}</span>
+            </>
+          )}
+        </span>
         {/* The move and the actor each get a fixed column: icons only, or with
             their names once the list is wide (56rem) enough to spare them. */}
         <span className="hidden shrink-0 items-center gap-2 text-caption text-muted-foreground @sm:flex">
           <span className="flex w-14 items-center justify-end gap-1.5 @4xl:w-56 @4xl:justify-start">
+            {/* What happened, in words, once the list has room: a comment's
+                text, or the change ("assigned to Builder"). Screen readers get
+                the full sentence from the sr-only copy below. */}
+            {!isMove && (
+              <span aria-hidden="true" className="hidden min-w-0 truncate @4xl:inline">
+                {excerpt || phrase}
+              </span>
+            )}
             {isMove && (
               <>
                 {details.from && (
@@ -406,6 +405,33 @@ const FeedRow = memo(function FeedRow({
     </div>
   );
 });
+
+/** Up to three overlapping avatars of the agents working on the issue now. */
+function WorkingAgents({ agentIds }: { agentIds: string[] | undefined }) {
+  const { t } = useT("overview");
+  const { getActorName } = useActorName();
+  const names = (agentIds ?? []).map((id) => getActorName("agent", id)).join(", ");
+  const shown = (agentIds ?? []).slice(0, 3);
+  const extra = (agentIds?.length ?? 0) - shown.length;
+  return (
+    <span
+      className="hidden w-14 shrink-0 items-center justify-end @lg:flex"
+      title={names ? t(($) => $.working_now, { names }) : undefined}
+    >
+      {shown.length > 0 && (
+        <>
+          <span className="sr-only">{t(($) => $.working_now, { names })}</span>
+          <span aria-hidden="true" className="flex items-center -space-x-1">
+            {shown.map((id) => (
+              <ActorAvatar key={id} actorType="agent" actorId={id} size="xs" profileLink={false} showStatusDot />
+            ))}
+          </span>
+          {extra > 0 && <span className="pl-1 text-micro text-muted-foreground tabular-nums">+{extra}</span>}
+        </>
+      )}
+    </span>
+  );
+}
 
 /**
  * A status as its icon, named beside it once the list is wide (56rem);
