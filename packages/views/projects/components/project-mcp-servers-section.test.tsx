@@ -53,7 +53,12 @@ describe("ProjectMcpServersSection", () => {
 
   it("lists attached servers and removes one", async () => {
     renderWithI18n(<ProjectMcpServersSection projectId="p1" canManage />);
-    expect(screen.getByText("linear")).toBeTruthy();
+    // The row is the server's name; its transport is the name's tooltip, so a
+    // narrow sidebar never trades the name for "Streamable HTTP".
+    const name = screen.getByText("linear");
+    expect(name.className).toContain("min-w-16");
+    expect(name.getAttribute("title")).toBe("linear · Streamable HTTP");
+    expect(screen.queryByText("Streamable HTTP")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Remove linear" }));
     await waitFor(() => expect(removeMock).toHaveBeenCalledWith("srv-1"));
