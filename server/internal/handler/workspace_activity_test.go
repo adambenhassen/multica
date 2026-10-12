@@ -185,6 +185,31 @@ func TestListWorkspaceActivityMergesCommentsAndFiltersByKind(t *testing.T) {
 	}
 	testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity?issue=nope", ws, testUserID)).
 		Want(http.StatusBadRequest)
+
+	// `project` keeps the issues of one project, activity and comments alike.
+	project := dbfx.Insert(t, "project", testutil.Cols{"workspace_id": ws, "title": "Feed project"})
+	inProject := dbfx.Issue(t, "Project issue", testutil.Cols{"workspace_id": ws, "project_id": project})
+	projectStatus := dbfx.Insert(t, "activity_log", testutil.Cols{
+		"workspace_id": ws, "issue_id": inProject, "actor_type": "member", "actor_id": testUserID,
+		"action": "status_changed", "details": `{"from":"todo","to":"done"}`, "created_at": base.Add(7 * time.Minute),
+	})
+	projectComment := dbfx.Comment(t, inProject, "in the project", testutil.Cols{"workspace_id": ws, "created_at": base.Add(8 * time.Minute)})
+	if got := ids(read("?project=" + project)); !slices.Equal(got, []string{projectComment, projectStatus}) {
+		t.Fatalf("project = %v, want only the project issue's comment and status change", got)
+	}
+	if got := ids(read("?kind=status&project=" + project)); !slices.Equal(got, []string{projectStatus}) {
+		t.Fatalf("kind=status&project = %v", got)
+	}
+	for _, e := range read("?project=" + project).Entries {
+		if e.Issue.ProjectID == nil || *e.Issue.ProjectID != project {
+			t.Fatalf("entry %s issue project = %v, want %s", e.ID, e.Issue.ProjectID, project)
+		}
+	}
+	if e := read("?issue=" + other).Entries[0]; e.Issue.ProjectID != nil {
+		t.Fatalf("issue without a project carries project %v", *e.Issue.ProjectID)
+	}
+	testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity?project=nope", ws, testUserID)).
+		Want(http.StatusBadRequest)
 }
 
 func TestListRecentlyCompletedIssuesOrdersByCompletion(t *testing.T) {

@@ -54,6 +54,8 @@ type WorkspaceActivityIssueRef struct {
 	Identifier string `json:"identifier"`
 	Title      string `json:"title"`
 	Status     string `json:"status"`
+	// The issue's project; absent when it has none.
+	ProjectID *string `json:"project_id,omitempty"`
 }
 
 type WorkspaceActivityEntry struct {
@@ -151,11 +153,18 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 		excludedActions = []string{}
 	}
 
-	// `issue` narrows the feed to one issue's history.
-	var issueID pgtype.UUID
+	// `issue` narrows the feed to one issue's history, `project` to one
+	// project's issues.
+	var issueID, projectID pgtype.UUID
 	if raw := r.URL.Query().Get("issue"); raw != "" {
 		var ok bool
 		if issueID, ok = parseUUIDOrBadRequest(w, raw, "issue"); !ok {
+			return
+		}
+	}
+	if raw := r.URL.Query().Get("project"); raw != "" {
+		var ok bool
+		if projectID, ok = parseUUIDOrBadRequest(w, raw, "project"); !ok {
 			return
 		}
 	}
@@ -170,6 +179,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 			OnlyActions:     onlyActions,
 			ToStatuses:      toStatuses,
 			IssueID:         issueID,
+			ProjectID:       projectID,
 			BeforeAt:        beforeAt,
 			BeforeID:        beforeID,
 			RowLimit:        int32(limit),
@@ -186,6 +196,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 			WorkspaceID:   wsUUID,
 			ExcerptLength: workspaceActivityExcerptLength,
 			IssueID:       issueID,
+			ProjectID:     projectID,
 			BeforeAt:      beforeAt,
 			BeforeID:      beforeID,
 			RowLimit:      int32(limit),
@@ -203,12 +214,13 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 		issue WorkspaceActivityIssueRef
 	}
 	prefix := h.getIssuePrefix(ctx, wsUUID)
-	issueRef := func(id pgtype.UUID, number int32, title, status string) WorkspaceActivityIssueRef {
+	issueRef := func(id pgtype.UUID, number int32, title, status string, projectID pgtype.UUID) WorkspaceActivityIssueRef {
 		return WorkspaceActivityIssueRef{
 			ID:         uuidToString(id),
 			Identifier: prefix + "-" + strconv.Itoa(int(number)),
 			Title:      title,
 			Status:     status,
+			ProjectID:  uuidToPtr(projectID),
 		}
 	}
 	rows := make([]feedRow, 0, len(activities)+len(comments))
@@ -225,7 +237,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 				Details:     a.Details,
 				CreatedAt:   a.CreatedAt,
 			}),
-			issue: issueRef(a.IssueID, a.IssueNumber, a.IssueTitle, a.IssueStatus),
+			issue: issueRef(a.IssueID, a.IssueNumber, a.IssueTitle, a.IssueStatus, a.IssueProjectID),
 		})
 	}
 	for _, c := range comments {
@@ -241,7 +253,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 				ParentID:  uuidToPtr(c.ParentID),
 				CreatedAt: timestampToString(c.CreatedAt),
 			},
-			issue: issueRef(c.IssueID, c.IssueNumber, c.IssueTitle, c.IssueStatus),
+			issue: issueRef(c.IssueID, c.IssueNumber, c.IssueTitle, c.IssueStatus, c.IssueProjectID),
 		})
 	}
 	// Each source is already newest-first and capped at limit, so the merged
