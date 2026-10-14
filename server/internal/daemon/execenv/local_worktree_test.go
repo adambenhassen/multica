@@ -544,6 +544,9 @@ func TestFinalizeKeepsWorktreeWhenCommitFails(t *testing.T) {
 	// Force every commit in this worktree to fail the way a signing setup the
 	// daemon can't satisfy would.
 	gitRun(t, wt.Path, "config", "commit.gpgSign", "true")
+	// gpg.program is only consulted for openpgp; a global gpg.format=ssh
+	// would otherwise sign successfully with the developer's key.
+	gitRun(t, wt.Path, "config", "gpg.format", "openpgp")
 	gitRun(t, wt.Path, "config", "gpg.program", filepath.Join(repo, "definitely-not-a-real-gpg"))
 
 	outcome, err := wt.Finalize(worktreeTestLogger())
