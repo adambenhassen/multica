@@ -74,6 +74,7 @@ export type AgentColumnKey =
   | "lastActive"
   | "runs"
   | "model"
+  | "concurrency"
   | "created";
 
 /** Model and created are opt-in: hidden until the user enables them. Owner

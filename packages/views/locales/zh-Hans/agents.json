@@ -73,6 +73,7 @@
     "runs": "运行次数",
     "last_active": "最近活跃",
     "model": "模型",
+    "concurrency": "并发",
     "created": "创建时间",
     "owner": "owner",
     "access": "访问权限"

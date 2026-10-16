@@ -348,3 +348,30 @@ describe("AgentsPage docs link", () => {
     ).toHaveAttribute("href", "https://multica.ai/docs/fr/agents");
   });
 });
+
+describe("AgentsPage model and concurrency columns", () => {
+  it("shows the reasoning level beside the model when the agent pins one", () => {
+    mocks.viewState.hiddenColumns = ["created"];
+    mocks.agents = [
+      makeAgent({ id: "a-alpha", name: "Alpha Agent", model: "claude-opus", thinking_level: "high" }),
+      makeAgent({ id: "a-beta", name: "Beta Agent", model: "gpt-luna", thinking_level: "" }),
+    ];
+
+    renderPage();
+
+    expect(screen.getByText("claude-opus")).toBeInTheDocument();
+    expect(screen.getByText("high")).toBeInTheDocument();
+    expect(screen.getByText("gpt-luna").parentElement?.children).toHaveLength(1);
+  });
+
+  it("shows each agent's max concurrent runs in the Concurrency column", () => {
+    mocks.viewState.sortField = "name";
+    mocks.viewState.sortDirection = "asc";
+    mocks.agents = [makeAgent({ id: "a-alpha", name: "Alpha Agent", max_concurrent_tasks: 7 })];
+
+    renderPage();
+
+    expect(screen.getByRole("columnheader", { name: "Concurrency" })).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+  });
+});

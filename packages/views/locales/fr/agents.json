@@ -75,6 +75,7 @@
     "runs": "Exécutions",
     "last_active": "Dernière activité",
     "model": "Modèle",
+    "concurrency": "Parallélisme",
     "created": "Création",
     "owner": "Propriétaire",
     "access": "Accès"

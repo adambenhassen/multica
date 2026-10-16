@@ -65,6 +65,7 @@
     "runs": "実行",
     "last_active": "最終アクティブ",
     "model": "モデル",
+    "concurrency": "同時実行数",
     "created": "作成日時",
     "owner": "オーナー",
     "access": "アクセス"

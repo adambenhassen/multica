@@ -88,7 +88,7 @@ import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 // the documented exception to the single-line management-list rule.
 const GRID_COLS =
   "grid-cols-[0.75rem_minmax(120px,1fr)_var(--agc-status-mobile)_1.75rem_0.75rem] " +
-  "@2xl:grid-cols-[0.75rem_1rem_minmax(200px,1fr)_var(--agc-status-desktop)_var(--agc-owner)_var(--agc-access)_var(--agc-runtime)_var(--agc-lastactive)_var(--agc-runs)_var(--agc-model)_var(--agc-created)_1.75rem_0.75rem]";
+  "@2xl:grid-cols-[0.75rem_1rem_minmax(200px,1fr)_var(--agc-status-desktop)_var(--agc-owner)_var(--agc-access)_var(--agc-runtime)_var(--agc-lastactive)_var(--agc-runs)_var(--agc-model)_var(--agc-concurrency)_var(--agc-created)_1.75rem_0.75rem]";
 
 // Two-line rows; the virtualizer's fixed-size contract.
 const ROW_HEIGHT = 64;
@@ -105,14 +105,17 @@ const COLUMN_WIDTHS: Record<AgentColumnKey, number> = {
   runtime: 144,
   lastActive: 120,
   runs: 88,
-  model: 120,
+  // Fits a model id like "claude-fable-5-1" plus an effort badge ("xhigh").
+  model: 176,
+  // Fits the header label "Concurrency" (~104px incl. padding).
+  concurrency: 104,
   created: 104,
 };
 
 // Fixed tracks (edges 12+12, checkbox 16, name min 200, kebab 28) plus the
-// 11 gap-x-3 gaps between the wide template's 12 tracks (zero-width tracks
+// 13 gap-x-3 gaps between the wide template's 14 tracks (zero-width tracks
 // still carry gaps).
-const FIXED_TRACKS_WIDTH = 268 + 11 * 12;
+const FIXED_TRACKS_WIDTH = 268 + 13 * 12;
 
 function columnTrackVars(
   isVisible: (key: AgentColumnKey) => boolean,
@@ -134,6 +137,7 @@ function columnTrackVars(
     "--agc-lastactive": width("lastActive"),
     "--agc-runs": width("runs"),
     "--agc-model": width("model"),
+    "--agc-concurrency": width("concurrency"),
     "--agc-created": width("created"),
     "--agc-minw": `${minWidth}px`,
   } as React.CSSProperties;
@@ -667,6 +671,13 @@ function AgentListHeader({
       ) : (
         <ListGridHeaderCell className="hidden px-0 @2xl:flex" />
       )}
+      {isColVisible("concurrency") ? (
+        <ListGridHeaderCell className="hidden @2xl:flex" align="right">
+          {t(($) => $.columns.concurrency)}
+        </ListGridHeaderCell>
+      ) : (
+        <ListGridHeaderCell className="hidden px-0 @2xl:flex" />
+      )}
       {isColVisible("created") ? (
         <ListGridHeaderCell
           className="hidden @2xl:flex"
@@ -715,6 +726,9 @@ function LoadingSkeleton() {
           <Skeleton className="h-3 w-10" />
         </ListGridHeaderCell>
         <ListGridHeaderCell className="hidden px-0 @2xl:flex" />
+        <ListGridHeaderCell className="hidden justify-end @2xl:flex">
+          <Skeleton className="h-3 w-14" />
+        </ListGridHeaderCell>
         <ListGridHeaderCell className="hidden px-0 @2xl:flex" />
         <span aria-hidden="true" />
       </ListGridHeader>
@@ -748,6 +762,9 @@ function LoadingSkeleton() {
             <Skeleton className="h-3 w-8" />
           </ListGridCell>
           <ListGridCell className="hidden px-0 @2xl:flex" />
+          <ListGridCell className="hidden justify-end @2xl:flex">
+            <Skeleton className="h-3 w-4" />
+          </ListGridCell>
           <ListGridCell className="hidden px-0 @2xl:flex" />
           <span aria-hidden="true" />
         </ListGridRow>
@@ -1140,10 +1157,22 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
                         <ListGridCell className="hidden px-0 @2xl:flex" />
                       )}
                       {isColVisible("model") ? (
-                        <ListGridCell className="hidden @2xl:flex">
+                        <ListGridCell className="hidden gap-1.5 @2xl:flex">
                           <span className="min-w-0 truncate text-caption text-muted-foreground">
                             {row.agent.model || "—"}
                           </span>
+                          {row.agent.thinking_level?.trim() ? (
+                            <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
+                              {row.agent.thinking_level.trim()}
+                            </span>
+                          ) : null}
+                        </ListGridCell>
+                      ) : (
+                        <ListGridCell className="hidden px-0 @2xl:flex" />
+                      )}
+                      {isColVisible("concurrency") ? (
+                        <ListGridCell className="hidden justify-end font-mono text-caption tabular-nums text-muted-foreground @2xl:flex">
+                          {row.agent.max_concurrent_tasks.toLocaleString(locale)}
                         </ListGridCell>
                       ) : (
                         <ListGridCell className="hidden px-0 @2xl:flex" />

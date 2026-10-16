@@ -75,6 +75,7 @@
     "runs": "Runs",
     "last_active": "Last active",
     "model": "Model",
+    "concurrency": "Concurrency",
     "created": "Created",
     "owner": "Owner",
     "access": "Access"
