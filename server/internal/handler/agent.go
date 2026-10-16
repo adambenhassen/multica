@@ -467,6 +467,7 @@ type AgentTaskResponse struct {
 	// Populated on both terminal paths — a failed run can still have committed
 	// partial work, and that is when the pointer matters most.
 	BranchName            string                 `json:"branch_name,omitempty"`
+	ThinkingLevel         string                 `json:"thinking_level,omitempty"`        // agent effort snapshotted at claim; empty means runtime default or unrecorded
 	TriggerCommentID      *string                `json:"trigger_comment_id,omitempty"`    // comment that triggered this task
 	CoalescedCommentIDs   []string               `json:"coalesced_comment_ids,omitempty"` // MUL-4195: earlier comments folded into this run when it had not yet started, so a single run still covers every deliberate comment; trigger_comment_id is the newest. Surfaced so the UI can show which comments a run covered. omitempty so old clients ignore it
 	CoalescedComments     []CoalescedCommentData `json:"coalesced_comments,omitempty"`    // MUL-4195: full detail (thread_id/author/created_at/content) of the folded comments, so the daemon prompt can address each without assuming they share the triggering thread. omitempty so old clients ignore it
@@ -860,6 +861,7 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		Error:                  textToPtr(t.Error),
 		FailureReason:          failureReason,
 		BranchName:             branchName,
+		ThinkingLevel:          t.ThinkingLevel.String,
 		Attempt:                t.Attempt,
 		MaxAttempts:            t.MaxAttempts,
 		ParentTaskID:           uuidToPtr(t.ParentTaskID),

@@ -179,6 +179,7 @@ type AgentTaskQueue struct {
 	CancelledByName           pgtype.Text `json:"cancelled_by_name"`
 	IssueSnapshot             []byte      `json:"issue_snapshot"`
 	WorkflowStep              pgtype.Text `json:"workflow_step"`
+	ThinkingLevel             pgtype.Text `json:"thinking_level"`
 }
 
 type AgentToLabel struct {

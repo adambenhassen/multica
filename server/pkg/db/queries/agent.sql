@@ -715,10 +715,14 @@ WHERE atq.id = $1 AND a.workspace_id = $2;
 -- "any other quick-create-shaped task" (all four FKs NULL) for the same agent —
 -- otherwise a user mashing the create button could fire concurrent quick-creates
 -- whose completion lookup would race over "most recent issue by this agent".
+-- thinking_level snapshots the agent's effort at claim time for run history.
 UPDATE agent_task_queue
 SET status = 'dispatched',
     dispatched_at = now(),
-    prepare_lease_expires_at = now() + make_interval(secs => @prepare_lease_secs::double precision)
+    prepare_lease_expires_at = now() + make_interval(secs => @prepare_lease_secs::double precision),
+    thinking_level = (
+        SELECT NULLIF(BTRIM(a.thinking_level), '') FROM agent a WHERE a.id = agent_task_queue.agent_id
+    )
 WHERE id = (
     SELECT atq.id FROM agent_task_queue atq
     WHERE atq.agent_id = @agent_id

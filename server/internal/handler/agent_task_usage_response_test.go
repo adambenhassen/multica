@@ -227,3 +227,38 @@ func TestListAgentTasksReturnsErrorWhenUsageLoadFails(t *testing.T) {
 		t.Fatalf("usage query failure should not fall back to empty usage: %s", w.Body.String())
 	}
 }
+
+// TestListAgentTasksReturnsThinkingLevel pins that run history reports the
+// effort snapshotted on the task row, and omits it for runs without one.
+func TestListAgentTasksReturnsThinkingLevel(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+
+	agentID := createHandlerTestAgent(t, "AgentTaskThinkingLevel", []byte("[]"))
+	pinnedTask := dbfx.Task(t, agentID, testutil.Cols{
+		"runtime_id":     handlerTestRuntimeID(t),
+		"status":         "completed",
+		"thinking_level": "xhigh",
+	})
+	defaultTask := dbfx.Task(t, agentID, testutil.Cols{
+		"runtime_id": handlerTestRuntimeID(t),
+		"status":     "completed",
+	})
+
+	req := withURLParam(newRequest(http.MethodGet, "/api/agents/"+agentID+"/tasks", nil), "id", agentID)
+	var resp []map[string]any
+	testutil.Call(t, testHandler.ListAgentTasks, req).Want(http.StatusOK).JSON(&resp)
+
+	byID := make(map[string]map[string]any, len(resp))
+	for _, task := range resp {
+		id, _ := task["id"].(string)
+		byID[id] = task
+	}
+	if got := byID[pinnedTask]["thinking_level"]; got != "xhigh" {
+		t.Fatalf("pinned task thinking_level = %v, want xhigh", got)
+	}
+	if got, ok := byID[defaultTask]["thinking_level"]; ok {
+		t.Fatalf("default task thinking_level = %v, want omitted", got)
+	}
+}
