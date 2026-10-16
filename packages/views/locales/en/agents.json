@@ -742,6 +742,7 @@
       "cancelled_count": "{{count}} cancelled",
       "avg_duration": "avg {{value}}",
       "avg_duration_label": "average duration",
+      "tokens_count": "{{tokens}} tokens",
       "failed_count": "{{count}} failed",
       "failed_label": "failed",
       "source_issue": "Issue",

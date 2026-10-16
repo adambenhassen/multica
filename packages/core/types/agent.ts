@@ -436,6 +436,12 @@ export interface AgentTask {
    */
   branch_name?: string;
   /**
+   * The agent's reasoning effort snapshotted when this run was claimed. Absent
+   * when the run used the runtime/model default, was never claimed, or predates
+   * the snapshot — the agent's current setting is not a substitute.
+   */
+  thinking_level?: string;
+  /**
    * Resolved accountable-human provenance of this run (MUL-4302 §9): who it ran
    * "on behalf of", how that was resolved, and the evidence/lineage. Present on
    * user-facing task surfaces; older backends omit it — render conditionally.
@@ -443,8 +449,8 @@ export interface AgentTask {
   attribution?: TaskAttribution;
   /**
    * This run's own token consumption, one entry per (provider, model) it used.
-   * Present on issue execution logs and explicit agent-history accounting
-   * requests; normal UI history and daemon claims omit it.
+   * Present on issue execution logs, agent run history, and explicit
+   * agent-history accounting requests; daemon claims omit it.
    *
    * `undefined` (old backend, or a surface that doesn't hydrate it) and `[]`
    * (backend hydrated, this run has no recorded usage) both mean "no number to

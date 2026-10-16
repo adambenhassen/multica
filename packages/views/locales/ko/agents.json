@@ -632,6 +632,7 @@
       "cancelled_count": "{{count}}개 취소됨",
       "avg_duration": "평균 {{value}}",
       "avg_duration_label": "평균 소요 시간",
+      "tokens_count": "토큰 {{tokens}}",
       "failed_count": "{{count}}회 실패",
       "failed_label": "실패",
       "source_issue": "태스크",

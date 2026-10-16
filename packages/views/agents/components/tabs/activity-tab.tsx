@@ -32,12 +32,23 @@ import { api } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { issueDetailOptions } from "@multica/core/issues/queries";
+import {
+  runtimeDisplayLabel,
+  runtimeListOptions,
+  useCustomPricingStore,
+} from "@multica/core/runtimes";
 import { AppLink } from "../../../navigation";
 import { TranscriptButton } from "../../../common/task-transcript";
 import { AttributionBadge } from "../../../issues/components/attribution-badge";
 import { taskStatusConfig } from "../../config";
 import { cancellationActorLabel, cancelReasonLabel, failureReasonLabel } from "./task-failure";
 import { Sparkline } from "../sparkline";
+import {
+  collectUnmappedModels,
+  formatTokens,
+  formatUsd,
+  summarizeTaskUsage,
+} from "../../../runtimes/utils";
 import { useT, useTimeAgo } from "../../../i18n";
 
 // Reveal cached rows in small batches and fetch another page only on demand.
@@ -563,6 +574,7 @@ function TaskRow({
   const { t } = useT("agents");
   const timeAgo = useTimeAgo();
   const paths = useWorkspacePaths();
+  const wsId = useWorkspaceId();
   const [cancelling, setCancelling] = useState(false);
   const cfg = taskStatusConfig[task.status] ?? taskStatusConfig.queued!;
   const Icon = cfg.icon;
@@ -654,6 +666,73 @@ function TaskRow({
       new Date(task.completed_at).getTime() -
       new Date(task.started_at).getTime();
     if (dur > 0) durationText = formatDurationMs(dur);
+  }
+
+  // What a finished run used and cost. Active rows have no usage yet, and
+  // their effort is only snapshotted once the run is claimed.
+  const showRunDetails = timeMode === "completed";
+  // `estimateCost` reads custom rates imperatively, so subscribe and re-price
+  // when a saved rate changes.
+  const pricings = useCustomPricingStore((s) => s.pricings);
+  const usage = useMemo(
+    () => (showRunDetails ? summarizeTaskUsage(task.usage) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `pricings` re-prices on a saved custom rate
+    [showRunDetails, task.usage, pricings],
+  );
+  // A model with no rate and no provider-reported price would read as $0.00.
+  const costKnown = useMemo(
+    () => !!task.usage && collectUnmappedModels(task.usage).length === 0,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `pricings` changes which models are priced
+    [task.usage, pricings],
+  );
+  const models = usage?.models ?? [];
+  const effort = showRunDetails ? task.thinking_level?.trim() || null : null;
+  const { data: runtimeLabel } = useQuery({
+    ...runtimeListOptions(wsId),
+    enabled: showRunDetails && !!task.runtime_id,
+    select: (runtimes) => {
+      const runtime = runtimes.find((r) => r.id === task.runtime_id);
+      return runtime ? runtimeDisplayLabel(runtime) : null;
+    },
+  });
+  const runDetails: { key: string; node: ReactNode }[] = [];
+  if (usage && costKnown) {
+    runDetails.push({ key: "cost", node: <span className="tabular-nums">{formatUsd(usage.cost)}</span> });
+  }
+  if (usage) {
+    runDetails.push({
+      key: "tokens",
+      node: (
+        <span className="tabular-nums">
+          {t(($) => $.tab_body.activity.tokens_count, { tokens: formatTokens(usage.tokens) })}
+        </span>
+      ),
+    });
+  }
+  if (models.length > 0 || effort) {
+    runDetails.push({
+      key: "model",
+      node: (
+        <>
+          {models.length > 0 && <span className="min-w-0 truncate">{models.join(", ")}</span>}
+          {effort && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-micro font-medium">
+                    {effort}
+                  </span>
+                }
+              />
+              <TooltipContent>{t(($) => $.pickers.thinking_tooltip, { value: effort })}</TooltipContent>
+            </Tooltip>
+          )}
+        </>
+      ),
+    });
+  }
+  if (runtimeLabel) {
+    runDetails.push({ key: "runtime", node: <span className="truncate">{runtimeLabel}</span> });
   }
 
   const rowClass =
@@ -757,6 +836,23 @@ function TaskRow({
             </>
           )}
         </div>
+        {/* Each item carries its own leading middot; the negative margin
+            clips the one that starts a line, so wrapping never strands a
+            separator at a line edge. */}
+        {runDetails.length > 0 && (
+          <div className="mt-0.5 overflow-hidden text-caption text-muted-foreground">
+            <div className="-ml-6 flex flex-wrap items-center gap-y-0.5">
+              {runDetails.map((part) => (
+                <span
+                  key={part.key}
+                  className="relative inline-flex min-w-0 max-w-full items-center gap-1.5 pl-6 before:absolute before:left-2.5 before:text-faint-foreground before:content-['·']"
+                >
+                  {part.node}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Hover-only actions. The row is intentionally non-clickable so

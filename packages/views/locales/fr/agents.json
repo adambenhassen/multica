@@ -742,6 +742,7 @@
       "cancelled_count": "{{count}} annulées",
       "avg_duration": "moy. {{value}}",
       "avg_duration_label": "durée moyenne",
+      "tokens_count": "{{tokens}} tokens",
       "failed_count": "{{count}} en échec",
       "failed_label": "en échec",
       "source_issue": "Tâche",

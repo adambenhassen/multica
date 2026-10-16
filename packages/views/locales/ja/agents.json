@@ -624,6 +624,7 @@
       "cancelled_count": "{{count}} 件キャンセル",
       "avg_duration": "平均 {{value}}",
       "avg_duration_label": "平均時間",
+      "tokens_count": "{{tokens}} トークン",
       "failed_count": "{{count}} 回失敗",
       "failed_label": "失敗",
       "source_issue": "タスク",

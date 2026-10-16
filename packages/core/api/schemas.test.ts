@@ -767,6 +767,13 @@ describe("AgentTaskListSchema", () => {
     expect(parsed[0]?.relative_durable_work_dir).toBeUndefined();
     expect(parsed[0]?.branch_name).toBeUndefined();
   });
+
+  it("degrades a malformed effort snapshot without dropping the task row", () => {
+    const parsed = AgentTaskListSchema.parse([{ ...task, thinking_level: 3 }]);
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.thinking_level).toBeUndefined();
+  });
 });
 
 describe("ChatDraftRestoresResponseSchema", () => {

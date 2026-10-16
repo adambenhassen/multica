@@ -727,6 +727,7 @@
       "cancelled_count": "{{count}} 次已取消",
       "avg_duration": "平均 {{value}}",
       "avg_duration_label": "平均耗时",
+      "tokens_count": "{{tokens}} Token",
       "failed_count": "{{count}} 次失败",
       "failed_label": "失败",
       "source_issue": "任务",

@@ -130,7 +130,7 @@ export function agentTasksOptions(wsId: string, agentId: string) {
     queryKey: [...agentTasksKeys.detail(wsId, agentId), "pages"],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) =>
-      api.listAgentTasksPage(agentId, { limit: 200, before: pageParam, signal }),
+      api.listAgentTasksPage(agentId, { limit: 200, before: pageParam, includeUsage: true, signal }),
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,

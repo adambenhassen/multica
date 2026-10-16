@@ -40,7 +40,7 @@ describe("agent history query lifecycle", () => {
     ]);
     expect(fetchPage).toHaveBeenCalledTimes(1);
     expect(fetchPage).toHaveBeenCalledWith("agent-1", {
-      limit: 200, before: undefined, signal: expect.any(AbortSignal),
+      limit: 200, before: undefined, includeUsage: true, signal: expect.any(AbortSignal),
     });
     expect(first).toEqual(second);
     expect(first.pages).toHaveLength(1);

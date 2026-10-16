@@ -20,7 +20,13 @@ vi.mock("@multica/core/hooks", () => ({
 }));
 
 // History fixtures have no issue links, so they need no issue-detail requests.
-vi.mock("@multica/core/api", () => ({ api: {} }));
+// Completed rows resolve their runtime name from the workspace runtime list.
+vi.mock("@multica/core/api", () => ({
+  api: {
+    listRuntimes: () =>
+      Promise.resolve([{ id: "runtime-1", name: "Claude (Delta)", custom_name: null, provider: "claude" }]),
+  },
+}));
 
 // Keep transcript internals out of history pagination tests while exposing
 // the identity of each rendered task row.
@@ -293,5 +299,45 @@ describe("ActivityTab history completeness", () => {
     }
     expect(screen.getAllByTestId(/^task-/)).toHaveLength(50);
     expect(query.mock.calls[1]?.[0]).toBe("older");
+  });
+});
+
+describe("ActivityTab run details", () => {
+  it("shows cost, tokens, model, effort and runtime for a finished run", async () => {
+    agentTasksRef.current = () => Promise.resolve({
+      tasks: [{
+        ...historyTask(0),
+        thinking_level: "high",
+        usage: [{
+          provider: "anthropic", model: "claude-opus-5-5",
+          input_tokens: 1000, output_tokens: 500, cache_read_tokens: 0, cache_write_tokens: 0,
+          cost_usd_ticks: 4_200_000_000,
+        }],
+      }],
+      nextCursor: null,
+    });
+    renderTab();
+    await screen.findByText("Claude (Delta)");
+    expect(screen.getByText("$0.42")).toBeInTheDocument();
+    expect(screen.getByText("1.5K tokens")).toBeInTheDocument();
+    expect(screen.getByText("claude-opus-5-5")).toBeInTheDocument();
+    expect(screen.getByText("high")).toBeInTheDocument();
+  });
+
+  it("omits the price of a model it cannot price instead of showing $0.00", async () => {
+    agentTasksRef.current = () => Promise.resolve({
+      tasks: [{
+        ...historyTask(0),
+        usage: [{
+          provider: "acme", model: "unpriced-model",
+          input_tokens: 2000, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0,
+        }],
+      }],
+      nextCursor: null,
+    });
+    renderTab();
+    await screen.findByText("2K tokens");
+    expect(screen.getByText("unpriced-model")).toBeInTheDocument();
+    expect(screen.queryByText(/^\$/)).not.toBeInTheDocument();
   });
 });

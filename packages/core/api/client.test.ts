@@ -1173,7 +1173,19 @@ describe("ApiClient", () => {
     const request = new URL(fetchMock.mock.calls[1]![0]);
     expect(request.searchParams.get("limit")).toBe("7");
     expect(request.searchParams.get("before")).toBe(cursor);
+    expect(request.searchParams.has("include_usage")).toBe(false);
     expect(fetchMock.mock.calls[1]![1].signal).toBe(controller.signal);
+  });
+
+  it("requests per-run usage and keeps each run's effort snapshot", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify([{ id: "task-1", status: "completed", thinking_level: "high" }]),
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ApiClient("https://api.example.test");
+    const { tasks } = await client.listAgentTasksPage("agent-1", { includeUsage: true });
+    expect(new URL(fetchMock.mock.calls[0]![0]).searchParams.get("include_usage")).toBe("true");
+    expect(tasks[0]?.thinking_level).toBe("high");
   });
 
   it("drops the continuation when the task page is malformed", async () => {
