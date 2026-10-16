@@ -2,6 +2,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Agent, AgentActivityBucket, AgentTask } from "@multica/core/types";
 import { WorkspaceSlugProvider } from "@multica/core/paths";
@@ -322,6 +323,26 @@ describe("ActivityTab run details", () => {
     expect(screen.getByText("1.5K tokens")).toBeInTheDocument();
     expect(screen.getByText("claude-opus-5-5")).toBeInTheDocument();
     expect(screen.getByText("high")).toBeInTheDocument();
+  });
+
+  it("breaks the token total down by kind on hover", async () => {
+    agentTasksRef.current = () => Promise.resolve({
+      tasks: [{
+        ...historyTask(0),
+        usage: [{
+          provider: "anthropic", model: "claude-opus-5-5",
+          input_tokens: 18_200, output_tokens: 4_100, cache_read_tokens: 612_000, cache_write_tokens: 0,
+        }],
+      }],
+      nextCursor: null,
+    });
+    renderTab();
+    await userEvent.hover(await screen.findByText("634.3K tokens"));
+    const breakdown = (await screen.findByText("Cache read")).closest("dl")!;
+    expect(breakdown).toHaveTextContent("Input18.2K");
+    expect(breakdown).toHaveTextContent("Output4.1K");
+    expect(breakdown).toHaveTextContent("Cache read612K");
+    expect(breakdown).toHaveTextContent("Cache write0");
   });
 
   it("omits the price of a model it cannot price instead of showing $0.00", async () => {

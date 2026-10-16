@@ -703,9 +703,32 @@ function TaskRow({
     runDetails.push({
       key: "tokens",
       node: (
-        <span className="tabular-nums">
-          {t(($) => $.tab_body.activity.tokens_count, { tokens: formatTokens(usage.tokens) })}
-        </span>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span className="tabular-nums">
+                {t(($) => $.tab_body.activity.tokens_count, { tokens: formatTokens(usage.tokens) })}
+              </span>
+            }
+          />
+          <TooltipContent>
+            <dl className="grid grid-cols-[auto_auto] gap-x-3 tabular-nums">
+              {(
+                [
+                  [t(($) => $.tab_body.activity.tokens_input), usage.input],
+                  [t(($) => $.tab_body.activity.tokens_output), usage.output],
+                  [t(($) => $.tab_body.activity.tokens_cache_read), usage.cacheRead],
+                  [t(($) => $.tab_body.activity.tokens_cache_write), usage.cacheWrite],
+                ] as const
+              ).map(([label, value]) => (
+                <div key={label} className="contents">
+                  <dt>{label}</dt>
+                  <dd className="text-right">{formatTokens(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </TooltipContent>
+        </Tooltip>
       ),
     });
   }
