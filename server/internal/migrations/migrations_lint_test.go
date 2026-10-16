@@ -17,10 +17,31 @@ func TestMigrationNumericPrefixesAreUnique(t *testing.T) {
 	// From 129 onward, keep the numeric sequence unique so release tooling and
 	// operators can identify one schema change unambiguously by its number.
 	const firstUniqueMigrationNumber = 129
+	// The fork numbered these before upstream used 573+, and production has
+	// recorded them under these names, so they keep their numbers alongside
+	// upstream's. The migrator applies and records by full name, so a shared
+	// number is safe at runtime.
+	forkStems := map[string]bool{
+		"573_project_skill":                          false,
+		"574_project_skill_skill_idx":                false,
+		"575_project_mcp_server":                     false,
+		"576_project_mcp_server_server_idx":          false,
+		"577_project_attachment_restricted":          false,
+		"578_project_attachment_audience":            false,
+		"579_project_attachment_audience_item_idx":   false,
+		"580_project_attachment_audience_target_idx": false,
+		"581_activity_log_workspace_recent_idx":      false,
+		"582_comment_workspace_recent_idx":           false,
+		"583_project_attachment_excluded":            false,
+	}
 	stemByNumber := make(map[int]string)
 	for _, file := range files {
 		stem, _, ok := splitMigrationFilename(filepath.Base(file))
 		if !ok {
+			continue
+		}
+		if _, isFork := forkStems[stem]; isFork {
+			forkStems[stem] = true
 			continue
 		}
 		prefix, _, ok := strings.Cut(stem, "_")
@@ -36,6 +57,11 @@ func TestMigrationNumericPrefixesAreUnique(t *testing.T) {
 			continue
 		}
 		stemByNumber[number] = stem
+	}
+	for stem, found := range forkStems {
+		if !found {
+			t.Errorf("fork migration %s is exempt from the unique-prefix rule but has no up file", stem)
+		}
 	}
 }
 
