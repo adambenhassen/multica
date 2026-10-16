@@ -2386,10 +2386,13 @@ LIMIT @row_limit;
 -- Total task runs per agent over the trailing 30 days, used by the Agents
 -- list RUNS column. 30-day window keeps the count meaningful (a long-dormant
 -- agent shouldn't show "5,420 runs from 2 years ago") and keeps the scan
--- bounded as the workspace ages.
+-- bounded as the workspace ages. last_run_at backs the LAST ACTIVE column:
+-- the newest run's completion, or its start while it is still running; NULL
+-- when no run in the window has started.
 SELECT
     atq.agent_id,
-    COUNT(*)::int AS run_count
+    COUNT(*)::int AS run_count,
+    MAX(COALESCE(atq.completed_at, atq.started_at))::timestamptz AS last_run_at
 FROM agent_task_queue atq
 JOIN agent a ON a.id = atq.agent_id
 WHERE a.workspace_id = $1

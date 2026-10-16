@@ -217,10 +217,13 @@ export interface AgentActivityBucket {
   duration_count?: number;
 }
 
-// 30-day total run count per agent, drives the Agents-list RUNS column.
+// 30-day total run count per agent, drives the Agents-list RUNS column;
+// last_run_at (newest run's completion, or its start while running) drives
+// LAST ACTIVE and is null when no run in the window has started.
 export interface AgentRunCount {
   agent_id: string;
   run_count: number;
+  last_run_at: string | null;
 }
 
 // Privacy-safe display summary returned by GET /api/working-agents. The

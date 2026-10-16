@@ -11,15 +11,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type {
   Agent,
+  AgentRunCount,
   AgentRuntime,
   MemberWithUser,
 } from "@multica/core/types";
 import {
-  type AgentActivity,
   agentRunCounts30dOptions,
   effectiveAccessScope,
   isAgentRuntimeBound,
-  useWorkspaceActivityMap,
   useWorkspacePresenceMap,
   VISIBILITY_TOOLTIP,
   type AgentPresenceDetail,
@@ -74,7 +73,7 @@ import {
   AgentListToolbar,
   countActiveFilterDimensions,
 } from "./agent-list-toolbar";
-import { useLocale, useT } from "../../i18n";
+import { useLocale, useT, useTimeAgo } from "../../i18n";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 
 // Column template — single source of truth for header, rows, and skeletons.
@@ -147,25 +146,12 @@ export interface AgentListRow {
   agent: Agent;
   runtime: AgentRuntime | null;
   presence: AgentPresenceDetail | null;
-  activity: AgentActivity | null;
   runCount: number;
-  /** Days since the last bucket with runs; null = nothing in the window. */
-  lastActiveDays: number | null;
+  /** Newest run's completion (or start while running); null = none in 30d. */
+  lastRunAt: string | null;
   owner: MemberWithUser | null;
   isOwnedByMe: boolean;
   canManage: boolean;
-}
-
-// Most recent activity bucket with runs, as "days ago" (0 = today).
-// Day-granularity by design — derived from the same 30-day buckets the
-// detail page charts, no extra API.
-function lastActiveDaysAgo(activity: AgentActivity | null): number | null {
-  if (!activity) return null;
-  for (let i = activity.buckets.length - 1; i >= 0; i--) {
-    const bucket = activity.buckets[i];
-    if (bucket && bucket.total > 0) return activity.buckets.length - 1 - i;
-  }
-  return null;
 }
 
 function matchesAgentSearch(row: AgentListRow, query: string): boolean {
@@ -550,18 +536,21 @@ function RuntimeCell({ row }: { row: AgentListRow }) {
 
 function LastActiveCell({ row }: { row: AgentListRow }) {
   const { t } = useT("agents");
-  const days = row.lastActiveDays;
+  const locale = useLocale();
+  const timeAgo = useTimeAgo();
+  const at = row.lastRunAt;
   return (
     <ListGridCell className="hidden @2xl:flex">
-      {days === null ? (
+      {at === null ? (
         <span className="truncate text-caption text-muted-foreground">
           {row.agent.archived_at ? "—" : t(($) => $.last_active.none)}
         </span>
       ) : (
-        <span className="whitespace-nowrap text-caption tabular-nums text-muted-foreground">
-          {days === 0
-            ? t(($) => $.last_active.today)
-            : t(($) => $.last_active.days_ago, { count: days })}
+        <span
+          className="whitespace-nowrap text-caption tabular-nums text-muted-foreground"
+          title={new Date(at).toLocaleString(locale)}
+        >
+          {timeAgo(at)}
         </span>
       )}
     </ListGridCell>
@@ -800,8 +789,6 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
   );
   const { byAgent: presenceMap, loading: presenceLoading } =
     useWorkspacePresenceMap(wsId);
-  const { byAgent: activityMap, loading: activityLoading } =
-    useWorkspaceActivityMap(wsId);
 
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
     new Set(),
@@ -840,8 +827,8 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
   }, [runtimes]);
 
   const runCountsById = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const r of runCountsRaw) m.set(r.agent_id, r.run_count);
+    const m = new Map<string, AgentRunCount>();
+    for (const r of runCountsRaw) m.set(r.agent_id, r);
     return m;
   }, [runCountsRaw]);
 
@@ -888,14 +875,13 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
     });
     return inScope.map((agent) => {
       const isOwner = !!currentUser?.id && agent.owner_id === currentUser.id;
-      const activity = activityMap.get(agent.id) ?? null;
+      const runs = runCountsById.get(agent.id);
       return {
         agent,
         runtime: runtimesById.get(agent.runtime_id) ?? null,
         presence: presenceMap.get(agent.id) ?? null,
-        activity,
-        runCount: runCountsById.get(agent.id) ?? 0,
-        lastActiveDays: lastActiveDaysAgo(activity),
+        runCount: runs?.run_count ?? 0,
+        lastRunAt: runs?.last_run_at ?? null,
         owner: agent.owner_id ? membersById.get(agent.owner_id) ?? null : null,
         isOwnedByMe: isOwner,
         canManage: isWorkspaceAdmin || isOwner,
@@ -908,7 +894,6 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
     runtimesById,
     membersById,
     presenceMap,
-    activityMap,
     runCountsById,
     isWorkspaceAdmin,
   ]);
@@ -932,14 +917,17 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
           dir
         );
       }
-      // lastActive: smaller daysAgo = more recent. "desc" (the default)
-      // means most recently active first; never-active rows sort last in
-      // both directions. Run count breaks ties.
-      const av = a.lastActiveDays ?? Number.POSITIVE_INFINITY;
-      const bv = b.lastActiveDays ?? Number.POSITIVE_INFINITY;
-      const byDays = sortDirection === "desc" ? av - bv : bv - av;
+      // lastActive: "desc" (the default) means most recently active first;
+      // never-active rows sort last in both directions. Run count breaks ties.
+      const at = a.lastRunAt ? Date.parse(a.lastRunAt) : null;
+      const bt = b.lastRunAt ? Date.parse(b.lastRunAt) : null;
+      const byTime =
+        at === bt ? 0
+        : at === null ? 1
+        : bt === null ? -1
+        : (bt - at) * (sortDirection === "desc" ? 1 : -1);
       return (
-        byDays || b.runCount - a.runCount ||
+        byTime || b.runCount - a.runCount ||
         a.agent.name.localeCompare(b.agent.name)
       );
     });
@@ -1021,23 +1009,20 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
   const showEmpty = !isLoading && agents.length === 0;
 
   // The active sort field / availability filter reads columns that arrive in
-  // separate queries from the main agent list (activity → lastActiveDays,
-  // run-counts → runCount, presence → availability). Rendering real rows
-  // before those land would sort on placeholder values (lastActiveDays
-  // null→Infinity, runCount 0) and visibly re-order the list once each query
-  // resolves. Gate the first real paint on exactly the auxiliary queries the
-  // current sort / filter depends on — nothing for name/created, run-counts
-  // for runs, activity + run-counts (its tiebreaker) for the default
+  // separate queries from the main agent list (run-counts → lastRunAt and
+  // runCount, presence → availability). Rendering real rows before those land
+  // would sort on placeholder values (lastRunAt null, runCount 0) and visibly
+  // re-order the list once each query resolves. Gate the first real paint on
+  // exactly the auxiliary queries the current sort / filter depends on —
+  // nothing for name/created, run-counts for runs and the default
   // lastActive, plus presence whenever an availability filter is active. The
   // queries still run in parallel, so this defers the first paint by at most
   // one extra round-trip (shown as skeleton) and never serialises them. An
   // empty workspace (showEmpty) skips the gate so the empty state is never
   // blocked on the auxiliary queries.
   const needsRunCounts = sortField === "lastActive" || sortField === "runs";
-  const needsActivity = sortField === "lastActive";
   const needsPresence = filters.availability.length > 0;
   const listReady =
-    (!needsActivity || !activityLoading) &&
     (!needsRunCounts || !runCountsPending) &&
     (!needsPresence || !presenceLoading);
 

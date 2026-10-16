@@ -2,7 +2,6 @@ import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import type { Agent } from "@multica/core/types";
-import type { AgentActivity } from "@multica/core/agents";
 import type { SupportedLocale } from "@multica/core/i18n";
 import { renderWithI18n } from "../../test/i18n";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
@@ -11,21 +10,17 @@ import { AgentsPage } from "./agents-page";
 // These tests pin the `listReady` render gate (MUL-4511): the Agents list must
 // not paint real rows until the auxiliary queries the active sort field /
 // filter depends on have landed, or it sorts on placeholder values
-// (lastActiveDays null→Infinity, runCount 0) and visibly re-orders when each
-// query resolves. The gate waits per need — nothing for name/created,
-// run-counts for runs, activity + run-counts for the default lastActive,
+// (lastRunAt null, runCount 0) and visibly re-orders when each query
+// resolves. The gate waits per need — nothing for name/created, run-counts
+// for runs and the default lastActive,
 // presence when an availability filter is active — and never blocks the empty
 // state on those queries.
 
 const mocks = vi.hoisted(() => ({
   agents: [] as Agent[],
   agentsLoading: false,
-  runCounts: [] as Array<{ agent_id: string; run_count: number }>,
+  runCounts: [] as Array<{ agent_id: string; run_count: number; last_run_at: string | null }>,
   runCountsPending: false,
-  activity: {
-    byAgent: new Map<string, AgentActivity>(),
-    loading: false,
-  },
   presence: {
     byAgent: new Map<string, unknown>(),
     loading: false,
@@ -94,7 +89,6 @@ vi.mock("@multica/core/agents", () => ({
   isAgentRuntimeBound: (agent: { runtime_id: string; runtime_bound?: boolean }) =>
     agent.runtime_bound !== false && agent.runtime_id.length > 0,
   agentRunCounts30dOptions: () => ({ queryKey: ["agent-run-counts"] }),
-  useWorkspaceActivityMap: () => mocks.activity,
   useWorkspacePresenceMap: () => mocks.presence,
   VISIBILITY_TOOLTIP: { private: "Private", workspace: "Workspace" },
   effectiveAccessScope: (pm: unknown, it: unknown) => {
@@ -194,12 +188,8 @@ function makeAgent(over: Partial<Agent>): Agent {
   return { ...BASE_AGENT, ...over };
 }
 
-// Build a 30-bucket activity series whose most-recent bucket with runs is
-// `daysAgo` days back — `lastActiveDaysAgo` reads exactly this.
-function activityLastActive(daysAgo: number): AgentActivity {
-  const buckets = Array.from({ length: 30 }, () => ({ total: 0, failed: 0, completed: 0, cancelled: 0 }));
-  buckets[29 - daysAgo] = { total: 1, failed: 0, completed: 1, cancelled: 0 };
-  return { buckets, daysSinceCreated: 30 };
+function minutesAgo(minutes: number): string {
+  return new Date(Date.now() - minutes * 60_000).toISOString();
 }
 
 const ALPHA = makeAgent({ id: "a-alpha", name: "Alpha Agent" });
@@ -243,7 +233,6 @@ beforeEach(() => {
   mocks.agentsLoading = false;
   mocks.runCounts = [];
   mocks.runCountsPending = false;
-  mocks.activity = { byAgent: new Map(), loading: false };
   mocks.presence = { byAgent: new Map(), loading: false };
   mocks.viewState.scope = "all";
   mocks.viewState.sortField = "lastActive";
@@ -260,8 +249,7 @@ beforeEach(() => {
 
 describe("AgentsPage listReady gate", () => {
   it("shows only a skeleton (no real rows) while lastActive deps are pending", () => {
-    // Default lastActive sort depends on activity + run-counts.
-    mocks.activity = { byAgent: new Map(), loading: true };
+    // Default lastActive sort depends on run-counts (it carries last_run_at).
     mocks.runCountsPending = true;
 
     renderPage();
@@ -272,18 +260,12 @@ describe("AgentsPage listReady gate", () => {
   });
 
   it("renders rows in the resolved lastActive order once deps land", () => {
-    // Alpha active 5d ago, Beta active today → lastActive desc puts Beta first,
-    // the opposite of the name-order fallback the ungated list would show.
-    mocks.activity = {
-      byAgent: new Map<string, AgentActivity>([
-        [ALPHA.id, activityLastActive(5)],
-        [BETA.id, activityLastActive(0)],
-      ]),
-      loading: false,
-    };
+    // Alpha ran 3h ago, Beta 5m ago — both "today" — and lastActive desc
+    // puts Beta first, the opposite of the name-order fallback the ungated
+    // list would show.
     mocks.runCounts = [
-      { agent_id: ALPHA.id, run_count: 0 },
-      { agent_id: BETA.id, run_count: 0 },
+      { agent_id: ALPHA.id, run_count: 0, last_run_at: minutesAgo(180) },
+      { agent_id: BETA.id, run_count: 0, last_run_at: minutesAgo(5) },
     ];
     mocks.runCountsPending = false;
 
@@ -292,13 +274,14 @@ describe("AgentsPage listReady gate", () => {
     expect(screen.getByText("Alpha Agent")).toBeInTheDocument();
     expect(screen.getByText("Beta Agent")).toBeInTheDocument();
     expect(betaPrecedesAlpha()).toBe(true);
+    expect(screen.getByText("3h ago")).toBeInTheDocument();
+    expect(screen.getByText("5m ago")).toBeInTheDocument();
   });
 
-  it("renders rows immediately for name sort without waiting on activity/run-counts", () => {
+  it("renders rows immediately for name sort without waiting on run-counts/presence", () => {
     mocks.viewState.sortField = "name";
     mocks.viewState.sortDirection = "asc";
     // Auxiliary queries are still in flight — name sort must not wait on them.
-    mocks.activity = { byAgent: new Map(), loading: true };
     mocks.runCountsPending = true;
     mocks.presence = { byAgent: new Map(), loading: true };
 
@@ -328,7 +311,6 @@ describe("AgentsPage listReady gate", () => {
   it("shows the empty state without blocking on auxiliary queries when there are no agents", () => {
     mocks.agents = [];
     // All auxiliary queries pending — the empty state must not wait on them.
-    mocks.activity = { byAgent: new Map(), loading: true };
     mocks.runCountsPending = true;
     mocks.presence = { byAgent: new Map(), loading: true };
 

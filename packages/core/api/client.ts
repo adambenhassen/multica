@@ -267,6 +267,7 @@ import {
   AgentTaskListSchema,
   AgentTaskPageSchema,
   AgentActivityBucketListSchema,
+  AgentRunCountListSchema,
   AttachmentResponseSchema,
   CancelTaskResponseSchema,
   ChatDraftRestoresResponseSchema,
@@ -2841,9 +2842,12 @@ export class ApiClient {
     });
   }
 
-  // Per-agent 30-day total run count for the Agents-list RUNS column.
+  // Per-agent 30-day run count and last run time for the Agents list.
   async getWorkspaceAgentRunCounts(): Promise<AgentRunCount[]> {
-    return this.fetch(`/api/agent-run-counts`);
+    const raw = await this.fetch<unknown>(`/api/agent-run-counts`);
+    return parseWithFallback<AgentRunCount[]>(raw, AgentRunCountListSchema, [], {
+      endpoint: "GET /api/agent-run-counts",
+    });
   }
 
   async getActiveTasksForIssue(issueId: string): Promise<{ tasks: AgentTask[] }> {

@@ -2110,6 +2110,12 @@ export const AgentActivityBucketListSchema = z.array(z.object({
   duration_count: z.number().int().nonnegative().optional().catch(undefined),
 }).loose());
 
+export const AgentRunCountListSchema = z.array(z.object({
+  agent_id: z.string(),
+  run_count: z.number().int().nonnegative(),
+  last_run_at: z.string().nullable().default(null).catch(null),
+}).loose());
+
 export const AgentTaskListSchema = z.array(AgentTaskSchema);
 
 export const AgentTaskPageSchema = z.object({

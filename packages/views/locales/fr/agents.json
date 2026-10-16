@@ -964,9 +964,6 @@
     }
   },
   "last_active": {
-    "today": "Aujourd'hui",
-    "days_ago_one": "il y a {{count}} jour",
-    "days_ago_other": "il y a {{count}} jours",
     "none": "Aucune activité (30 j)"
   },
   "toolbar": {

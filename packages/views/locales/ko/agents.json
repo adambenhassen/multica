@@ -850,8 +850,6 @@
     }
   },
   "last_active": {
-    "today": "오늘",
-    "days_ago_other": "{{count}}일 전",
     "none": "30일간 활동 없음"
   },
   "toolbar": {
