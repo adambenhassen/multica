@@ -1584,9 +1584,16 @@ UPDATE agent_task_queue
 SET status = 'dispatched',
     dispatched_at = now(),
     prepare_lease_expires_at = now() + make_interval(secs => $1::double precision),
-    thinking_level = (
-        SELECT NULLIF(BTRIM(a.thinking_level), '') FROM agent a WHERE a.id = agent_task_queue.agent_id
-    )
+    thinking_level = CASE
+        WHEN agent_task_queue.fallback_position IS NOT NULL THEN (
+            SELECT NULLIF(BTRIM(f.thinking_level), '') FROM agent_model_fallback f
+            WHERE f.agent_id = agent_task_queue.agent_id
+              AND f.position = agent_task_queue.fallback_position
+        )
+        ELSE (
+            SELECT NULLIF(BTRIM(a.thinking_level), '') FROM agent a WHERE a.id = agent_task_queue.agent_id
+        )
+    END
 WHERE id = (
     SELECT atq.id FROM agent_task_queue atq
     WHERE atq.agent_id = $2
@@ -1599,7 +1606,15 @@ WHERE id = (
           JOIN agent_runtime r ON r.id = atq.runtime_id
           WHERE a.id = atq.agent_id
             -- A task's persisted runtime is not authority after an agent rebind.
-            AND a.runtime_id = atq.runtime_id
+            AND (
+                a.runtime_id = atq.runtime_id
+                OR (atq.fallback_position IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM agent_model_fallback f
+                    WHERE f.agent_id = a.id
+                      AND f.position = atq.fallback_position
+                      AND f.runtime_id = atq.runtime_id
+                ))
+            )
             -- Queued private-runtime rows are claimable so the handler can
             -- settle an owner mismatch through the existing FailTask path
             -- before daemon delivery. Public runtimes remain shareable across
@@ -1653,7 +1668,7 @@ type ClaimAgentTaskParams struct {
 // "any other quick-create-shaped task" (all four FKs NULL) for the same agent —
 // otherwise a user mashing the create button could fire concurrent quick-creates
 // whose completion lookup would race over "most recent issue by this agent".
-// thinking_level snapshots the agent's effort at claim time for run history.
+// thinking_level snapshots the run's effort at claim time: the fallback entry's for a fallback run, else the agent's.
 func (q *Queries) ClaimAgentTask(ctx context.Context, arg ClaimAgentTaskParams) (AgentTaskQueue, error) {
 	row := q.db.QueryRow(ctx, claimAgentTask,
 		arg.PrepareLeaseSecs,
@@ -5983,7 +5998,15 @@ WHERE atq.runtime_id = $1
       FROM agent a
       JOIN agent_runtime r ON r.id = atq.runtime_id
       WHERE a.id = atq.agent_id
-        AND a.runtime_id = atq.runtime_id
+        AND (
+            a.runtime_id = atq.runtime_id
+            OR (atq.fallback_position IS NOT NULL AND EXISTS (
+                SELECT 1 FROM agent_model_fallback f
+                WHERE f.agent_id = a.id
+                  AND f.position = atq.fallback_position
+                  AND f.runtime_id = atq.runtime_id
+            ))
+        )
         AND (
             r.visibility = 'public'
             OR r.visibility = 'private'
@@ -6095,7 +6118,15 @@ WHERE atq.runtime_id = ANY($1::uuid[])
       FROM agent a
       JOIN agent_runtime r ON r.id = atq.runtime_id
       WHERE a.id = atq.agent_id
-        AND a.runtime_id = atq.runtime_id
+        AND (
+            a.runtime_id = atq.runtime_id
+            OR (atq.fallback_position IS NOT NULL AND EXISTS (
+                SELECT 1 FROM agent_model_fallback f
+                WHERE f.agent_id = a.id
+                  AND f.position = atq.fallback_position
+                  AND f.runtime_id = atq.runtime_id
+            ))
+        )
         AND (
             r.visibility = 'public'
             OR r.visibility = 'private'
@@ -7748,7 +7779,15 @@ WHERE id = (
           FROM agent a
           JOIN agent_runtime r ON r.id = atq.runtime_id
           WHERE a.id = atq.agent_id
-            AND a.runtime_id = atq.runtime_id
+            AND (
+                a.runtime_id = atq.runtime_id
+                OR (atq.fallback_position IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM agent_model_fallback f
+                    WHERE f.agent_id = a.id
+                      AND f.position = atq.fallback_position
+                      AND f.runtime_id = atq.runtime_id
+                ))
+            )
             AND (
                 r.visibility = 'public'
                 OR (
@@ -7877,7 +7916,15 @@ WHERE id IN (
           FROM agent a
           JOIN agent_runtime r ON r.id = atq.runtime_id
           WHERE a.id = atq.agent_id
-            AND a.runtime_id = atq.runtime_id
+            AND (
+                a.runtime_id = atq.runtime_id
+                OR (atq.fallback_position IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM agent_model_fallback f
+                    WHERE f.agent_id = a.id
+                      AND f.position = atq.fallback_position
+                      AND f.runtime_id = atq.runtime_id
+                ))
+            )
             AND (
                 r.visibility = 'public'
                 OR (

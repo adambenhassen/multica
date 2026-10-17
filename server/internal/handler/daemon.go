@@ -2084,7 +2084,11 @@ func (h *Handler) finalizeClaimDelivery(
 		if aerr != nil {
 			return fmt.Errorf("re-read agent for delivery authorization: %w", aerr)
 		}
-		if agent.RuntimeID != task.RuntimeID {
+		bound, berr := taskRuntimeBound(ctx, qtx, agent, *task)
+		if berr != nil {
+			return fmt.Errorf("check task runtime binding: %w", berr)
+		}
+		if !bound {
 			return &service.ClaimDeliveryAuthzError{
 				Reason: "error_agent_runtime_changed",
 				Detail: "agent runtime changed before delivery",
@@ -2492,7 +2496,21 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// changing task state, but Agent mutations do not stay locked through HTTP
 	// response assembly. Recheck the freshly loaded Agent here so a rebind or
 	// owner change that committed after the claim cannot reach the daemon.
-	if agent.RuntimeID != task.RuntimeID {
+	bound, berr := taskRuntimeBound(r.Context(), h.Queries, agent, *task)
+	if berr != nil {
+		slog.Error("daemon claim: check task runtime binding failed; requeueing claim",
+			"task_id", uuidToString(task.ID), "error", berr)
+		if _, requeueErr := h.TaskService.RequeueTaskAfterClaimFailure(r.Context(), *task); requeueErr != nil {
+			slog.Error("daemon claim: requeue after runtime binding failure failed; stale reclaim will recover it",
+				"task_id", uuidToString(task.ID), "error", requeueErr)
+		}
+		return resp, deliveredCommentIDs, issueSnapshot, agentSkillCount, builtinSkillCount, &claimBuildFailure{
+			outcome: "error_runtime_binding_lookup",
+			status:  http.StatusInternalServerError,
+			message: "failed to check task runtime binding",
+		}
+	}
+	if !bound {
 		slog.Warn("daemon claim: agent runtime changed before delivery; refusing dispatch",
 			"task_id", uuidToString(task.ID),
 			"agent_id", uuidToString(task.AgentID),
@@ -2553,15 +2571,29 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	if rc := bytes.TrimSpace(agent.RuntimeConfig); len(rc) > 0 && !bytes.Equal(rc, []byte("{}")) && !bytes.Equal(rc, []byte("null")) {
 		runtimeConfig = json.RawMessage(agent.RuntimeConfig)
 	}
+	// A fallback run carries its own model and claim-time effort. On another
+	// runtime the agent's CLI flags and service tier belong to a different
+	// provider, so they stay home.
+	model := agent.Model.String
+	thinkingLevel := agent.ThinkingLevel.String
+	serviceTier := agent.ServiceTier.String
+	if task.FallbackPosition.Valid {
+		model = task.Model.String
+		thinkingLevel = task.ThinkingLevel.String
+		if task.RuntimeID != agent.RuntimeID {
+			customArgs = nil
+			serviceTier = ""
+		}
+	}
 	resp.Agent = &TaskAgentData{
 		ID:                    uuidToString(agent.ID),
 		Name:                  agent.Name,
 		Instructions:          agent.Instructions,
 		CustomEnv:             customEnv,
 		CustomArgs:            customArgs,
-		Model:                 agent.Model.String,
-		ThinkingLevel:         agent.ThinkingLevel.String,
-		ServiceTier:           agent.ServiceTier.String,
+		Model:                 model,
+		ThinkingLevel:         thinkingLevel,
+		ServiceTier:           serviceTier,
 		RuntimeConfig:         runtimeConfig,
 		DisabledRuntimeSkills: disabledRuntimeSkillsFor(agent.DisabledRuntimeSkills, runtimeID, runtime.Provider),
 	}
