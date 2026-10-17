@@ -768,7 +768,8 @@
       "cancel_failed_toast": "Échec de l'annulation de l'exécution",
       "started_prefix": "Démarrée {{when}}",
       "dispatched_prefix": "Envoyée {{when}}",
-      "queued_prefix": "Mise en file d'attente {{when}}"
+      "queued_prefix": "Mise en file d'attente {{when}}",
+      "fallback_marker": "Repli {{n}}"
     }
   },
   "char_counter": {
@@ -997,5 +998,16 @@
     "also_via_project": "Aussi via {{project}}",
     "also_via_many_one": "Aussi via {{count}} projet",
     "also_via_many_other": "Aussi via {{count}} projets"
+  },
+  "fallbacks": {
+    "title": "Solutions de repli",
+    "description": "Si une exécution échoue à cause de son fournisseur, elle est relancée sur la solution de repli suivante.",
+    "entry": "Repli {{n}}",
+    "add": "Ajouter un repli",
+    "move_up": "Monter",
+    "move_down": "Descendre",
+    "remove": "Supprimer le repli",
+    "cancel": "Annuler",
+    "save_failed": "Impossible d'enregistrer les replis"
   }
 }

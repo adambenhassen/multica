@@ -768,7 +768,8 @@
       "cancel_failed_toast": "Failed to cancel run",
       "started_prefix": "Started {{when}}",
       "dispatched_prefix": "Dispatched {{when}}",
-      "queued_prefix": "Queued {{when}}"
+      "queued_prefix": "Queued {{when}}",
+      "fallback_marker": "Fallback {{n}}"
     }
   },
   "char_counter": {
@@ -997,5 +998,16 @@
     "also_via_project": "Also via {{project}}",
     "also_via_many_one": "Also via {{count}} project",
     "also_via_many_other": "Also via {{count}} projects"
+  },
+  "fallbacks": {
+    "title": "Fallbacks",
+    "description": "When a run fails because of its provider, it runs again on the next fallback.",
+    "entry": "Fallback {{n}}",
+    "add": "Add fallback",
+    "move_up": "Move up",
+    "move_down": "Move down",
+    "remove": "Remove fallback",
+    "cancel": "Cancel",
+    "save_failed": "Couldn't save fallbacks"
   }
 }

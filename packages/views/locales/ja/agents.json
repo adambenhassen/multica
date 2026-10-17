@@ -650,7 +650,8 @@
       "cancel_failed_toast": "実行をキャンセルできませんでした",
       "started_prefix": "{{when}} に開始",
       "dispatched_prefix": "{{when}} にディスパッチ",
-      "queued_prefix": "{{when}} に待機開始"
+      "queued_prefix": "{{when}} に待機開始",
+      "fallback_marker": "フォールバック {{n}}"
     }
   },
   "char_counter": {
@@ -975,5 +976,16 @@
   "project_source": {
     "also_via_project": "{{project}} からも提供",
     "also_via_many_other": "{{count}} 件のプロジェクトからも提供"
+  },
+  "fallbacks": {
+    "title": "フォールバック",
+    "description": "プロバイダーが原因で実行が失敗すると、次のフォールバックで再実行します。",
+    "entry": "フォールバック {{n}}",
+    "add": "フォールバックを追加",
+    "move_up": "上へ移動",
+    "move_down": "下へ移動",
+    "remove": "フォールバックを削除",
+    "cancel": "キャンセル",
+    "save_failed": "フォールバックを保存できませんでした"
   }
 }

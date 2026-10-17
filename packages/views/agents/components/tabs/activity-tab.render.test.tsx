@@ -306,6 +306,15 @@ describe("ActivityTab history completeness", () => {
 });
 
 describe("ActivityTab run details", () => {
+  it("marks a fallback run", async () => {
+    agentTasksRef.current = () => Promise.resolve({
+      tasks: [{ ...historyTask(0), fallback_position: 1, model: "gpt-5.6-terra" }],
+      nextCursor: null,
+    });
+    renderTab();
+    expect(await screen.findByText("Fallback 1")).toBeInTheDocument();
+  });
+
   it("shows cost, tokens, model, effort and runtime for a finished run", async () => {
     agentTasksRef.current = () => Promise.resolve({
       tasks: [{

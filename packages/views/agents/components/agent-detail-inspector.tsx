@@ -29,6 +29,7 @@ import {
 import { useAutoSave } from "../../settings/components/use-auto-save";
 import { useT } from "../../i18n";
 import { CharCounter } from "./char-counter";
+import { FallbacksSection } from "./inspector/fallbacks-section";
 import { ModelPicker } from "./inspector/model-picker";
 import {
   buildModelChangeUpdate,
@@ -312,6 +313,13 @@ export function AgentDetailInspector({
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
+      <FallbacksSection
+        agent={agent}
+        runtimes={runtimes}
+        members={members}
+        currentUserId={currentUserId}
+        canEdit={canEdit}
+      />
     </div>
   );
 }

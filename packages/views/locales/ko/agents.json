@@ -658,7 +658,8 @@
       "cancel_failed_toast": "실행을 취소하지 못했습니다",
       "started_prefix": "{{when}} 시작됨",
       "dispatched_prefix": "{{when}} 디스패치됨",
-      "queued_prefix": "{{when}} 대기 시작"
+      "queued_prefix": "{{when}} 대기 시작",
+      "fallback_marker": "대체 실행 {{n}}"
     }
   },
   "char_counter": {
@@ -975,5 +976,16 @@
   "project_source": {
     "also_via_project": "{{project}}에서도 제공",
     "also_via_many_other": "프로젝트 {{count}}개에서도 제공"
+  },
+  "fallbacks": {
+    "title": "대체 실행",
+    "description": "공급자 문제로 실행이 실패하면 다음 대체 실행으로 다시 실행합니다.",
+    "entry": "대체 실행 {{n}}",
+    "add": "대체 실행 추가",
+    "move_up": "위로 이동",
+    "move_down": "아래로 이동",
+    "remove": "대체 실행 삭제",
+    "cancel": "취소",
+    "save_failed": "대체 실행을 저장하지 못했습니다"
   }
 }

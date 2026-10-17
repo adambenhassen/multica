@@ -691,6 +691,9 @@ function PastRow({ task, issueId }: { task: AgentTask; issueId: string }) {
     const seconds = (new Date(task.completed_at).getTime() - new Date(task.started_at).getTime()) / 1000;
     meta.push({ key: "duration", node: formatAgentTime(seconds, "0s") });
   }
+  if (task.fallback_position) {
+    meta.push({ key: "fallback", node: t(($) => $.execution_log.fallback_marker, { n: task.fallback_position }) });
+  }
   if (usage) {
     meta.push({ key: "tokens", node: t(($) => $.runs_timeline.tokens_count, { tokens: formatTokens(usage.tokens) }) });
     if (usage.models[0]) meta.push({ key: "model", node: shortModelName(usage.models[0]) });

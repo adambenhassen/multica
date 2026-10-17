@@ -696,6 +696,16 @@ function TaskRow({
     },
   });
   const runDetails: { key: string; node: ReactNode }[] = [];
+  if (showRunDetails && task.fallback_position) {
+    runDetails.push({
+      key: "fallback",
+      node: (
+        <span className="rounded-md bg-muted px-1.5 py-0.5 text-micro font-medium">
+          {t(($) => $.tab_body.activity.fallback_marker, { n: task.fallback_position })}
+        </span>
+      ),
+    });
+  }
   if (usage && costKnown) {
     runDetails.push({ key: "cost", node: <span className="tabular-nums">{formatUsd(usage.cost)}</span> });
   }

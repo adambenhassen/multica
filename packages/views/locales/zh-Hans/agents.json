@@ -753,7 +753,8 @@
       "cancel_failed_toast": "取消运行失败",
       "started_prefix": "{{when}}启动",
       "dispatched_prefix": "{{when}}派发",
-      "queued_prefix": "{{when}}排队"
+      "queued_prefix": "{{when}}排队",
+      "fallback_marker": "备用 {{n}}"
     }
   },
   "char_counter": {
@@ -975,5 +976,16 @@
   "project_source": {
     "also_via_project": "也来自 {{project}}",
     "also_via_many_other": "也来自 {{count}} 个项目"
+  },
+  "fallbacks": {
+    "title": "备用模型",
+    "description": "运行因提供方问题失败时，会用下一个备用模型重新运行。",
+    "entry": "备用 {{n}}",
+    "add": "添加备用模型",
+    "move_up": "上移",
+    "move_down": "下移",
+    "remove": "删除备用模型",
+    "cancel": "取消",
+    "save_failed": "无法保存备用模型"
   }
 }

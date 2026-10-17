@@ -735,7 +735,8 @@
     "more_runs_other": "还有 {{count}} 次",
     "strip_aria": "每次运行的费用——打开运行时间线",
     "strip_no_usage": "没有用量记录",
-    "sparkline_now": "现在"
+    "sparkline_now": "现在",
+    "fallback_marker": "备用 {{n}}"
   },
   "runs_timeline": {
     "title": "运行记录",

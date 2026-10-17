@@ -26,6 +26,10 @@ vi.mock("../../common/avatar-upload-control", () => ({
   AvatarUploadControl: () => <div data-testid="avatar-upload" />,
 }));
 
+vi.mock("./inspector/fallbacks-section", () => ({
+  FallbacksSection: () => <div data-testid="fallbacks-section" />,
+}));
+
 vi.mock("./inspector/runtime-picker", () => ({
   RuntimePicker: () => <div data-testid="runtime-picker" />,
 }));
