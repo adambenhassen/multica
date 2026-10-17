@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/multica-ai/multica/server/internal/events"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
@@ -111,4 +112,59 @@ func seedAutopilotRunForFallbackTest(t *testing.T, pool *pgxpool.Pool, agentID s
 		pool.Exec(context.Background(), `DELETE FROM autopilot WHERE id = $1`, autopilotID)
 	})
 	return runID
+}
+
+// An infra retry of a fallback run stays on that run's entry: same runtime,
+// model and position, and it is claimable there.
+func TestFailTaskRetryKeepsFallbackEntry(t *testing.T) {
+	pool := newResolveOriginatorPool(t)
+	ctx := context.Background()
+	q := db.New(pool)
+	_, _, agentID, issueID := seedAttributionFixture(t, pool)
+	svc := &TaskService{Queries: q, TxStarter: pool, Bus: events.New()}
+	codex := insertFallbackRuntime(t, pool, agentID, "online")
+	insertFallback(t, pool, agentID, 1, codex, "gpt-5.6-terra", nil)
+
+	for _, reason := range []string{"agent_error.provider_network", "timeout"} {
+		t.Run(reason, func(t *testing.T) {
+			var parentID pgtype.UUID
+			if err := pool.QueryRow(ctx, `
+				INSERT INTO agent_task_queue (agent_id, runtime_id, issue_id, status, priority, attempt, max_attempts, model, fallback_position)
+				VALUES ($1, $2, $3, 'running', 0, 1, 2, 'gpt-5.6-terra', 1)
+				RETURNING id`, agentID, codex, issueID).Scan(&parentID); err != nil {
+				t.Fatalf("insert parent: %v", err)
+			}
+			t.Cleanup(func() {
+				pool.Exec(context.Background(), `DELETE FROM agent_task_queue WHERE parent_task_id = $1 OR id = $1`, parentID)
+			})
+
+			if _, err := svc.FailTask(ctx, parentID, "infra failure", "", "", "", reason, false, "", ""); err != nil {
+				t.Fatalf("FailTask: %v", err)
+			}
+
+			var (
+				childID  pgtype.UUID
+				runtime  string
+				model    pgtype.Text
+				position pgtype.Int4
+				attempt  int32
+			)
+			if err := pool.QueryRow(ctx, `
+				SELECT id, runtime_id::text, model, fallback_position, attempt
+				FROM agent_task_queue WHERE parent_task_id = $1`, parentID).Scan(&childID, &runtime, &model, &position, &attempt); err != nil {
+				t.Fatalf("read retry child: %v", err)
+			}
+			if runtime != codex || model.String != "gpt-5.6-terra" || position != (pgtype.Int4{Int32: 1, Valid: true}) || attempt != 2 {
+				t.Fatalf("retry child = %s %q pos %+v attempt %d, want %s %q pos 1 attempt 2", runtime, model.String, position, attempt, codex, "gpt-5.6-terra")
+			}
+
+			claimed, err := svc.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(codex))
+			if err != nil {
+				t.Fatalf("claim: %v", err)
+			}
+			if claimed == nil || claimed.ID != childID {
+				t.Fatalf("claimed %+v, want retry child %s on the fallback runtime", claimed, util.UUIDToString(childID))
+			}
+		})
+	}
 }

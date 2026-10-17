@@ -484,6 +484,9 @@ WHERE id = $1 AND issue_id IS NULL
 -- Chat retry priority keeps older input ahead of newer turns. A non-NULL fire_at
 -- defers dispatch until promotion. max_attempts optionally persists the effective
 -- ceiling; it does not re-enable tasks whose retry budget was disabled.
+--
+-- A fallback run's retry keeps its runtime, model and fallback_position, so the
+-- claim fence still binds it to the same agent_model_fallback entry.
 INSERT INTO agent_task_queue (
     agent_id, runtime_id, issue_id, chat_session_id, autopilot_run_id,
     status, priority, trigger_comment_id, coalesced_comment_ids, trigger_summary, context,
@@ -493,7 +496,7 @@ INSERT INTO agent_task_queue (
     originator_source, delegated_from_task_id, rule_version_id,
     trigger_evidence_kind, trigger_evidence_ref_id, retry_of_task_id,
     chat_input_task_id, fire_at,
-    channel_context_revision, handoff_note, workflow_step, id
+    channel_context_revision, handoff_note, workflow_step, model, fallback_position, id
 )
 SELECT
     p.agent_id, p.runtime_id, p.issue_id, p.chat_session_id, p.autopilot_run_id,
@@ -519,6 +522,7 @@ SELECT
     CASE WHEN p.context->>'wakeup_id' IS NOT NULL OR p.workflow_step IS NOT NULL THEN p.handoff_note END,
     -- A retry continues its parent's work, so it keeps the parent's step (MUL-7420).
     p.workflow_step,
+    p.model, p.fallback_position,
     -- Named new_task_id, not id: $1 above is the PARENT task's id.
     COALESCE(sqlc.narg('new_task_id')::uuid, gen_random_uuid())
 FROM agent_task_queue p
@@ -539,7 +543,8 @@ UPDATE agent_task_queue SET workflow_step = @workflow_step WHERE id = @id;
 -- an automatic retry. It preserves the immutable quick-create context JSON
 -- (including source_context_id), but deliberately starts a fresh session and
 -- records rerun_of_task_id so attribution/reporting can distinguish the human
--- action from CreateRetryTask's retry_of_task_id lineage.
+-- action from CreateRetryTask's retry_of_task_id lineage. It runs on the
+-- agent's own runtime and model, never on the source's fallback entry.
 --
 -- The caller locks and transfers the pending issue_source_context in the same
 -- transaction. lock_task_owner_rows provides the usual workspace-teardown
@@ -552,7 +557,7 @@ INSERT INTO agent_task_queue (
     originator_source, rerun_of_task_id, id
 )
 SELECT
-    p.agent_id, p.runtime_id, 'queued', p.priority, p.context,
+    p.agent_id, sqlc.arg(runtime_id)::uuid, 'queued', p.priority, p.context,
     TRUE, p.is_leader_task, p.squad_id,
     sqlc.arg(actor_user_id), sqlc.arg(actor_user_id),
     sqlc.narg(runtime_mcp_overlay), sqlc.narg(runtime_connected_apps),
@@ -563,7 +568,7 @@ WHERE p.id = sqlc.arg(source_task_id)
   AND p.issue_id IS NULL
   AND p.chat_session_id IS NULL
   AND p.autopilot_run_id IS NULL
-  AND lock_task_owner_rows(p.agent_id, p.issue_id, p.runtime_id)
+  AND lock_task_owner_rows(p.agent_id, p.issue_id, sqlc.arg(runtime_id)::uuid)
 RETURNING *;
 
 -- name: DeleteUnstartedQuickCreateRetryTask :execrows

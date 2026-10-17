@@ -1776,6 +1776,7 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 	}
 	child, err := qtx.CreateManualQuickCreateRetryTask(ctx, db.CreateManualQuickCreateRetryTaskParams{
 		ActorUserID:          requesterID,
+		RuntimeID:            agent.RuntimeID,
 		RuntimeMcpOverlay:    overlay.Overlay,
 		RuntimeConnectedApps: overlay.ConnectedApps,
 		NewTaskID:            dbid.NewV7(),

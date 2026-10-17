@@ -2686,22 +2686,23 @@ INSERT INTO agent_task_queue (
     originator_source, rerun_of_task_id, id
 )
 SELECT
-    p.agent_id, p.runtime_id, 'queued', p.priority, p.context,
+    p.agent_id, $1::uuid, 'queued', p.priority, p.context,
     TRUE, p.is_leader_task, p.squad_id,
-    $1, $1,
-    $2, $3,
-    'direct_human', p.id, $4
+    $2, $2,
+    $3, $4,
+    'direct_human', p.id, $5
 FROM agent_task_queue p
-WHERE p.id = $5
+WHERE p.id = $6
   AND p.status = 'failed'
   AND p.issue_id IS NULL
   AND p.chat_session_id IS NULL
   AND p.autopilot_run_id IS NULL
-  AND lock_task_owner_rows(p.agent_id, p.issue_id, p.runtime_id)
+  AND lock_task_owner_rows(p.agent_id, p.issue_id, $1::uuid)
 RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, comment_thread_id, cancelled_by_type, cancelled_by_id, cancelled_by_name, issue_snapshot, workflow_step, thinking_level, model, fallback_position
 `
 
 type CreateManualQuickCreateRetryTaskParams struct {
+	RuntimeID            pgtype.UUID `json:"runtime_id"`
 	ActorUserID          pgtype.UUID `json:"actor_user_id"`
 	RuntimeMcpOverlay    []byte      `json:"runtime_mcp_overlay"`
 	RuntimeConnectedApps []byte      `json:"runtime_connected_apps"`
@@ -2713,13 +2714,15 @@ type CreateManualQuickCreateRetryTaskParams struct {
 // an automatic retry. It preserves the immutable quick-create context JSON
 // (including source_context_id), but deliberately starts a fresh session and
 // records rerun_of_task_id so attribution/reporting can distinguish the human
-// action from CreateRetryTask's retry_of_task_id lineage.
+// action from CreateRetryTask's retry_of_task_id lineage. It runs on the
+// agent's own runtime and model, never on the source's fallback entry.
 //
 // The caller locks and transfers the pending issue_source_context in the same
 // transaction. lock_task_owner_rows provides the usual workspace-teardown
 // fence; a deleted workspace therefore yields pgx.ErrNoRows and no task.
 func (q *Queries) CreateManualQuickCreateRetryTask(ctx context.Context, arg CreateManualQuickCreateRetryTaskParams) (AgentTaskQueue, error) {
 	row := q.db.QueryRow(ctx, createManualQuickCreateRetryTask,
+		arg.RuntimeID,
 		arg.ActorUserID,
 		arg.RuntimeMcpOverlay,
 		arg.RuntimeConnectedApps,
@@ -2935,7 +2938,7 @@ INSERT INTO agent_task_queue (
     originator_source, delegated_from_task_id, rule_version_id,
     trigger_evidence_kind, trigger_evidence_ref_id, retry_of_task_id,
     chat_input_task_id, fire_at,
-    channel_context_revision, handoff_note, workflow_step, id
+    channel_context_revision, handoff_note, workflow_step, model, fallback_position, id
 )
 SELECT
     p.agent_id, p.runtime_id, p.issue_id, p.chat_session_id, p.autopilot_run_id,
@@ -2961,6 +2964,7 @@ SELECT
     CASE WHEN p.context->>'wakeup_id' IS NOT NULL OR p.workflow_step IS NOT NULL THEN p.handoff_note END,
     -- A retry continues its parent's work, so it keeps the parent's step (MUL-7420).
     p.workflow_step,
+    p.model, p.fallback_position,
     -- Named new_task_id, not id: $1 above is the PARENT task's id.
     COALESCE($6::uuid, gen_random_uuid())
 FROM agent_task_queue p
@@ -2997,6 +3001,9 @@ type CreateRetryTaskParams struct {
 // Chat retry priority keeps older input ahead of newer turns. A non-NULL fire_at
 // defers dispatch until promotion. max_attempts optionally persists the effective
 // ceiling; it does not re-enable tasks whose retry budget was disabled.
+//
+// A fallback run's retry keeps its runtime, model and fallback_position, so the
+// claim fence still binds it to the same agent_model_fallback entry.
 func (q *Queries) CreateRetryTask(ctx context.Context, arg CreateRetryTaskParams) (AgentTaskQueue, error) {
 	row := q.db.QueryRow(ctx, createRetryTask,
 		arg.ID,

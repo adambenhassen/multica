@@ -483,14 +483,17 @@ func TestManualSourceContextRetryReusesPendingContextExactlyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The failed run was a fallback run: a human retry starts from the primary.
+	fallbackRuntimeID := insertFallbackRuntime(t, pool, agentID, "online")
+	insertFallback(t, pool, agentID, 1, fallbackRuntimeID, "gpt-5.6-terra", nil)
 	var parentID pgtype.UUID
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO agent_task_queue (
 			agent_id, runtime_id, status, priority, context,
-			originator_user_id, accountable_user_id
-		) VALUES ($1, $2, 'failed', 0, $3, $4, $4)
+			originator_user_id, accountable_user_id, model, fallback_position
+		) VALUES ($1, $2, 'failed', 0, $3, $4, $4, 'gpt-5.6-terra', 1)
 		RETURNING id
-	`, agentID, runtimeID, payload, userID).Scan(&parentID); err != nil {
+	`, agentID, fallbackRuntimeID, payload, userID).Scan(&parentID); err != nil {
 		t.Fatalf("insert failed source-context task: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -538,6 +541,10 @@ func TestManualSourceContextRetryReusesPendingContextExactlyOnce(t *testing.T) {
 	if child.RerunOfTaskID != parentID || child.RetryOfTaskID.Valid {
 		t.Fatalf("manual retry lineage rerun=%s retry=%s, want rerun=%s only",
 			util.UUIDToString(child.RerunOfTaskID), util.UUIDToString(child.RetryOfTaskID), util.UUIDToString(parentID))
+	}
+	if util.UUIDToString(child.RuntimeID) != runtimeID || child.Model.Valid || child.FallbackPosition.Valid {
+		t.Fatalf("manual retry runtime/model/position = %s/%+v/%+v, want the agent's runtime %s with no fallback entry",
+			util.UUIDToString(child.RuntimeID), child.Model, child.FallbackPosition, runtimeID)
 	}
 	var childPayload QuickCreateContext
 	var wantPayload QuickCreateContext
