@@ -4902,6 +4902,40 @@ func (s *TaskService) FailTaskWithTransition(ctx context.Context, taskID pgtype.
 		}
 	}
 
+	// Provider failures move to the agent's next fallback (runtime, model) when
+	// no ordinary retry applies. Resolved before the transaction for the same
+	// reason as the retry overlay: the overlay build can do network I/O.
+	var fallbackEntry *db.AgentModelFallback
+	if !wantRetry && (fallbackReasons[failureReason] || failureReason == string(taskfailure.ReasonAgentProviderNetwork)) {
+		if parent, perr := s.Queries.GetAgentTask(ctx, taskID); perr != nil {
+			slog.Warn("fail task fallback: load parent failed",
+				"task_id", util.UUIDToString(taskID), "error", perr)
+		} else if fallbackEligible(failureReason, parent) {
+			after := int32(0)
+			if parent.FallbackPosition.Valid {
+				after = parent.FallbackPosition.Int32
+			}
+			entry, ferr := s.Queries.NextOnlineAgentFallback(ctx, db.NextOnlineAgentFallbackParams{
+				AgentID: parent.AgentID, AfterPosition: after,
+			})
+			switch {
+			case ferr == nil:
+				fallbackEntry = &entry
+				if agent, aerr := s.Queries.GetAgent(ctx, parent.AgentID); aerr != nil {
+					slog.Warn("fail task fallback: load agent for overlay failed",
+						"task_id", util.UUIDToString(taskID), "error", aerr)
+				} else {
+					retryOverlay = s.buildRuntimeMCPOverlay(ctx, parent.OriginatorUserID, agent)
+				}
+			case errors.Is(ferr, pgx.ErrNoRows):
+				// No later entry is online: fail normally.
+			default:
+				slog.Warn("fail task fallback: pick next entry failed",
+					"task_id", util.UUIDToString(taskID), "error", ferr)
+			}
+		}
+	}
+
 	var task db.AgentTaskQueue
 	var retried *db.AgentTaskQueue
 	if err := s.runInTx(ctx, func(qtx *db.Queries) error {
@@ -5010,6 +5044,32 @@ func (s *TaskService) FailTaskWithTransition(ctx context.Context, taskID pgtype.
 		// ON CONFLICT DO NOTHING, which yields the slot instead of raising and so
 		// can never abort this transaction — which also carries the parent's
 		// failed status.
+		// attachChild finishes a retry or fallback child inside this transaction:
+		// it moves a pending source context and copies channel delivery.
+		attachChild := func(child db.AgentTaskQueue) error {
+			transferErr := transferPendingSourceContextToRetry(ctx, qtx, t, child)
+			if errors.Is(transferErr, pgx.ErrNoRows) {
+				deleted, deleteErr := qtx.DeleteUnstartedQuickCreateRetryTask(ctx, child.ID)
+				if deleteErr != nil || deleted != 1 {
+					return fmt.Errorf("discard source context retry without attach authority: changed=%d: %w", deleted, deleteErr)
+				}
+				slog.Info("fail task auto-retry skipped: source context already transferred or attached",
+					"task_id", util.UUIDToString(taskID),
+					"source_context_retry_id", util.UUIDToString(child.ID),
+				)
+				return nil
+			}
+			if transferErr != nil {
+				return fmt.Errorf("transfer pending source context to retry: %w", transferErr)
+			}
+			if err := qtx.CopyChannelTaskDelivery(ctx, db.CopyChannelTaskDeliveryParams{
+				ChildTaskID: child.ID, ParentTaskID: taskID,
+			}); err != nil {
+				return fmt.Errorf("copy retry channel delivery: %w", err)
+			}
+			retried = &child
+			return nil
+		}
 		createRetry := wantRetry
 		if createRetry {
 			successor, herr := hasRunnableSuccessor(ctx, qtx, t)
@@ -5051,25 +5111,8 @@ func (s *TaskService) FailTaskWithTransition(ctx context.Context, taskID pgtype.
 			})
 			switch {
 			case cerr == nil:
-				transferErr := transferPendingSourceContextToRetry(ctx, qtx, t, child)
-				if errors.Is(transferErr, pgx.ErrNoRows) {
-					deleted, deleteErr := qtx.DeleteUnstartedQuickCreateRetryTask(ctx, child.ID)
-					if deleteErr != nil || deleted != 1 {
-						return fmt.Errorf("discard source context retry without attach authority: changed=%d: %w", deleted, deleteErr)
-					}
-					slog.Info("fail task auto-retry skipped: source context already transferred or attached",
-						"task_id", util.UUIDToString(taskID),
-						"source_context_retry_id", util.UUIDToString(child.ID),
-					)
-				} else if transferErr != nil {
-					return fmt.Errorf("transfer pending source context to retry: %w", transferErr)
-				} else {
-					if err := qtx.CopyChannelTaskDelivery(ctx, db.CopyChannelTaskDeliveryParams{
-						ChildTaskID: child.ID, ParentTaskID: taskID,
-					}); err != nil {
-						return fmt.Errorf("copy retry channel delivery: %w", err)
-					}
-					retried = &child
+				if err := attachChild(child); err != nil {
+					return err
 				}
 			case errors.Is(cerr, pgx.ErrNoRows):
 				// The statement wrote nothing: either the owning workspace was
@@ -5085,6 +5128,51 @@ func (s *TaskService) FailTaskWithTransition(ctx context.Context, taskID pgtype.
 				)
 			default:
 				return fmt.Errorf("create retry task: %w", cerr)
+			}
+		}
+
+		// Fallback child: same slot check and triage door as the retry above.
+		if fallbackEntry != nil && retried == nil {
+			createFallback := true
+			if successor, herr := hasRunnableSuccessor(ctx, qtx, t); herr != nil {
+				return fmt.Errorf("check runnable successor: %w", herr)
+			} else if successor {
+				slog.Info("fail task fallback skipped: a successor is already pending",
+					"task_id", util.UUIDToString(taskID))
+				createFallback = false
+			}
+			if createFallback {
+				if gerr := guardIssueNotInTriage(ctx, qtx, t.IssueID, OriginDerived); gerr != nil {
+					slog.Info("fail task fallback skipped: issue does not run",
+						"task_id", util.UUIDToString(taskID), "error", gerr)
+					createFallback = false
+				}
+			}
+			if createFallback {
+				child, ferr := qtx.CreateFallbackTask(ctx, db.CreateFallbackTaskParams{
+					NewTaskID:            dbid.NewV7(),
+					ID:                   taskID,
+					RuntimeID:            fallbackEntry.RuntimeID,
+					Model:                fallbackEntry.Model,
+					FallbackPosition:     fallbackEntry.Position,
+					RuntimeMcpOverlay:    retryOverlay.Overlay,
+					RuntimeConnectedApps: retryOverlay.ConnectedApps,
+				})
+				switch {
+				case ferr == nil:
+					if err := attachChild(child); err != nil {
+						return err
+					}
+					slog.Info("fail task fallback enqueued",
+						"task_id", util.UUIDToString(taskID),
+						"child_task_id", util.UUIDToString(child.ID),
+						"fallback_position", fallbackEntry.Position)
+				case errors.Is(ferr, pgx.ErrNoRows):
+					slog.Info("fail task fallback not created: no row written",
+						"task_id", util.UUIDToString(taskID))
+				default:
+					return fmt.Errorf("create fallback task: %w", ferr)
+				}
 			}
 		}
 
@@ -5395,6 +5483,34 @@ func retryEligible(failureReason string, t db.AgentTaskQueue) bool {
 		!t.AutopilotRunID.Valid &&
 		!IsTriageTask(t) &&
 		(t.IssueID.Valid || t.ChatSessionID.Valid || isSourceContextQuickCreateTask(t))
+}
+
+// fallbackReasons are the provider failures that move a run to the agent's next
+// fallback (runtime, model). provider_network joins them once its own retries
+// are spent (see fallbackEligible).
+var fallbackReasons = map[string]bool{
+	string(taskfailure.ReasonAgentProviderAuthOrAccess):        true,
+	string(taskfailure.ReasonAgentProviderQuotaLimit):          true,
+	string(taskfailure.ReasonAgentProviderCapacityOrRateLimit): true,
+	string(taskfailure.ReasonAgentProviderServerError):         true,
+	string(taskfailure.ReasonAgentModelNotFoundOrUnavailable):  true,
+}
+
+// fallbackEligible reports whether a failed run may move to the agent's next
+// fallback. Same source rules as retryEligible; max_attempts <= 1 (retry
+// disabled) disables fallback too. Fallback does not spend the attempt budget.
+func fallbackEligible(failureReason string, t db.AgentTaskQueue) bool {
+	if t.MaxAttempts <= 1 || t.AutopilotRunID.Valid || IsTriageTask(t) {
+		return false
+	}
+	if !(t.IssueID.Valid || t.ChatSessionID.Valid || isSourceContextQuickCreateTask(t)) {
+		return false
+	}
+	if fallbackReasons[failureReason] {
+		return true
+	}
+	return failureReason == string(taskfailure.ReasonAgentProviderNetwork) &&
+		t.Attempt >= retryAttemptCeiling(failureReason, t.MaxAttempts)
 }
 
 func isSourceContextQuickCreateTask(task db.AgentTaskQueue) bool {
