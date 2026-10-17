@@ -44,12 +44,14 @@
       "fallback": "Une erreur est survenue lors de la récupération de la liste des skills.",
       "retry": "Réessayer"
     },
-    "supporting_data_warning": "Certaines données de l'espace de travail n'ont pas pu être chargées. L'attribution des créateurs, les noms de runtimes ou les droits de modification peuvent apparaître incomplets."
+    "supporting_data_warning": "Certaines données de l'espace de travail n'ont pas pu être chargées. L'attribution des créateurs, les noms de runtimes, les droits de modification ou les chiffres d'utilisation (exécutions et dernière utilisation) peuvent apparaître incomplets."
   },
   "table": {
     "name": "Nom",
     "created_by": "Ajouté par",
     "used_by": "Utilisé par",
+    "runs": "Exécutions",
+    "last_used": "Dernière utilisation",
     "source": "Source",
     "updated": "Mise à jour",
     "created": "Création",

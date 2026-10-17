@@ -69,13 +69,15 @@ export type OriginType = SkillOriginType;
 
 const COLUMN_KEYS: SkillColumnKey[] = [
   "usedBy",
+  "runs",
+  "lastUsed",
   "source",
   "creator",
   "updated",
   "created",
 ];
 
-const SORT_FIELDS: SkillSortField[] = ["name", "usedBy", "updated", "created"];
+const SORT_FIELDS: SkillSortField[] = ["name", "usedBy", "runs", "lastUsed", "updated", "created"];
 
 export function countActiveFilterDimensions(
   filters: SkillListFilters,
@@ -187,6 +189,8 @@ export function SkillListToolbar({
 
   const COLUMN_LABELS: Record<SkillColumnKey, string> = {
     usedBy: t(($) => $.table.used_by),
+    runs: t(($) => $.table.runs),
+    lastUsed: t(($) => $.table.last_used),
     source: t(($) => $.table.source),
     creator: t(($) => $.table.created_by),
     updated: t(($) => $.table.updated),
@@ -196,6 +200,8 @@ export function SkillListToolbar({
   const SORT_LABELS: Record<SkillSortField, string> = {
     name: t(($) => $.table.name),
     usedBy: t(($) => $.table.used_by),
+    runs: t(($) => $.table.runs),
+    lastUsed: t(($) => $.table.last_used),
     updated: t(($) => $.table.updated),
     created: t(($) => $.table.created),
   };

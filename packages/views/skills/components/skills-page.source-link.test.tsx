@@ -16,6 +16,8 @@ import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 
 const mocks = vi.hoisted(() => ({
   skills: [] as SkillSummary[],
+  usage: [] as { skill_id: string; run_count: number; last_used_at: string | null }[],
+  usageState: { isPending: false, error: null as Error | null },
   viewState: {
     sortField: "name",
     sortDirection: "asc" as string,
@@ -43,6 +45,15 @@ vi.mock("@tanstack/react-query", () => ({
         data: mocks.skills,
         isLoading: false,
         error: null,
+        refetch: vi.fn(),
+      };
+    }
+    if (options.queryKey?.[0] === "skill-usage") {
+      return {
+        data: mocks.usage,
+        isLoading: false,
+        isPending: mocks.usageState.isPending,
+        error: mocks.usageState.error,
         refetch: vi.fn(),
       };
     }
@@ -86,6 +97,7 @@ vi.mock("@multica/core/workspace/queries", () => ({
   skillListOptions: () => ({ queryKey: ["skills"] }),
   agentListOptions: () => ({ queryKey: ["agents"] }),
   memberListOptions: () => ({ queryKey: ["members"] }),
+  skillUsageOptions: () => ({ queryKey: ["skill-usage"] }),
   selectSkillAssignments: () => new Map(),
 }));
 
@@ -153,7 +165,7 @@ function makeAdapter(
 }
 
 function renderPage(adapter: NavigationAdapter, locale?: SupportedLocale) {
-  renderWithI18n(
+  return renderWithI18n(
     <NavigationProvider value={adapter}>
       <SkillsPage />
     </NavigationProvider>,
@@ -174,6 +186,11 @@ function middleClick(target: Element): MouseEvent {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.skills = [importedSkill];
+  mocks.usage = [];
+  mocks.usageState.isPending = false;
+  mocks.usageState.error = null;
+  mocks.viewState.sortField = "name";
+  mocks.viewState.sortDirection = "asc";
 });
 
 describe("SkillsPage source link vs row navigation", () => {
@@ -253,5 +270,135 @@ describe("SkillsPage project skills", () => {
     expect(screen.getByText("lampahub.com, teagram-server")).toBeTruthy();
     // A project skill is in use even with no agent assigned.
     expect(screen.queryAllByText("— unused")).toHaveLength(1);
+  });
+});
+
+describe("SkillsPage usage columns", () => {
+  it("shows run count and last use, and a dash for an unused skill", async () => {
+    mocks.skills = [importedSkill, { ...importedSkill, id: "skill-2", name: "never-run", config: {} }];
+    mocks.usage = [
+      { skill_id: "skill-1", run_count: 7, last_used_at: new Date(Date.now() - 3 * 3600_000).toISOString() },
+    ];
+    renderPage(makeAdapter());
+
+    expect(await screen.findByText("Runs")).toBeTruthy();
+    expect(screen.getByText("Last used")).toBeTruthy();
+    expect(screen.getByText("7")).toBeTruthy();
+    expect(screen.getByText("3h ago")).toBeTruthy();
+    // never-run: no runs and no last use.
+    expect(screen.getAllByText("—")).toHaveLength(2);
+  });
+
+  it("sorts by runs, most first", async () => {
+    mocks.viewState.sortField = "runs";
+    mocks.viewState.sortDirection = "desc";
+    mocks.skills = [
+      { ...importedSkill, id: "a", name: "alpha", config: {} },
+      { ...importedSkill, id: "b", name: "bravo", config: {} },
+    ];
+    mocks.usage = [
+      { skill_id: "a", run_count: 1, last_used_at: "2026-10-16T09:30:00Z" },
+      { skill_id: "b", run_count: 5, last_used_at: "2026-10-16T09:30:00Z" },
+    ];
+    renderPage(makeAdapter());
+
+    const names = (await screen.findAllByText(/^(alpha|bravo)$/)).map((el) => el.textContent);
+    expect(names).toEqual(["bravo", "alpha"]);
+  });
+
+  it("sorts never-used skills last by last use", async () => {
+    mocks.viewState.sortField = "lastUsed";
+    mocks.viewState.sortDirection = "asc";
+    mocks.skills = [
+      { ...importedSkill, id: "a", name: "alpha", config: {} },
+      { ...importedSkill, id: "b", name: "bravo", config: {} },
+      { ...importedSkill, id: "c", name: "charlie", config: {} },
+    ];
+    mocks.usage = [
+      { skill_id: "b", run_count: 1, last_used_at: "2026-10-16T09:30:00Z" },
+      { skill_id: "c", run_count: 1, last_used_at: "2026-10-01T09:30:00Z" },
+    ];
+    renderPage(makeAdapter());
+
+    const names = (await screen.findAllByText(/^(alpha|bravo|charlie)$/)).map((el) => el.textContent);
+    expect(names).toEqual(["charlie", "bravo", "alpha"]);
+  });
+
+  it("sorts by last use descending, never-used last, ties by name", async () => {
+    mocks.viewState.sortField = "lastUsed";
+    mocks.viewState.sortDirection = "desc";
+    mocks.skills = [
+      { ...importedSkill, id: "a", name: "alpha", config: {} },
+      { ...importedSkill, id: "b", name: "bravo", config: {} },
+      { ...importedSkill, id: "c", name: "charlie", config: {} },
+      { ...importedSkill, id: "d", name: "delta", config: {} },
+    ];
+    mocks.usage = [
+      { skill_id: "d", run_count: 1, last_used_at: "2026-10-16T09:30:00Z" },
+      { skill_id: "b", run_count: 1, last_used_at: "2026-10-16T09:30:00Z" },
+      { skill_id: "c", run_count: 1, last_used_at: "2026-10-01T09:30:00Z" },
+    ];
+    renderPage(makeAdapter());
+
+    const names = (await screen.findAllByText(/^(alpha|bravo|charlie|delta)$/)).map((el) => el.textContent);
+    expect(names).toEqual(["bravo", "delta", "charlie", "alpha"]);
+  });
+
+  it("holds the skeleton while usage is pending under a usage sort", async () => {
+    mocks.viewState.sortField = "runs";
+    mocks.viewState.sortDirection = "desc";
+    mocks.skills = [
+      { ...importedSkill, id: "a", name: "alpha", config: {} },
+      { ...importedSkill, id: "b", name: "bravo", config: {} },
+    ];
+    mocks.usage = [];
+    mocks.usageState.isPending = true;
+    const { container } = renderPage(makeAdapter());
+
+    expect(container.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+    expect(screen.queryByText("alpha")).toBeNull();
+    expect(screen.queryByText("bravo")).toBeNull();
+  });
+
+  it("renders rows in usage order once usage resolves", async () => {
+    mocks.viewState.sortField = "runs";
+    mocks.viewState.sortDirection = "desc";
+    mocks.skills = [
+      { ...importedSkill, id: "a", name: "alpha", config: {} },
+      { ...importedSkill, id: "b", name: "bravo", config: {} },
+    ];
+    mocks.usage = [{ skill_id: "b", run_count: 5, last_used_at: null }];
+    const { container } = renderPage(makeAdapter());
+
+    const names = (await screen.findAllByText(/^(alpha|bravo)$/)).map((el) => el.textContent);
+    expect(names).toEqual(["bravo", "alpha"]);
+    expect(container.querySelector('[data-slot="skeleton"]')).toBeNull();
+  });
+
+  it("does not hold the skeleton for a non-usage sort", async () => {
+    mocks.usageState.isPending = true;
+    renderPage(makeAdapter());
+
+    expect(await screen.findByText("animations")).toBeTruthy();
+  });
+
+  it("warns about missing usage figures and still renders rows when usage fails", async () => {
+    mocks.viewState.sortField = "runs";
+    mocks.usageState.error = new Error("boom");
+    renderPage(makeAdapter());
+
+    expect(await screen.findByText("animations")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain(
+      "usage figures (runs and last used)",
+    );
+  });
+
+  it("formats the run count with the locale and right-aligns the column", async () => {
+    mocks.usage = [{ skill_id: "skill-1", run_count: 12345, last_used_at: null }];
+    renderPage(makeAdapter(), "fr");
+
+    const cell = await screen.findByText(/^12\s?345$/);
+    expect(cell.className).toContain("justify-end");
+    expect(screen.getByRole("columnheader", { name: "Exécutions" }).className).toContain("justify-end");
   });
 });

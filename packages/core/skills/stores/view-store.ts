@@ -14,7 +14,7 @@ import { defaultStorage } from "../../platform/storage";
 // they are session-scoped, and persisting them would greet returning users
 // with an inexplicably narrowed list.
 
-export type SkillSortField = "name" | "usedBy" | "updated" | "created";
+export type SkillSortField = "name" | "usedBy" | "runs" | "lastUsed" | "updated" | "created";
 
 export type SkillSortDirection = "asc" | "desc";
 
@@ -25,6 +25,8 @@ export const SKILL_SORT_DEFAULT_DIRECTION: Record<
 > = {
   name: "asc",
   usedBy: "desc",
+  runs: "desc",
+  lastUsed: "desc",
   updated: "desc",
   created: "desc",
 };
@@ -57,6 +59,8 @@ export const EMPTY_SKILL_FILTERS: SkillListFilters = {
 // are always visible.
 export type SkillColumnKey =
   | "usedBy"
+  | "runs"
+  | "lastUsed"
   | "source"
   | "creator"
   | "updated"

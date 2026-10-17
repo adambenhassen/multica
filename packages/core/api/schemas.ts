@@ -3593,6 +3593,12 @@ export const SkillSummaryListSchema = z.array(SkillSummarySchema).default([]);
 
 export const EMPTY_SKILL_SUMMARY_LIST: SkillSummary[] = [];
 
+export const SkillUsageListSchema = z.array(z.object({
+  skill_id: z.string(),
+  run_count: z.number().int().nonnegative().catch(0),
+  last_used_at: z.string().nullable().default(null).catch(null),
+}).loose());
+
 export const SkillImportExistingSkillSchema = z.object({
   id: z.string(),
   name: z.string(),

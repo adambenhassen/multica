@@ -44,12 +44,14 @@
       "fallback": "拉取 skill 列表时出错。",
       "retry": "重试"
     },
-    "supporting_data_warning": "部分工作区数据加载失败。创建者归属、运行时名称、编辑权限可能显示不完整。"
+    "supporting_data_warning": "部分工作区数据加载失败。创建者归属、运行时名称、编辑权限、使用数据（运行次数和最近使用）可能显示不完整。"
   },
   "table": {
     "name": "名称",
     "created_by": "添加者",
     "used_by": "被谁使用",
+    "runs": "运行次数",
+    "last_used": "最近使用",
     "source": "来源",
     "updated": "更新时间",
     "created": "创建时间",

@@ -44,6 +44,8 @@ function makeRow(id: string): SkillRow {
     creator: null,
     runtime: null,
     originType: "github",
+    runCount: 0,
+    lastUsedAt: null,
     canEdit: true,
   };
 }

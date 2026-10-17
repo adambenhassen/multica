@@ -41,6 +41,8 @@ function makeRow(
     creator: null,
     runtime: null,
     originType: "manual",
+    runCount: 0,
+    lastUsedAt: null,
     canEdit: true,
     ...rowOverrides,
   };

@@ -61,4 +61,10 @@ describe("useSkillsViewStore", () => {
     expect(filters.labels).toEqual([]);
     expect(filters.usage).toEqual(["used"]);
   });
+
+  it.each(["runs", "lastUsed"] as const)("switching to %s sorts descending", (field) => {
+    useSkillsViewStore.getState().setSortField(field);
+    expect(useSkillsViewStore.getState().sortField).toBe(field);
+    expect(useSkillsViewStore.getState().sortDirection).toBe("desc");
+  });
 });

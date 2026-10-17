@@ -10,6 +10,10 @@ export interface SkillRow {
   creator: MemberWithUser | null;
   runtime: AgentRuntime | null;
   originType: OriginInfo["type"];
+  /** Runs in the trailing 30 days that loaded the skill. */
+  runCount: number;
+  /** Newest load by any run; null when never loaded. */
+  lastUsedAt: string | null;
   canEdit: boolean;
 }
 

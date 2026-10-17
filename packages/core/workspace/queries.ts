@@ -19,6 +19,7 @@ export const workspaceKeys = {
   squadMemberStatus: (wsId: string, squadId: string) =>
     ["workspaces", wsId, "squads", squadId, "members-status"] as const,
   skills: (wsId: string) => ["workspaces", wsId, "skills"] as const,
+  skillUsage: (wsId: string) => ["workspaces", wsId, "skill-usage"] as const,
   assigneeFrequency: (wsId: string) => ["workspaces", wsId, "assignee-frequency"] as const,
   mcpServers: (wsId: string) => ["workspaces", wsId, "mcp-servers"] as const,
 };
@@ -123,6 +124,18 @@ export function skillListOptions(wsId: string) {
   return queryOptions({
     queryKey: workspaceKeys.skills(wsId),
     queryFn: () => api.listSkills(),
+  });
+}
+
+// Workspace-wide skill usage for the Skills-list RUNS / LAST USED columns.
+// Same freshness as agentRunCounts30dOptions.
+export function skillUsageOptions(wsId: string) {
+  return queryOptions({
+    queryKey: workspaceKeys.skillUsage(wsId),
+    queryFn: () => api.listSkillUsage(),
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
   });
 }
 

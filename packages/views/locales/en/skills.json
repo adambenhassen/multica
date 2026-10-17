@@ -44,12 +44,14 @@
       "fallback": "Something went wrong fetching the skill list.",
       "retry": "Try again"
     },
-    "supporting_data_warning": "Some workspace data failed to load. Creator attribution, runtime names, or edit permissions may appear incomplete."
+    "supporting_data_warning": "Some workspace data failed to load. Creator attribution, runtime names, edit permissions, or usage figures (runs and last used) may appear incomplete."
   },
   "table": {
     "name": "Name",
     "created_by": "Added by",
     "used_by": "Used by",
+    "runs": "Runs",
+    "last_used": "Last used",
     "source": "Source",
     "updated": "Updated",
     "created": "Created",

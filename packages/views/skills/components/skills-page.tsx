@@ -17,6 +17,7 @@ import type {
   MemberWithUser,
   Skill,
   SkillSummary,
+  SkillUsage,
 } from "@multica/core/types";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -28,6 +29,7 @@ import {
   memberListOptions,
   selectSkillAssignments,
   skillListOptions,
+  skillUsageOptions,
 } from "@multica/core/workspace/queries";
 import { runtimeDisplayLabel, runtimeListOptions } from "@multica/core/runtimes";
 import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
@@ -76,12 +78,12 @@ import {
   SkillRowActions,
   type SkillActionsContext,
 } from "./skill-list-actions";
-import { useT, useTimeAgo } from "../../i18n";
+import { useLocale, useT, useTimeAgo } from "../../i18n";
 import { docsLocalePrefix } from "../../common/docs-locale";
 
 // Column template — single source of truth for header, rows, and skeletons.
 // Tracks: [edge 0.75rem] [checkbox 1rem] [name, only fr track]
-// [usedBy] [source] [creator] [updated] [created] [kebab 1.75rem]
+// [usedBy] [runs] [lastUsed] [source] [creator] [updated] [created] [kebab 1.75rem]
 // [edge 0.75rem].
 // Content cells carry a default px-2 from list-grid.tsx
 // (structural columns opt out with px-0), so the narrow edge tracks plus
@@ -108,7 +110,7 @@ import { docsLocalePrefix } from "../../common/docs-locale";
 //   (name + usedBy), no horizontal scroll, column toggles don't apply.
 const GRID_COLS =
   "grid-cols-[0.75rem_1rem_minmax(120px,1fr)_var(--lgc-usedby)_1.75rem_0.75rem] " +
-  "@2xl:grid-cols-[0.75rem_1rem_minmax(200px,1fr)_var(--lgc-usedby)_var(--lgc-source)_var(--lgc-creator)_var(--lgc-updated)_var(--lgc-created)_1.75rem_0.75rem]";
+  "@2xl:grid-cols-[0.75rem_1rem_minmax(200px,1fr)_var(--lgc-usedby)_var(--lgc-runs)_var(--lgc-lastused)_var(--lgc-source)_var(--lgc-creator)_var(--lgc-updated)_var(--lgc-created)_1.75rem_0.75rem]";
 
 // h-12 rows. The virtualizer's fixed-size contract: every row renders at
 // exactly this height, which is what lets it skip per-row measurement.
@@ -118,6 +120,8 @@ const ROW_HEIGHT = 48;
 // min-width derive from the same numbers.
 const COLUMN_WIDTHS: Record<SkillColumnKey, number> = {
   usedBy: 144,
+  runs: 64,
+  lastUsed: 104,
   source: 152,
   creator: 144,
   updated: 104,
@@ -125,9 +129,9 @@ const COLUMN_WIDTHS: Record<SkillColumnKey, number> = {
 };
 
 // Fixed tracks (edges 12+12, checkbox 16, name min 200, kebab 28) plus the
-// 9 gap-x-3 gaps between the wide template's 10 tracks (zero-width tracks
+// 11 gap-x-3 gaps between the wide template's 12 tracks (zero-width tracks
 // still carry gaps).
-const FIXED_TRACKS_WIDTH = 268 + 9 * 12;
+const FIXED_TRACKS_WIDTH = 268 + 11 * 12;
 
 function columnTrackVars(
   isVisible: (key: SkillColumnKey) => boolean,
@@ -142,6 +146,8 @@ function columnTrackVars(
     );
   return {
     "--lgc-usedby": width("usedBy"),
+    "--lgc-runs": width("runs"),
+    "--lgc-lastused": width("lastUsed"),
     "--lgc-source": width("source"),
     "--lgc-creator": width("creator"),
     "--lgc-updated": width("updated"),
@@ -493,6 +499,29 @@ function SkillListHeader({
       ) : (
         <ListGridHeaderCell className="px-0" />
       )}
+      {isColVisible("runs") ? (
+        <ListGridHeaderCell
+          className="hidden @2xl:flex"
+          align="right"
+          sorted={sorted("runs")}
+          onSort={() => onSort("runs")}
+        >
+          {t(($) => $.table.runs)}
+        </ListGridHeaderCell>
+      ) : (
+        <ListGridHeaderCell className="hidden px-0 @2xl:flex" />
+      )}
+      {isColVisible("lastUsed") ? (
+        <ListGridHeaderCell
+          className="hidden @2xl:flex"
+          sorted={sorted("lastUsed")}
+          onSort={() => onSort("lastUsed")}
+        >
+          {t(($) => $.table.last_used)}
+        </ListGridHeaderCell>
+      ) : (
+        <ListGridHeaderCell className="hidden px-0 @2xl:flex" />
+      )}
       {isColVisible("source") ? (
         <ListGridHeaderCell className="hidden @2xl:flex">
           {t(($) => $.table.source)}
@@ -548,6 +577,12 @@ function LoadingSkeleton() {
         <ListGridHeaderCell>
           <Skeleton className="h-3 w-14" />
         </ListGridHeaderCell>
+        <ListGridHeaderCell className="hidden @2xl:flex">
+          <Skeleton className="h-3 w-8" />
+        </ListGridHeaderCell>
+        <ListGridHeaderCell className="hidden @2xl:flex">
+          <Skeleton className="h-3 w-12" />
+        </ListGridHeaderCell>
         {/* Source and created are hidden by default — keep their tracks
             mapped with empty placeholders so the skeleton matches the
             default layout. */}
@@ -569,6 +604,12 @@ function LoadingSkeleton() {
           </ListGridCell>
           <ListGridCell>
             <Skeleton className="h-5 w-14" />
+          </ListGridCell>
+          <ListGridCell className="hidden @2xl:flex">
+            <Skeleton className="h-3 w-6" />
+          </ListGridCell>
+          <ListGridCell className="hidden @2xl:flex">
+            <Skeleton className="h-3 w-10" />
           </ListGridCell>
           <ListGridCell className="hidden px-0 @2xl:flex" />
           <ListGridCell className="hidden gap-1.5 @2xl:flex">
@@ -595,6 +636,7 @@ export default function SkillsPage() {
   const navigation = useNavigation();
   const rowLink = useRowLink();
   const timeAgo = useTimeAgo();
+  const locale = useLocale();
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
 
   const {
@@ -612,6 +654,11 @@ export default function SkillsPage() {
   const { data: runtimes = [], error: runtimesError } = useQuery(
     runtimeListOptions(wsId),
   );
+  const {
+    data: usage = [],
+    error: usageError,
+    isPending: usagePending,
+  } = useQuery(skillUsageOptions(wsId));
 
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
@@ -659,6 +706,12 @@ export default function SkillsPage() {
     return map;
   }, [runtimes]);
 
+  const usageBySkill = useMemo(() => {
+    const map = new Map<string, SkillUsage>();
+    for (const u of usage) map.set(u.skill_id, u);
+    return map;
+  }, [usage]);
+
   const myRole =
     members.find((m: MemberWithUser) => m.user_id === currentUserId)?.role ??
     null;
@@ -683,6 +736,8 @@ export default function SkillsPage() {
         skill,
         agents: assignments.get(skill.id) ?? [],
         projects: skill.projects ?? [],
+        runCount: usageBySkill.get(skill.id)?.run_count ?? 0,
+        lastUsedAt: usageBySkill.get(skill.id)?.last_used_at ?? null,
         creator: skill.created_by
           ? membersById.get(skill.created_by) ?? null
           : null,
@@ -691,7 +746,7 @@ export default function SkillsPage() {
         canEdit: canEditSkill(skill, { userId: currentUserId, role: myRole }),
       };
     });
-  }, [skills, assignments, membersById, runtimesById, currentUserId, myRole]);
+  }, [skills, assignments, membersById, runtimesById, usageBySkill, currentUserId, myRole]);
 
   // Visible rows: name search + filters, then sort.
   const rows = useMemo<SkillRow[]>(() => {
@@ -708,6 +763,25 @@ export default function SkillsPage() {
         return (
           (a.agents.length - b.agents.length) * dir ||
           (a.projects.length - b.projects.length) * dir ||
+          a.skill.name.localeCompare(b.skill.name)
+        );
+      }
+      if (sortField === "runs") {
+        return (
+          (a.runCount - b.runCount) * dir ||
+          a.skill.name.localeCompare(b.skill.name)
+        );
+      }
+      if (sortField === "lastUsed") {
+        // Never-used skills sort last in both directions.
+        if (a.lastUsedAt === null || b.lastUsedAt === null) {
+          return (
+            (a.lastUsedAt === null ? 1 : 0) - (b.lastUsedAt === null ? 1 : 0) ||
+            a.skill.name.localeCompare(b.skill.name)
+          );
+        }
+        return (
+          (Date.parse(a.lastUsedAt) - Date.parse(b.lastUsedAt)) * dir ||
           a.skill.name.localeCompare(b.skill.name)
         );
       }
@@ -800,8 +874,13 @@ export default function SkillsPage() {
 
   const totalCount = skills.length;
   const showEmpty = !isLoading && totalCount === 0;
+  // Runs / Last used sorts read usage figures that arrive in their own query.
+  // Painting rows before it resolves would sort on placeholder zeros and
+  // re-order once it lands, so hold the skeleton (pending only, not on error).
+  const usageSortPending =
+    (sortField === "runs" || sortField === "lastUsed") && usagePending;
   const supportingQueryDown =
-    !!agentsError || !!membersError || !!runtimesError;
+    !!agentsError || !!membersError || !!runtimesError || !!usageError;
 
   // Unmounted rows above/below the visible slice become padding on the
   // scrolling body, exactly like Linear's --x-paddingTop/Bottom offsets.
@@ -834,7 +913,7 @@ export default function SkillsPage() {
         </div>
       )}
 
-      {isLoading ? (
+      {isLoading || (usageSortPending && !showEmpty) ? (
         <div className="flex-1 overflow-y-auto @container">
           <LoadingSkeleton />
         </div>
@@ -923,6 +1002,20 @@ export default function SkillsPage() {
                   <UsedByCell agents={row.agents} projects={row.projects} />
                 ) : (
                   <ListGridCell className="px-0" />
+                )}
+                {isColVisible("runs") ? (
+                  <ListGridCell className="hidden justify-end text-caption tabular-nums text-muted-foreground @2xl:flex">
+                    {row.runCount > 0 ? row.runCount.toLocaleString(locale) : "—"}
+                  </ListGridCell>
+                ) : (
+                  <ListGridCell className="hidden px-0 @2xl:flex" />
+                )}
+                {isColVisible("lastUsed") ? (
+                  <ListGridCell className="hidden whitespace-nowrap text-caption tabular-nums text-muted-foreground @2xl:flex">
+                    {row.lastUsedAt === null ? "—" : timeAgo(row.lastUsedAt)}
+                  </ListGridCell>
+                ) : (
+                  <ListGridCell className="hidden px-0 @2xl:flex" />
                 )}
                 {isColVisible("source") ? (
                   <SourceCell skill={row.skill} runtime={row.runtime} />

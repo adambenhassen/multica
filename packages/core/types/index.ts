@@ -44,6 +44,7 @@ export type {
   TaskEvidence,
   AgentActivityBucket,
   AgentRunCount,
+  SkillUsage,
   WorkspaceWorkingAgent,
   WorkspaceWorkingAgentType,
   WorkspaceWorkingAgentMineRelation,

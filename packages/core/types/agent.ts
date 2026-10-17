@@ -226,6 +226,15 @@ export interface AgentRunCount {
   last_run_at: string | null;
 }
 
+// Per-skill usage for the Skills-list RUNS and LAST USED columns: runs in the
+// trailing 30 days whose transcript loaded the skill, and the newest load
+// ever. Skills never loaded are absent.
+export interface SkillUsage {
+  skill_id: string;
+  run_count: number;
+  last_used_at: string | null;
+}
+
 // Privacy-safe display summary returned by GET /api/working-agents. The
 // endpoint is workspace-scoped and includes each user-authored agent with at
 // least one running task exactly once.
