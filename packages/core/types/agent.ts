@@ -235,6 +235,15 @@ export interface SkillUsage {
   last_used_at: string | null;
 }
 
+// One agent's share of a skill's usage (GET /api/skills/{id}/usage); same
+// RUNS / LAST USED semantics as SkillUsage. Agents that never loaded the skill
+// are absent.
+export interface SkillAgentUsage {
+  agent_id: string;
+  run_count: number;
+  last_used_at: string | null;
+}
+
 // Privacy-safe display summary returned by GET /api/working-agents. The
 // endpoint is workspace-scoped and includes each user-authored agent with at
 // least one running task exactly once.

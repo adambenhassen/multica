@@ -31,6 +31,8 @@ const skillListRef = vi.hoisted(() => ({
   current: [] as Array<{ id: string; projects?: { id: string; title: string }[] }>,
 }));
 const membersRef = vi.hoisted(() => ({ current: [] as unknown[] }));
+const assignedRef = vi.hoisted(() => ({ current: [] as unknown[] }));
+const usageRef = vi.hoisted(() => ({ current: [] as unknown[] | Error }));
 const canEditRef = vi.hoisted(() => ({ current: true }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
@@ -51,7 +53,14 @@ vi.mock("@multica/core/workspace/queries", () => ({
     queryKey: ["members", wsId],
     queryFn: () => Promise.resolve(membersRef.current),
   }),
-  selectSkillAssignments: () => new Map(),
+  selectSkillAssignments: () => new Map([["skill-1", assignedRef.current]]),
+  skillAgentUsageOptions: (wsId: string, id: string) => ({
+    queryKey: ["skill-usage", wsId, id],
+    queryFn: () =>
+      usageRef.current instanceof Error
+        ? Promise.reject(usageRef.current)
+        : Promise.resolve(usageRef.current),
+  }),
   workspaceKeys: {
     skills: (wsId: string) => ["skills", wsId],
     agents: (wsId: string) => ["agents", wsId],
@@ -177,6 +186,8 @@ beforeEach(() => {
   skillListRef.current = [];
   skillRef.current = baseSkill;
   agentsRef.current = [];
+  assignedRef.current = [];
+  usageRef.current = [];
   membersRef.current = [{ user_id: "user-1", role: "member" }];
   canEditRef.current = true;
 });
@@ -217,6 +228,107 @@ describe("SkillDetailPage projects", () => {
     expect(await screen.findByRole("link", { name: "lampahub.com" })).toBeTruthy();
     expect(screen.getByText("Attached to 1 project")).toBeTruthy();
     expect(screen.queryByText(/Not assigned to any agent yet/)).toBeNull();
+  });
+});
+
+describe("SkillDetailPage per-agent usage", () => {
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+  const agent = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    name,
+    description: `${name} description`,
+    avatar_url: null,
+    archived_at: null,
+    ...extra,
+  });
+  const rowOf = async (name: string) =>
+    (await screen.findByText(name)).closest("li") as HTMLElement;
+
+  it("shows runs and last use per assigned agent, most runs first then by name", async () => {
+    const quiet = agent("a-quiet", "Quiet");
+    const alpha = agent("a-alpha", "Alpha");
+    const zed = agent("a-zed", "Zed");
+    const busy = agent("a-busy", "Busy");
+    assignedRef.current = [quiet, zed, busy, alpha];
+    agentsRef.current = [quiet, zed, busy, alpha];
+    usageRef.current = [
+      { agent_id: "a-busy", run_count: 5, last_used_at: hoursAgo(2) },
+      { agent_id: "a-alpha", run_count: 1, last_used_at: hoursAgo(30) },
+      { agent_id: "a-zed", run_count: 1, last_used_at: hoursAgo(5) },
+    ];
+    renderPage();
+
+    expect(await screen.findByText("Runs")).toBeTruthy();
+    expect(screen.getByText("Last used")).toBeTruthy();
+    const cells = async (name: string) =>
+      Array.from((await rowOf(name)).querySelectorAll(".tabular-nums")).map((c) => c.textContent);
+    expect(await cells("Busy")).toEqual(["5", "2h ago"]);
+    expect(await cells("Alpha")).toEqual(["1", "1d ago"]);
+    expect(await cells("Zed")).toEqual(["1", "5h ago"]);
+    expect(await cells("Quiet")).toEqual(["—", "—"]);
+    const names = screen
+      .getAllByRole("listitem")
+      .map((li) => li.querySelector(".font-medium")?.textContent)
+      .filter(Boolean);
+    expect(names).toEqual(["Busy", "Alpha", "Zed", "Quiet"]);
+  });
+
+  it("shows no runs but the last use when the only loads are older than 30 days", async () => {
+    const a = agent("a-old", "Old");
+    assignedRef.current = [a];
+    agentsRef.current = [a];
+    usageRef.current = [
+      { agent_id: "a-old", run_count: 0, last_used_at: hoursAgo(40 * 24) },
+    ];
+    renderPage();
+    const cells = Array.from((await rowOf("Old")).querySelectorAll(".tabular-nums")).map((c) => c.textContent);
+    expect(cells).toEqual(["—", "40d ago"]);
+  });
+
+  it("lists agents that loaded the skill without being assigned after the assigned ones", async () => {
+    const assigned = agent("a-1", "Assigned");
+    const loader = agent("a-2", "Project loader", { description: "must not show" });
+    const archived = agent("a-3", "Archived loader", { archived_at: "2026-01-01T00:00:00Z" });
+    assignedRef.current = [assigned];
+    agentsRef.current = [assigned, loader, archived];
+    usageRef.current = [
+      { agent_id: "a-2", run_count: 9, last_used_at: hoursAgo(1) },
+      { agent_id: "a-3", run_count: 4, last_used_at: hoursAgo(1) },
+      { agent_id: "a-missing", run_count: 3, last_used_at: hoursAgo(1) },
+    ];
+    renderPage();
+
+    const row = await rowOf("Project loader");
+    expect(row.textContent).toContain("Not assigned");
+    expect(Array.from(row.querySelectorAll(".tabular-nums")).map((c) => c.textContent)).toEqual(["9", "1h ago"]);
+    expect(row.textContent).not.toContain("must not show");
+    expect(screen.queryByText("Archived loader")).toBeNull();
+    const names = screen
+      .getAllByRole("listitem")
+      .map((li) => li.querySelector(".font-medium")?.textContent)
+      .filter(Boolean);
+    expect(names).toEqual(["Assigned", "Project loader"]);
+    expect(screen.getByText("Used by 1 agent")).toBeTruthy();
+  });
+
+  it("shows loaders instead of the empty state when no agent is assigned", async () => {
+    const loader = agent("a-2", "Project loader");
+    agentsRef.current = [loader];
+    usageRef.current = [{ agent_id: "a-2", run_count: 2, last_used_at: hoursAgo(1) }];
+    renderPage();
+    expect(await screen.findByText("Project loader")).toBeTruthy();
+    expect(screen.queryByText(/Not assigned to any agent yet/)).toBeNull();
+  });
+
+  it("renders rows without usage meta when the usage request fails", async () => {
+    const a = agent("a-1", "Alpha");
+    assignedRef.current = [a];
+    agentsRef.current = [a];
+    usageRef.current = new Error("boom");
+    renderPage();
+    const row = await rowOf("Alpha");
+    expect(row.textContent).toContain("Alpha description");
+    expect(row.textContent).not.toMatch(/runs?|—/);
   });
 });
 

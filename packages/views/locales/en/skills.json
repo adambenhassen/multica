@@ -234,6 +234,7 @@
       "used_by_one": "Used by {{count}} agent",
       "used_by_other": "Used by {{count}} agents",
       "used_by_empty": "Not assigned to any agent yet. Open an agent's Skills tab to assign.",
+      "not_assigned": "Not assigned",
       "permissions_owner": "You can edit and delete this skill. Changes take effect on the next agent run.",
       "permissions_locked_creator": "Only the creator ({{name}}) or a workspace admin can edit this skill.",
       "permissions_locked": "Only the creator or a workspace admin can edit this skill.",

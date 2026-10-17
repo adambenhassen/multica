@@ -31,13 +31,14 @@ import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@multica/core/api";
 import { useAuthStore } from "@multica/core/auth";
-import { useTimeAgo } from "../../i18n";
+import { useLocale, useTimeAgo } from "../../i18n";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import {
   agentListOptions,
   memberListOptions,
   selectSkillAssignments,
+  skillAgentUsageOptions,
   skillDetailOptions,
   skillListOptions,
   workspaceKeys,
@@ -430,18 +431,60 @@ function SkillProjectsSection({ projects }: { projects: { id: string; title: str
 
 const NO_PROJECTS: { id: string; title: string }[] = [];
 
-function UsedByList({ agents }: { agents: Agent[] }) {
+function UsedByList({
+  skillId,
+  assigned,
+  showEmpty,
+}: {
+  skillId: string;
+  assigned: Agent[];
+  showEmpty: boolean;
+}) {
   const { t } = useT("skills");
-  if (agents.length === 0) {
+  const timeAgo = useTimeAgo();
+  const locale = useLocale();
+  const wsId = useWorkspaceId();
+  const { data: workspaceAgents } = useQuery(agentListOptions(wsId));
+  // A failed or pending usage request leaves the rows without the usage columns.
+  const { data: usage } = useQuery(skillAgentUsageOptions(wsId, skillId));
+
+  const rows = useMemo(() => {
+    const usageByAgent = new Map(usage?.map((u) => [u.agent_id, u]));
+    const runs = (a: Agent) => usageByAgent.get(a.id)?.run_count ?? 0;
+    const byRunsThenName = (a: Agent, b: Agent) =>
+      runs(b) - runs(a) || a.name.localeCompare(b.name);
+    const assignedIds = new Set(assigned.map((a) => a.id));
+    // Agents that loaded the skill without being assigned to it now: through a project, or unassigned since.
+    const unassigned = (workspaceAgents ?? []).filter(
+      (a) => !a.archived_at && !assignedIds.has(a.id) && usageByAgent.has(a.id),
+    );
+    return [
+      ...[...assigned].sort(byRunsThenName).map((agent) => ({ agent, unassigned: false })),
+      ...unassigned.sort(byRunsThenName).map((agent) => ({ agent, unassigned: true })),
+    ].map((row) => ({ ...row, usage: usageByAgent.get(row.agent.id) }));
+  }, [assigned, usage, workspaceAgents]);
+
+  if (rows.length === 0) {
+    if (!showEmpty) return null;
     return (
       <div className="rounded-lg border border-dashed px-3 py-6 text-center text-caption text-muted-foreground">
         {t(($) => $.detail.overview.used_by_empty)}
       </div>
     );
   }
+  const runsCol = "w-14 shrink-0 text-right";
+  const lastUsedCol = "w-20 shrink-0 text-right";
   return (
-    <ul className="divide-y overflow-hidden rounded-lg border bg-card">
-      {agents.map((a) => (
+    <div className="overflow-hidden rounded-lg border bg-card">
+      {usage && (
+        <div className="flex items-center gap-2.5 border-b px-3 py-1.5 text-caption text-muted-foreground">
+          <span className="min-w-0 flex-1" />
+          <span className={runsCol}>{t(($) => $.table.runs)}</span>
+          <span className={lastUsedCol}>{t(($) => $.table.last_used)}</span>
+        </div>
+      )}
+      <ul className="divide-y">
+      {rows.map(({ agent: a, unassigned, usage: u }) => (
         <li key={a.id} className="flex items-center gap-2.5 px-3 py-2.5">
           <ActorAvatar
             name={a.name}
@@ -452,15 +495,32 @@ function UsedByList({ agents }: { agents: Agent[] }) {
           />
           <div className="min-w-0 flex-1">
             <div className="truncate text-body font-medium">{a.name}</div>
-            {a.description && (
+            {unassigned ? (
               <div className="truncate text-caption text-muted-foreground">
-                {a.description}
+                {t(($) => $.detail.overview.not_assigned)}
               </div>
+            ) : (
+              a.description && (
+                <div className="truncate text-caption text-muted-foreground">
+                  {a.description}
+                </div>
+              )
             )}
           </div>
+          {usage && (
+            <>
+              <span className={`${runsCol} text-caption tabular-nums text-muted-foreground`}>
+                {u && u.run_count > 0 ? u.run_count.toLocaleString(locale) : "—"}
+              </span>
+              <span className={`${lastUsedCol} whitespace-nowrap text-caption tabular-nums text-muted-foreground`}>
+                {u?.last_used_at ? timeAgo(u.last_used_at) : "—"}
+              </span>
+            </>
+          )}
         </li>
       ))}
-    </ul>
+      </ul>
+    </div>
   );
 }
 
@@ -562,9 +622,11 @@ function OverviewTab({
             </Button>
           </div>
           <div className="mt-3">
-            {skillAgents.length > 0 || skillProjects.length === 0 ? (
-              <UsedByList agents={skillAgents} />
-            ) : null}
+            <UsedByList
+              skillId={skill.id}
+              assigned={skillAgents}
+              showEmpty={skillProjects.length === 0}
+            />
           </div>
         </section>
 

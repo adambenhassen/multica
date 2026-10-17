@@ -44,6 +44,7 @@ import type {
   AgentActivityBucket,
   AgentRunCount,
   SkillUsage,
+  SkillAgentUsage,
   WorkspaceWorkingAgent,
   WorkspaceWorkingAgentMineRelation,
   WorkspaceWorkingAgentType,
@@ -469,6 +470,7 @@ import {
   EMPTY_SKILL,
   SkillSummaryListSchema,
   SkillUsageListSchema,
+  SkillAgentUsageListSchema,
   ProjectSkillListSchema,
   ProjectMcpServerListSchema,
   AgentProjectSkillListSchema,
@@ -3544,6 +3546,13 @@ export class ApiClient {
     const raw = await this.fetch<unknown>("/api/skills/usage");
     return parseWithFallback<SkillUsage[]>(raw, SkillUsageListSchema, [], {
       endpoint: "GET /api/skills/usage",
+    });
+  }
+
+  async listSkillAgentUsage(skillId: string): Promise<SkillAgentUsage[]> {
+    const raw = await this.fetch<unknown>(`/api/skills/${skillId}/usage`);
+    return parseWithFallback<SkillAgentUsage[]>(raw, SkillAgentUsageListSchema, [], {
+      endpoint: "GET /api/skills/{id}/usage",
     });
   }
 
