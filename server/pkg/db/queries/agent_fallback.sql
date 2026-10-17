@@ -33,6 +33,25 @@ SELECT EXISTS (
       AND runtime_id = @runtime_id AND model = @model
 ) AS bound;
 
+-- name: CancelUnboundQueuedFallbackTasks :many
+-- Cancels the agent's not-yet-dispatched fallback runs whose entry (position,
+-- runtime, model) is no longer in the list. The claim would refuse them
+-- forever while they hold the pending slot and absorb new comments.
+UPDATE agent_task_queue t
+SET status = 'cancelled', completed_at = now(), prepare_lease_expires_at = NULL,
+    cancelled_by_type = 'system', cancelled_by_id = NULL, cancelled_by_name = NULL
+WHERE t.agent_id = @agent_id
+  AND t.status IN ('queued', 'deferred')
+  AND t.fallback_position IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM agent_model_fallback f
+    WHERE f.agent_id = t.agent_id
+      AND f.position = t.fallback_position
+      AND f.runtime_id = t.runtime_id
+      AND f.model = t.model
+  )
+RETURNING t.*;
+
 -- name: CreateFallbackTask :one
 -- Re-runs a provider-failed attempt on the agent's next fallback (runtime,
 -- model). Same lineage, attribution and pending-slot rules as CreateRetryTask,

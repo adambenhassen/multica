@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/logger"
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/pkg/agent"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
@@ -85,7 +86,8 @@ func (h *Handler) ListAgentFallbacks(w http.ResponseWriter, r *http.Request) {
 }
 
 // ReplaceAgentFallbacks replaces the agent's whole fallback list in one
-// transaction. Agent owner or workspace owner/admin only; agents are refused.
+// transaction, cancelling queued fallback runs whose entry it changed. Agent
+// owner or workspace owner/admin only; agents are refused.
 func (h *Handler) ReplaceAgentFallbacks(w http.ResponseWriter, r *http.Request) {
 	target, ok := h.loadAgentForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
@@ -206,9 +208,21 @@ func (h *Handler) ReplaceAgentFallbacks(w http.ResponseWriter, r *http.Request) 
 		}
 		rows = append(rows, row)
 	}
+	cancelled, err := qtx.CancelUnboundQueuedFallbackTasks(r.Context(), target.ID)
+	if err == nil {
+		err = service.SettleTerminalTaskState(r.Context(), qtx, cancelled...)
+	}
+	if err != nil {
+		slog.Warn("replace agent fallbacks: cancel unbound fallback runs failed", append(logger.RequestAttrs(r), "agent_id", uuidToString(target.ID), "error", err)...)
+		writeError(w, http.StatusInternalServerError, "failed to save agent fallbacks")
+		return
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save agent fallbacks")
 		return
+	}
+	if len(cancelled) > 0 {
+		h.TaskService.BroadcastCancelledTasks(r.Context(), workspaceID, cancelled)
 	}
 	writeJSON(w, http.StatusOK, agentFallbacksToResponse(rows))
 }

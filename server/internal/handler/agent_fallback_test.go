@@ -217,3 +217,45 @@ func TestListAgentTasksReturnsFallbackFields(t *testing.T) {
 	}
 	t.Fatalf("task %s missing from %+v", taskID, resp)
 }
+
+// TestReplaceAgentFallbacksCancelsStrandedRuns: a queued fallback run whose
+// entry the new list changed can never be claimed, so the replace cancels it;
+// a run whose entry is unchanged stays queued.
+func TestReplaceAgentFallbacksCancelsStrandedRuns(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	agentID := createHandlerTestAgent(t, "AgentFallbacksStranded", []byte("[]"))
+	codex := dbfx.Runtime(t, "Fallback stranded codex", testutil.Cols{"provider": "codex", "visibility": "public"})
+	local := dbfx.Runtime(t, "Fallback stranded local", testutil.Cols{"provider": "opencode", "visibility": "public"})
+	putFallbacks(t, agentID, map[string]any{"fallbacks": []map[string]any{
+		{"runtime_id": codex, "model": "gpt-5.6-terra"},
+		{"runtime_id": local, "model": "local-qwen"},
+	}}).Want(http.StatusOK)
+
+	kept := dbfx.Task(t, agentID, testutil.Cols{
+		"runtime_id": codex, "issue_id": dbfx.Issue(t, "Stranded kept"),
+		"model": "gpt-5.6-terra", "fallback_position": 1,
+	})
+	stranded := dbfx.Task(t, agentID, testutil.Cols{
+		"runtime_id": local, "issue_id": dbfx.Issue(t, "Stranded changed"),
+		"model": "local-qwen", "fallback_position": 2,
+	})
+
+	putFallbacks(t, agentID, map[string]any{"fallbacks": []map[string]any{
+		{"runtime_id": codex, "model": "gpt-5.6-terra"},
+		{"runtime_id": local, "model": "local-llama"},
+	}}).Want(http.StatusOK)
+
+	status := func(taskID string) (string, string) {
+		var s, by string
+		dbfx.QueryRow(t, `SELECT status, COALESCE(cancelled_by_type, '') FROM agent_task_queue WHERE id = $1`, taskID).Scan(&s, &by)
+		return s, by
+	}
+	if s, _ := status(kept); s != "queued" {
+		t.Errorf("unchanged entry's run status = %q, want queued", s)
+	}
+	if s, by := status(stranded); s != "cancelled" || by != "system" {
+		t.Errorf("changed entry's run status/cancelled_by = %q/%q, want cancelled/system", s, by)
+	}
+}
