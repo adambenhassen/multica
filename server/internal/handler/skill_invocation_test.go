@@ -257,3 +257,81 @@ func TestGetWorkspaceSkillUsage_ExcludesForeignWorkspace(t *testing.T) {
 		t.Fatalf("local skill %s missing from usage: %+v", localSkillID, rows)
 	}
 }
+
+type skillAgentUsageRow struct {
+	AgentID    string  `json:"agent_id"`
+	RunCount   int     `json:"run_count"`
+	LastUsedAt *string `json:"last_used_at"`
+}
+
+func getSkillAgentUsage(t *testing.T, skillID string) *testutil.Response {
+	t.Helper()
+	req := withURLParam(
+		withChatTestWorkspaceCtx(t, newRequest(http.MethodGet, "/api/skills/"+skillID+"/usage", nil)),
+		"id", skillID)
+	return testutil.Call(t, testHandler.GetSkillUsageByAgent, req)
+}
+
+func TestGetSkillUsageByAgent(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	runtimeID := handlerTestRuntimeID(t)
+	busy := dbfx.Agent(t, "usage-by-agent busy", runtimeID)
+	idle := dbfx.Agent(t, "usage-by-agent idle", runtimeID)
+	newTask := func(agentID string) string {
+		return dbfx.Task(t, agentID, testutil.Cols{"runtime_id": runtimeID, "status": "completed"})
+	}
+	skillID := insertProjectSkillFixtureSkill(t, testWorkspaceID, "usage-by-agent-skill")
+	otherSkillID := insertProjectSkillFixtureSkill(t, testWorkspaceID, "usage-by-agent-other")
+	insertSkillInvocation(t, newTask(busy), skillID, busy, "2 hours")
+	insertSkillInvocation(t, newTask(busy), skillID, busy, "3 days")
+	insertSkillInvocation(t, newTask(busy), skillID, busy, "31 days")
+	// Only a run outside the 30-day window: counted in last_used_at, not run_count.
+	insertSkillInvocation(t, newTask(idle), skillID, idle, "40 days")
+	// Another skill's load must not count toward this skill.
+	insertSkillInvocation(t, newTask(busy), otherSkillID, busy, "1 hour")
+	// Another workspace's load of this skill id must not count.
+	foreignWorkspaceID := dbfx.Insert(t, "workspace", testutil.Cols{
+		"name":         "Foreign Agent Usage Workspace",
+		"slug":         "foreign-agent-usage-workspace",
+		"description":  "",
+		"issue_prefix": "FAU",
+	})
+	foreignTask := newTask(busy)
+	dbfx.InsertNoID(t, "skill_invocation", testutil.Cols{
+		"task_id":      foreignTask,
+		"skill_id":     skillID,
+		"workspace_id": foreignWorkspaceID,
+		"agent_id":     busy,
+		"invoked_at":   testutil.Raw("now() - interval '1 hour'"),
+	}, "task_id = $1 AND skill_id = $2", foreignTask, skillID)
+
+	var rows []skillAgentUsageRow
+	getSkillAgentUsage(t, skillID).Want(http.StatusOK).JSON(&rows)
+
+	byAgent := map[string]skillAgentUsageRow{}
+	for _, r := range rows {
+		byAgent[r.AgentID] = r
+	}
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2: %+v", len(rows), rows)
+	}
+	if got := byAgent[busy]; got.RunCount != 2 || got.LastUsedAt == nil {
+		t.Fatalf("busy agent run_count/last_used_at = %d/%v, want 2/non-null", got.RunCount, got.LastUsedAt)
+	} else if at, err := time.Parse(time.RFC3339, *got.LastUsedAt); err != nil {
+		t.Fatalf("parse last_used_at %q: %v", *got.LastUsedAt, err)
+	} else if d := time.Since(at) - 2*time.Hour; d < -time.Minute || d > time.Minute {
+		t.Fatalf("busy last_used_at = %s, want about 2h ago", *got.LastUsedAt)
+	}
+	if got := byAgent[idle]; got.RunCount != 0 || got.LastUsedAt == nil {
+		t.Fatalf("idle agent run_count/last_used_at = %d/%v, want 0/non-null", got.RunCount, got.LastUsedAt)
+	}
+}
+
+func TestGetSkillUsageByAgent_UnknownSkill(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	getSkillAgentUsage(t, "00000000-0000-0000-0000-000000000000").Want(http.StatusNotFound)
+}

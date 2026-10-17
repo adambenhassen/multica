@@ -17,3 +17,15 @@ SELECT
 FROM skill_invocation
 WHERE workspace_id = $1
 GROUP BY skill_id;
+
+-- name: GetSkillUsageByAgent :many
+-- One skill's usage split by the agent whose run loaded it: RUNS in the
+-- trailing 30 days and LAST USED (newest load ever). Agents that never loaded
+-- the skill have no row.
+SELECT
+    agent_id,
+    (COUNT(*) FILTER (WHERE invoked_at > now() - INTERVAL '30 days'))::int AS run_count,
+    MAX(invoked_at)::timestamptz AS last_used_at
+FROM skill_invocation
+WHERE workspace_id = $1 AND skill_id = $2
+GROUP BY agent_id;

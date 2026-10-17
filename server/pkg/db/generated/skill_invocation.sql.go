@@ -37,6 +37,50 @@ func (q *Queries) CreateSkillInvocations(ctx context.Context, arg CreateSkillInv
 	return err
 }
 
+const getSkillUsageByAgent = `-- name: GetSkillUsageByAgent :many
+SELECT
+    agent_id,
+    (COUNT(*) FILTER (WHERE invoked_at > now() - INTERVAL '30 days'))::int AS run_count,
+    MAX(invoked_at)::timestamptz AS last_used_at
+FROM skill_invocation
+WHERE workspace_id = $1 AND skill_id = $2
+GROUP BY agent_id
+`
+
+type GetSkillUsageByAgentParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	SkillID     pgtype.UUID `json:"skill_id"`
+}
+
+type GetSkillUsageByAgentRow struct {
+	AgentID    pgtype.UUID        `json:"agent_id"`
+	RunCount   int32              `json:"run_count"`
+	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
+}
+
+// One skill's usage split by the agent whose run loaded it: RUNS in the
+// trailing 30 days and LAST USED (newest load ever). Agents that never loaded
+// the skill have no row.
+func (q *Queries) GetSkillUsageByAgent(ctx context.Context, arg GetSkillUsageByAgentParams) ([]GetSkillUsageByAgentRow, error) {
+	rows, err := q.db.Query(ctx, getSkillUsageByAgent, arg.WorkspaceID, arg.SkillID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetSkillUsageByAgentRow{}
+	for rows.Next() {
+		var i GetSkillUsageByAgentRow
+		if err := rows.Scan(&i.AgentID, &i.RunCount, &i.LastUsedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceSkillUsage = `-- name: GetWorkspaceSkillUsage :many
 SELECT
     skill_id,

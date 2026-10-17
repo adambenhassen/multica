@@ -420,6 +420,40 @@ func (h *Handler) GetWorkspaceSkillUsage(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// SkillAgentUsage is one agent's share of a skill's usage, with the same
+// RUNS / LAST USED semantics as SkillUsage.
+type SkillAgentUsage struct {
+	AgentID    string  `json:"agent_id"`
+	RunCount   int32   `json:"run_count"`
+	LastUsedAt *string `json:"last_used_at"`
+}
+
+// GetSkillUsageByAgent returns the agents whose runs loaded the skill; agents
+// that never loaded it are absent.
+func (h *Handler) GetSkillUsageByAgent(w http.ResponseWriter, r *http.Request) {
+	skill, ok := h.loadSkillForUser(w, r, chi.URLParam(r, "id"))
+	if !ok {
+		return
+	}
+	rows, err := h.Queries.GetSkillUsageByAgent(r.Context(), db.GetSkillUsageByAgentParams{
+		WorkspaceID: skill.WorkspaceID,
+		SkillID:     skill.ID,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get skill usage")
+		return
+	}
+	resp := make([]SkillAgentUsage, 0, len(rows))
+	for _, row := range rows {
+		resp = append(resp, SkillAgentUsage{
+			AgentID:    uuidToString(row.AgentID),
+			RunCount:   row.RunCount,
+			LastUsedAt: timestampToPtr(row.LastUsedAt),
+		})
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // labelsBySkill bulk-loads labels for the given skill IDs and returns a map
 // keyed by skill UUID string. On error or empty input, returns an empty map —
 // label rendering is non-critical and we'd rather serve skills without labels
