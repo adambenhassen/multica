@@ -1008,6 +1008,8 @@
     "move_down": "Move down",
     "remove": "Remove fallback",
     "cancel": "Cancel",
-    "save_failed": "Couldn't save fallbacks"
+    "save_failed": "Couldn't save fallbacks",
+    "load_failed": "Couldn't load fallbacks.",
+    "retry": "Retry"
   }
 }

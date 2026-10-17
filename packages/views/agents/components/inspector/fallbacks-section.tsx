@@ -51,6 +51,9 @@ export function FallbacksSection({
   const [draft, setDraft] = useState<Entry | null>(null);
 
   const editable = canEdit && query.isSuccess;
+  // Every save sends the whole list: hold further edits until it settles so a
+  // second save is never computed from the pre-save list.
+  const interactive = editable && !replace.isPending;
   const entries: Entry[] = (query.data ?? []).map(({ runtime_id, model, thinking_level }) => ({
     runtime_id,
     model,
@@ -62,7 +65,9 @@ export function FallbacksSection({
       await replace.mutateAsync({ fallbacks: next });
       return true;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t(($) => $.fallbacks.save_failed));
+      toast.error(t(($) => $.fallbacks.save_failed), {
+        description: e instanceof Error ? e.message : undefined,
+      });
       return false;
     }
   };
@@ -87,7 +92,7 @@ export function FallbacksSection({
         <Button
           variant="outline"
           size="sm"
-          disabled={!editable || full}
+          disabled={!interactive || full}
           onClick={() => setDraft({ runtime_id: agent.runtime_id, model: "", thinking_level: "" })}
         >
           <Plus className="size-3.5" aria-hidden="true" />
@@ -95,6 +100,14 @@ export function FallbacksSection({
         </Button>
       }
     >
+      {query.isError ? (
+        <div className="flex items-center justify-between gap-2 text-sm text-destructive">
+          {t(($) => $.fallbacks.load_failed)}
+          <Button variant="outline" size="sm" onClick={() => void query.refetch()}>
+            {t(($) => $.fallbacks.retry)}
+          </Button>
+        </div>
+      ) : null}
       {entries.map((entry, index) => (
         <SettingsCard key={`${entry.runtime_id}:${entry.model}`}>
           <SettingsRow label={t(($) => $.fallbacks.entry, { n: index + 1 })} size="select-wide">
@@ -103,7 +116,7 @@ export function FallbacksSection({
                 variant="ghost"
                 size="icon-sm"
                 aria-label={t(($) => $.fallbacks.move_up)}
-                disabled={!editable || index === 0}
+                disabled={!interactive || index === 0}
                 onClick={() => move(index, -1)}
               >
                 <ArrowUp aria-hidden="true" />
@@ -112,7 +125,7 @@ export function FallbacksSection({
                 variant="ghost"
                 size="icon-sm"
                 aria-label={t(($) => $.fallbacks.move_down)}
-                disabled={!editable || index === entries.length - 1}
+                disabled={!interactive || index === entries.length - 1}
                 onClick={() => move(index, 1)}
               >
                 <ArrowDown aria-hidden="true" />
@@ -121,7 +134,7 @@ export function FallbacksSection({
                 variant="ghost"
                 size="icon-sm"
                 aria-label={t(($) => $.fallbacks.remove)}
-                disabled={!editable}
+                disabled={!interactive}
                 onClick={() => void save(entries.filter((_, i) => i !== index))}
               >
                 <Trash2 aria-hidden="true" />
@@ -147,7 +160,7 @@ export function FallbacksSection({
               runtimeId={entry.runtime_id}
               runtimeOnline={canDiscover(entry.runtime_id)}
               value={entry.model}
-              canEdit={editable}
+              canEdit={interactive}
               onChange={(model) =>
                 model
                   ? void save(entries.map((e, i) => (i === index ? { ...e, model, thinking_level: "" } : e)))
@@ -162,7 +175,7 @@ export function FallbacksSection({
             provider={runtimeFor(entry.runtime_id)?.provider ?? ""}
             model={entry.model}
             value={entry.thinking_level}
-            canEdit={editable}
+            canEdit={interactive}
             onChange={(thinking_level) =>
               void save(entries.map((e, i) => (i === index ? { ...e, thinking_level } : e)))
             }
@@ -186,7 +199,7 @@ export function FallbacksSection({
               runtimes={runtimes}
               members={members}
               currentUserId={currentUserId}
-              canEdit={editable}
+              canEdit={interactive}
               onChange={(runtime_id) => setDraft({ runtime_id, model: "", thinking_level: "" })}
             />
           </SettingsRow>
@@ -197,7 +210,7 @@ export function FallbacksSection({
               runtimeId={draft.runtime_id}
               runtimeOnline={canDiscover(draft.runtime_id)}
               value={draft.model}
-              canEdit={editable}
+              canEdit={interactive}
               onChange={async (model) => {
                 if (!model) return;
                 if (await save([...entries, { ...draft, model }])) setDraft(null);

@@ -986,6 +986,8 @@
     "move_down": "아래로 이동",
     "remove": "대체 실행 삭제",
     "cancel": "취소",
-    "save_failed": "대체 실행을 저장하지 못했습니다"
+    "save_failed": "대체 실행을 저장하지 못했습니다",
+    "load_failed": "대체 실행을 불러오지 못했습니다.",
+    "retry": "다시 시도"
   }
 }

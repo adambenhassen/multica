@@ -2379,6 +2379,13 @@ describe("AgentModelFallbackListSchema", () => {
     ])).toEqual([{ position: 1, runtime_id: "rt-1", model: "gpt-5.6-terra", thinking_level: "" }]);
   });
 
+  it("degrades a null or malformed effort per entry instead of dropping the list", () => {
+    expect(AgentModelFallbackListSchema.parse([
+      { position: 1, runtime_id: "rt-1", model: "m-1", thinking_level: null },
+      { position: 2, runtime_id: "rt-2", model: "m-2", thinking_level: 3 },
+    ])).toMatchObject([{ model: "m-1", thinking_level: "" }, { model: "m-2", thinking_level: "" }]);
+  });
+
   it("falls back to an empty list for a malformed response", () => {
     expect(parseWithFallback({ fallbacks: [] }, AgentModelFallbackListSchema, [], { endpoint: "test" })).toEqual([]);
   });

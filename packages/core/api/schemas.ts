@@ -3687,7 +3687,7 @@ export const AgentModelFallbackSchema = z.object({
   position: z.number().int(),
   runtime_id: z.string(),
   model: z.string(),
-  thinking_level: z.string().default(""),
+  thinking_level: z.string().catch(""),
 }).loose();
 
 export const AgentModelFallbackListSchema = z.array(AgentModelFallbackSchema);

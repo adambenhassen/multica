@@ -1008,6 +1008,8 @@
     "move_down": "Descendre",
     "remove": "Supprimer le repli",
     "cancel": "Annuler",
-    "save_failed": "Impossible d'enregistrer les replis"
+    "save_failed": "Impossible d'enregistrer les replis",
+    "load_failed": "Impossible de charger les replis.",
+    "retry": "Réessayer"
   }
 }

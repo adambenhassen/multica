@@ -986,6 +986,8 @@
     "move_down": "下移",
     "remove": "删除备用模型",
     "cancel": "取消",
-    "save_failed": "无法保存备用模型"
+    "save_failed": "无法保存备用模型",
+    "load_failed": "无法加载备用模型。",
+    "retry": "重试"
   }
 }
