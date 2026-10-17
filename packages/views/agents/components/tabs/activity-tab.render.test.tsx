@@ -40,13 +40,14 @@ const agentTasksRef = vi.hoisted(() => ({
   current: (_before?: string) => new Promise<unknown>(() => {}),
 }));
 const activityRef = vi.hoisted(() => ({ current: [] as AgentActivityBucket[] }));
+const snapshotRef = vi.hoisted(() => ({ current: [] as AgentTask[] }));
 vi.mock("@multica/core/agents", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@multica/core/agents")>();
   return {
     ...actual,
     agentTaskSnapshotOptions: () => ({
       queryKey: ["snapshot"],
-      queryFn: () => Promise.resolve([]),
+      queryFn: () => Promise.resolve(snapshotRef.current),
     }),
     agentTasksOptions: () => ({
       queryKey: ["agent-tasks"],
@@ -102,6 +103,7 @@ function renderTab(performance = false) {
 beforeEach(() => {
   agentTasksRef.current = () => new Promise<unknown>(() => {});
   activityRef.current = [];
+  snapshotRef.current = [];
 });
 
 describe("agent outcome presentation", () => {
@@ -360,5 +362,21 @@ describe("ActivityTab run details", () => {
     await screen.findByText("2K tokens");
     expect(screen.getByText("unpriced-model")).toBeInTheDocument();
     expect(screen.queryByText(/^\$/)).not.toBeInTheDocument();
+  });
+});
+
+describe("ActivityTab active runs", () => {
+  it("does not show the runtime on a running task even when runtimes are cached", async () => {
+    snapshotRef.current = [{ ...historyTask(0), id: "running-1", status: "running", completed_at: null }];
+    agentTasksRef.current = () => Promise.resolve({
+      tasks: [{ ...historyTask(1), usage: [{ provider: "acme", model: "m", input_tokens: 1, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 }] }],
+      nextCursor: null,
+    });
+    renderTab();
+    // The finished run loads the runtime list into the shared cache...
+    await screen.findByText("Claude (Delta)");
+    // ...and the running row must still not render it.
+    await screen.findByTestId("task-running-1");
+    expect(screen.getAllByText("Claude (Delta)")).toHaveLength(1);
   });
 });

@@ -754,7 +754,8 @@ function TaskRow({
       ),
     });
   }
-  if (runtimeLabel) {
+  // `enabled: false` still hands back cached runtimes, so gate the label too.
+  if (showRunDetails && runtimeLabel) {
     runDetails.push({ key: "runtime", node: <span className="truncate">{runtimeLabel}</span> });
   }
 
