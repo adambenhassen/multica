@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/multica-ai/multica/server/internal/testutil"
 )
 
 // A plugin's skill resource becomes an ordinary workspace skill, and uninstall
@@ -201,5 +203,63 @@ func TestPluginSkillWillNotOverwriteAHumanAuthoredSkill(t *testing.T) {
 	}
 	if content != "written by a person" {
 		t.Fatalf("the human-authored skill was overwritten: %q", content)
+	}
+}
+
+// Both plugin skill deletes, upgrade pruning and uninstall, must also remove the
+// skill's run history. skill_invocation has no foreign key, so a leftover row
+// would name a skill that no longer exists.
+func TestPluginSkillRemovalClearsInvocations(t *testing.T) {
+	withPluginsV1Flag(t, testHandler, true)
+	cleanupPluginInstallations(t)
+	root := t.TempDir()
+	writePluginSkillFile(t, root, "pr-review", prReviewSkill)
+	installationID := installSkillPlugin(t, root, skillPluginManifest)
+
+	agentID := dbfx.Agent(t, "plugin invocation agent", handlerTestRuntimeID(t))
+	taskID := dbfx.Task(t, agentID, testutil.Cols{"runtime_id": handlerTestRuntimeID(t), "status": "completed"})
+	skillIDByName := func(name string) string {
+		t.Helper()
+		var id string
+		if err := testPool.QueryRow(context.Background(),
+			`SELECT id FROM skill WHERE plugin_installation_id = $1 AND name = $2`, installationID, name,
+		).Scan(&id); err != nil {
+			t.Fatalf("find plugin skill %s: %v", name, err)
+		}
+		return id
+	}
+	prReviewID := skillIDByName("pr-review")
+	insertSkillInvocation(t, taskID, prReviewID, agentID, "1 hour")
+
+	// Version 2 renames the skill, so upgrade pruning deletes pr-review.
+	writePluginSkillFile(t, root, "triage", prReviewSkill)
+	upgraded := `{
+  "manifest_version": 1,
+  "key": "com.example.skilled",
+  "name": "Skilled",
+  "version": "2.0.0",
+  "author": { "name": "example" },
+  "scopes": ["issues:read"],
+  "contributes": {
+    "resources": [{ "type": "skill", "key": "triage", "entry": "skills/triage/SKILL.md" }]
+  }
+}`
+	installSkillPlugin(t, root, upgraded)
+	if n := skillInvocationCount(t, "skill_id = $1", prReviewID); n != 0 {
+		t.Fatalf("upgrade pruning left %d skill_invocation rows for pr-review", n)
+	}
+
+	triageID := skillIDByName("triage")
+	insertSkillInvocation(t, taskID, triageID, agentID, "1 hour")
+
+	uninstall := httptest.NewRecorder()
+	testHandler.UninstallPlugin(uninstall, pluginHandlerRequest(http.MethodDelete, "/plugins", nil, map[string]string{
+		"id": testWorkspaceID, "installationId": installationID,
+	}))
+	if uninstall.Code != http.StatusNoContent {
+		t.Fatalf("uninstall: status=%d body=%s", uninstall.Code, uninstall.Body.String())
+	}
+	if n := skillInvocationCount(t, "skill_id = $1", triageID); n != 0 {
+		t.Fatalf("uninstall left %d skill_invocation rows for triage", n)
 	}
 }

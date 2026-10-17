@@ -5212,6 +5212,7 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 		// every other nullable column in this batch.
 		OutputTruncations: make([]string, 0, n),
 	}
+	var skillCalls []service.SkillToolCall
 	createdAts := taskMessageCreatedAts(req.Messages, time.Now().UTC())
 	for i, msg := range req.Messages {
 		id, err := uuid.NewV7()
@@ -5246,6 +5247,10 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		if msg.Type == "tool_use" {
+			skillCalls = append(skillCalls, service.SkillToolCall{Tool: msg.Tool, Input: msg.Input})
+		}
+
 		inputJSON := ""
 		if msg.Input != nil {
 			// Fail loud rather than dropping the field: a tool call whose
@@ -5278,6 +5283,14 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 		slog.Error("failed to create task messages", "task_id", taskID, "count", n, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to persist task message")
 		return
+	}
+
+	// Skill usage is secondary to the transcript, which is already persisted:
+	// a failure is logged rather than failing a batch the daemon never retries.
+	if slugs := service.DetectSkillSlugs(skillCalls); len(slugs) > 0 {
+		if err := h.TaskService.RecordSkillInvocations(r.Context(), task, parseUUID(wsID), slugs); err != nil {
+			slog.Error("failed to record skill invocations", "task_id", taskID, "error", err)
+		}
 	}
 
 	if workspaceID != "" {

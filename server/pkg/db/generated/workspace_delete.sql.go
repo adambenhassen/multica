@@ -623,6 +623,9 @@ WITH deleted_squads AS (
 ),
 deleted_project_skills AS (
     DELETE FROM project_skill WHERE project_skill.workspace_id = $1
+),
+deleted_skill_invocations AS (
+    DELETE FROM skill_invocation WHERE skill_invocation.workspace_id = $1
 )
 DELETE FROM skill WHERE skill.workspace_id = $1
 `

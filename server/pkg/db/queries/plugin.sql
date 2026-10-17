@@ -336,31 +336,39 @@ SELECT * FROM skill WHERE plugin_installation_id = $1 ORDER BY name ASC;
 SELECT id FROM skill WHERE plugin_installation_id = $1 ORDER BY id FOR UPDATE;
 
 -- name: DeletePluginSkillsByInstallation :exec
--- project_skill and its audience have no foreign key, so links to the deleted
--- skills go too.
+-- project_skill, its audience and skill_invocation have no foreign key, so links
+-- to the deleted skills go too.
 WITH deleted_skills AS (
     DELETE FROM skill WHERE plugin_installation_id = $1
-    RETURNING id
+    RETURNING id, workspace_id
 ),
 deleted_audience AS (
     DELETE FROM project_attachment_audience
     WHERE item_type = 'skill' AND item_id IN (SELECT id FROM deleted_skills)
+),
+deleted_invocations AS (
+    DELETE FROM skill_invocation
+    WHERE (workspace_id, skill_id) IN (SELECT workspace_id, id FROM deleted_skills)
 )
 DELETE FROM project_skill WHERE skill_id IN (SELECT id FROM deleted_skills);
 
 -- name: DeletePluginSkillsNotIn :exec
 -- Upgrade pruning: a skill this installation used to contribute but no longer
 -- declares must go, or a renamed skill leaves its predecessor behind forever.
--- project_skill and its audience have no foreign key, so links to the pruned
--- skills go too.
+-- project_skill, its audience and skill_invocation have no foreign key, so links
+-- to the pruned skills go too.
 WITH deleted_skills AS (
     DELETE FROM skill
     WHERE plugin_installation_id = $1 AND name <> ALL(@keep_names::text[])
-    RETURNING id
+    RETURNING id, workspace_id
 ),
 deleted_audience AS (
     DELETE FROM project_attachment_audience
     WHERE item_type = 'skill' AND item_id IN (SELECT id FROM deleted_skills)
+),
+deleted_invocations AS (
+    DELETE FROM skill_invocation
+    WHERE (workspace_id, skill_id) IN (SELECT workspace_id, id FROM deleted_skills)
 )
 DELETE FROM project_skill WHERE skill_id IN (SELECT id FROM deleted_skills);
 

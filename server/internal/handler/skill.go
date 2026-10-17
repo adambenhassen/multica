@@ -392,6 +392,34 @@ func (h *Handler) ListSkills(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// SkillUsage backs the Skills-list RUNS and LAST USED columns: runs in the
+// trailing 30 days whose transcript loaded the skill, and the newest load ever.
+type SkillUsage struct {
+	SkillID    string  `json:"skill_id"`
+	RunCount   int32   `json:"run_count"`
+	LastUsedAt *string `json:"last_used_at"`
+}
+
+// GetWorkspaceSkillUsage returns usage for every skill in the workspace that
+// any run has loaded; skills never loaded are absent.
+func (h *Handler) GetWorkspaceSkillUsage(w http.ResponseWriter, r *http.Request) {
+	workspaceID := h.resolveWorkspaceID(r)
+	rows, err := h.Queries.GetWorkspaceSkillUsage(r.Context(), parseUUID(workspaceID))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get skill usage")
+		return
+	}
+	resp := make([]SkillUsage, 0, len(rows))
+	for _, row := range rows {
+		resp = append(resp, SkillUsage{
+			SkillID:    uuidToString(row.SkillID),
+			RunCount:   row.RunCount,
+			LastUsedAt: timestampToPtr(row.LastUsedAt),
+		})
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // labelsBySkill bulk-loads labels for the given skill IDs and returns a map
 // keyed by skill UUID string. On error or empty input, returns an empty map —
 // label rendering is non-critical and we'd rather serve skills without labels

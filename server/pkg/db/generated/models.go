@@ -1495,6 +1495,14 @@ type SkillFile struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+type SkillInvocation struct {
+	TaskID      pgtype.UUID        `json:"task_id"`
+	SkillID     pgtype.UUID        `json:"skill_id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	AgentID     pgtype.UUID        `json:"agent_id"`
+	InvokedAt   pgtype.Timestamptz `json:"invoked_at"`
+}
+
 type SkillToLabel struct {
 	SkillID   pgtype.UUID        `json:"skill_id"`
 	LabelID   pgtype.UUID        `json:"label_id"`
