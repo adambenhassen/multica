@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/multica-ai/multica/server/internal/events"
@@ -34,15 +36,18 @@ func TestFailTaskFallsBackOnProviderFailure(t *testing.T) {
 		attempt      int32
 		maxAttempts  int32
 		autopilot    bool
-		wantRuntime  string // "" = no fallback child
+		successor    bool   // a run already holds the issue's pending slot
+		wantRuntime  string // "" = no child
 		wantModel    string
-		wantPosition int32
+		wantPosition int32 // 0 = primary (NULL position)
 	}{
 		{name: "quota moves to the first fallback", reason: "agent_error.provider_quota_limit", runtimeID: primaryRuntimeID, attempt: 1, maxAttempts: 2, wantRuntime: codex, wantModel: "gpt-5.6-terra", wantPosition: 1},
 		{name: "auth on fallback 1 moves to fallback 2", reason: "agent_error.provider_auth_or_access", runtimeID: codex, position: int32(1), attempt: 1, maxAttempts: 2, wantRuntime: local, wantModel: "local-qwen", wantPosition: 2},
 		{name: "last fallback fails normally", reason: "agent_error.model_not_found_or_unavailable", runtimeID: local, position: int32(2), attempt: 1, maxAttempts: 2},
 		{name: "non-provider failure never falls back", reason: "agent_error.unknown", runtimeID: primaryRuntimeID, attempt: 1, maxAttempts: 2},
 		{name: "network falls back only after its retries", reason: "agent_error.provider_network", runtimeID: primaryRuntimeID, attempt: 3, maxAttempts: 3, wantRuntime: codex, wantModel: "gpt-5.6-terra", wantPosition: 1},
+		{name: "network below its ceiling retries on the primary", reason: "agent_error.provider_network", runtimeID: primaryRuntimeID, attempt: 1, maxAttempts: 3, wantRuntime: primaryRuntimeID},
+		{name: "pending successor blocks the fallback", reason: "agent_error.provider_quota_limit", runtimeID: primaryRuntimeID, attempt: 1, maxAttempts: 2, successor: true},
 		{name: "disabled retry disables fallback", reason: "agent_error.provider_quota_limit", runtimeID: primaryRuntimeID, attempt: 1, maxAttempts: 1},
 		{name: "autopilot runs are excluded", reason: "agent_error.provider_quota_limit", runtimeID: primaryRuntimeID, attempt: 1, maxAttempts: 2, autopilot: true},
 	}
@@ -62,9 +67,24 @@ func TestFailTaskFallsBackOnProviderFailure(t *testing.T) {
 			t.Cleanup(func() {
 				pool.Exec(context.Background(), `DELETE FROM agent_task_queue WHERE parent_task_id = $1 OR id = $1`, parentID)
 			})
+			if tt.successor {
+				var successorID string
+				if err := pool.QueryRow(ctx, `
+					INSERT INTO agent_task_queue (agent_id, runtime_id, issue_id, status, priority)
+					VALUES ($1, $2, $3, 'queued', 0) RETURNING id::text`, agentID, primaryRuntimeID, issueID).Scan(&successorID); err != nil {
+					t.Fatalf("insert successor: %v", err)
+				}
+				t.Cleanup(func() {
+					pool.Exec(context.Background(), `DELETE FROM agent_task_queue WHERE id = $1`, successorID)
+				})
+			}
 
-			if _, err := svc.FailTask(ctx, parentID, "provider failure", "src-session", "/tmp/src-workdir", "", tt.reason, false, "", ""); err != nil {
+			failed, err := svc.FailTask(ctx, parentID, "provider failure", "src-session", "/tmp/src-workdir", "", tt.reason, false, "", "")
+			if err != nil {
 				t.Fatalf("FailTask: %v", err)
+			}
+			if failed.Status != "failed" {
+				t.Fatalf("parent status = %q, want failed", failed.Status)
 			}
 
 			var (
@@ -76,7 +96,7 @@ func TestFailTaskFallsBackOnProviderFailure(t *testing.T) {
 			if err := pool.QueryRow(ctx, `
 				SELECT count(*) OVER (), runtime_id::text, model, fallback_position
 				FROM agent_task_queue WHERE parent_task_id = $1 LIMIT 1`, parentID).Scan(&n, &runtime, &model, &position); err != nil {
-				if tt.wantRuntime == "" {
+				if tt.wantRuntime == "" && errors.Is(err, pgx.ErrNoRows) {
 					return // no child row: expected
 				}
 				t.Fatalf("read child: %v", err)
@@ -84,8 +104,10 @@ func TestFailTaskFallsBackOnProviderFailure(t *testing.T) {
 			if tt.wantRuntime == "" {
 				t.Fatalf("got a child on %s, want none", runtime)
 			}
-			if n != 1 || runtime != tt.wantRuntime || model.String != tt.wantModel || position.Int32 != tt.wantPosition {
-				t.Fatalf("child = n%d %s %q pos %d, want 1 %s %q pos %d", n, runtime, model.String, position.Int32, tt.wantRuntime, tt.wantModel, tt.wantPosition)
+			wantModel := pgtype.Text{String: tt.wantModel, Valid: tt.wantModel != ""}
+			wantPosition := pgtype.Int4{Int32: tt.wantPosition, Valid: tt.wantPosition != 0}
+			if n != 1 || runtime != tt.wantRuntime || model != wantModel || position != wantPosition {
+				t.Fatalf("child = n%d %s %+v pos %+v, want 1 %s %+v pos %+v", n, runtime, model, position, tt.wantRuntime, wantModel, wantPosition)
 			}
 		})
 	}
