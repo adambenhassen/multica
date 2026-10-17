@@ -223,7 +223,7 @@ describe("OverviewPage", () => {
     const count = within(row).getByText("×2");
     // The count sits in the fixed-width action column, next to the action's words.
     expect(count.parentElement!.className).toContain("w-14");
-    expect(count.parentElement!.className).toContain("@4xl:w-56");
+    expect(count.parentElement!.className).toContain("@4xl:w-48");
   });
 
   it("shows a new issue as its icon and \"Issue created\"", async () => {

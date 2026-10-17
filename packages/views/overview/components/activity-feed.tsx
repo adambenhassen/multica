@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, type ReactNode } from "react";
+import { memo, useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
 import { Activity, ArrowRight, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, UserRound } from "lucide-react";
 import { useInfiniteQuery, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -232,6 +232,12 @@ function FeedBody({
     return groupFeedByDay(coalesceFeed(rows), tz);
   }, [entries, tz, latestOnly, onePerIssue]);
   const covered = useMemo(() => new Set((entries ?? []).map((e) => e.issue.id)).size, [entries]);
+  // Identifiers are monospace, so sizing their column to the longest one in
+  // `ch` lines titles up down the list.
+  const idWidth = useMemo(
+    () => Math.max(0, ...groups.flatMap((g) => g.entries.map((e) => e.issue.identifier.length))),
+    [groups],
+  );
   useEffect(() => {
     if (onePerIssueOf && hasNextPage && !isFetchingNextPage && covered < onePerIssueOf.length) {
       void fetchNextPage();
@@ -254,7 +260,7 @@ function FeedBody({
   if (isError) return <ErrorBox onRetry={() => void refetch()} />;
   if (groups.length === 0) return <EmptyBox>{empty}</EmptyBox>;
   return (
-    <div className={cn(LIST_CLASS, "@container")}>
+    <div className={cn(LIST_CLASS, "@container")} style={{ "--feed-id-width": `${idWidth}ch` } as CSSProperties}>
       {groups.map((group) => (
         <div key={group.day}>
           <div className="sticky top-0 z-10 border-b bg-card px-4 py-1.5 text-micro font-medium uppercase tracking-wide text-muted-foreground">
@@ -401,7 +407,9 @@ const FeedRow = memo(function FeedRow({
         <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center" title={action}>
           {lead}
         </span>
-        <span className="shrink-0 font-mono text-caption text-muted-foreground">{entry.issue.identifier}</span>
+        <span className="w-(--feed-id-width) shrink-0 font-mono text-caption text-muted-foreground">
+          {entry.issue.identifier}
+        </span>
         <span className="min-w-32 flex-1 truncate text-label" title={entry.issue.title}>
           {entry.issue.title}
         </span>
@@ -421,7 +429,7 @@ const FeedRow = memo(function FeedRow({
         {/* The move and the actor each get a fixed column: icons only, or with
             their names once the list is wide (56rem) enough to spare them. */}
         <span className="hidden shrink-0 items-center gap-2 text-caption text-muted-foreground @sm:flex">
-          <span className="flex w-14 items-center justify-end gap-1.5 @4xl:w-56 @4xl:justify-start">
+          <span className="flex w-14 items-center justify-end gap-1.5 @4xl:w-48 @4xl:justify-start">
             {/* What happened, in words, once the list has room: a comment's
                 text, or the change ("assigned to Builder"). Screen readers get
                 the full sentence from the sr-only copy below. */}
@@ -455,7 +463,7 @@ const FeedRow = memo(function FeedRow({
               <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
             )}
           </span>
-          <span className="flex min-w-0 items-center gap-1.5 @4xl:w-36">
+          <span className="flex min-w-0 items-center gap-1.5 @4xl:w-32">
             <ActorAvatar
               actorType={entry.actor_type}
               actorId={entry.actor_id}
