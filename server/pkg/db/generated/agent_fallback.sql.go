@@ -373,20 +373,23 @@ JOIN agent_runtime r ON r.id = f.runtime_id
 WHERE f.agent_id = $1
   AND f.position > $2::int
   AND r.status = 'online'
+  AND COALESCE(r.last_seen_at, r.updated_at) >= now() - make_interval(secs => $3::double precision)
 ORDER BY f.position
 LIMIT 1
 `
 
 type NextOnlineAgentFallbackParams struct {
-	AgentID       pgtype.UUID `json:"agent_id"`
-	AfterPosition int32       `json:"after_position"`
+	AgentID          pgtype.UUID `json:"agent_id"`
+	AfterPosition    int32       `json:"after_position"`
+	RuntimeStaleSecs float64     `json:"runtime_stale_secs"`
 }
 
-// The first fallback after a failed run's position whose runtime is online.
-// An offline runtime is skipped rather than queued behind: the run would wait
-// for it while a later entry could take it now.
+// The first fallback after a failed run's position whose runtime is online and
+// fresh by the claim's heartbeat rule. An offline or stale runtime is skipped
+// rather than queued behind: the run would wait for it (and expire) while a
+// later entry could take it now.
 func (q *Queries) NextOnlineAgentFallback(ctx context.Context, arg NextOnlineAgentFallbackParams) (AgentModelFallback, error) {
-	row := q.db.QueryRow(ctx, nextOnlineAgentFallback, arg.AgentID, arg.AfterPosition)
+	row := q.db.QueryRow(ctx, nextOnlineAgentFallback, arg.AgentID, arg.AfterPosition, arg.RuntimeStaleSecs)
 	var i AgentModelFallback
 	err := row.Scan(
 		&i.ID,

@@ -12,14 +12,16 @@ VALUES (@workspace_id, @agent_id, @position, @runtime_id, @model, sqlc.narg('thi
 RETURNING *;
 
 -- name: NextOnlineAgentFallback :one
--- The first fallback after a failed run's position whose runtime is online.
--- An offline runtime is skipped rather than queued behind: the run would wait
--- for it while a later entry could take it now.
+-- The first fallback after a failed run's position whose runtime is online and
+-- fresh by the claim's heartbeat rule. An offline or stale runtime is skipped
+-- rather than queued behind: the run would wait for it (and expire) while a
+-- later entry could take it now.
 SELECT f.* FROM agent_model_fallback f
 JOIN agent_runtime r ON r.id = f.runtime_id
 WHERE f.agent_id = @agent_id
   AND f.position > @after_position::int
   AND r.status = 'online'
+  AND COALESCE(r.last_seen_at, r.updated_at) >= now() - make_interval(secs => @runtime_stale_secs::double precision)
 ORDER BY f.position
 LIMIT 1;
 

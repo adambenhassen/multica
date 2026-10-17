@@ -4906,7 +4906,7 @@ func (s *TaskService) FailTaskWithTransition(ctx context.Context, taskID pgtype.
 					after = parent.FallbackPosition.Int32
 				}
 				entry, ferr := s.Queries.NextOnlineAgentFallback(ctx, db.NextOnlineAgentFallbackParams{
-					AgentID: parent.AgentID, AfterPosition: after,
+					AgentID: parent.AgentID, AfterPosition: after, RuntimeStaleSecs: RuntimeClaimFreshnessSeconds,
 				})
 				switch {
 				case ferr == nil:

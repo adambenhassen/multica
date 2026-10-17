@@ -120,15 +120,40 @@ func TestNextOnlineAgentFallbackSkipsOfflineAndEarlierEntries(t *testing.T) {
 	insertFallback(t, pool, agentID, 1, offline, "gpt-5.6-terra", nil)
 	insertFallback(t, pool, agentID, 2, online, "local-qwen", "high")
 
-	next, err := q.NextOnlineAgentFallback(ctx, db.NextOnlineAgentFallbackParams{AgentID: util.MustParseUUID(agentID), AfterPosition: 0})
+	next, err := q.NextOnlineAgentFallback(ctx, db.NextOnlineAgentFallbackParams{AgentID: util.MustParseUUID(agentID), AfterPosition: 0, RuntimeStaleSecs: RuntimeClaimFreshnessSeconds})
 	if err != nil {
 		t.Fatalf("NextOnlineAgentFallback: %v", err)
 	}
 	if next.Position != 2 || util.UUIDToString(next.RuntimeID) != online || next.ThinkingLevel.String != "high" {
 		t.Fatalf("next = %+v, want position 2 on the online runtime with effort high", next)
 	}
-	if _, err := q.NextOnlineAgentFallback(ctx, db.NextOnlineAgentFallbackParams{AgentID: util.MustParseUUID(agentID), AfterPosition: 2}); !errors.Is(err, pgx.ErrNoRows) {
+	if _, err := q.NextOnlineAgentFallback(ctx, db.NextOnlineAgentFallbackParams{AgentID: util.MustParseUUID(agentID), AfterPosition: 2, RuntimeStaleSecs: RuntimeClaimFreshnessSeconds}); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("after the last position err = %v, want pgx.ErrNoRows", err)
+	}
+}
+
+// TestNextOnlineAgentFallbackSkipsStaleRuntimes: a runtime still marked online
+// but past the claim freshness window cannot claim the child before it expires,
+// so the picker moves on to the next fresh entry.
+func TestNextOnlineAgentFallbackSkipsStaleRuntimes(t *testing.T) {
+	pool := newResolveOriginatorPool(t)
+	ctx := context.Background()
+	q := db.New(pool)
+	_, _, agentID, _ := seedAttributionFixture(t, pool)
+	stale := insertFallbackRuntime(t, pool, agentID, "online")
+	if _, err := pool.Exec(ctx, `UPDATE agent_runtime SET last_seen_at = now() - interval '1 hour' WHERE id = $1`, stale); err != nil {
+		t.Fatalf("age runtime heartbeat: %v", err)
+	}
+	fresh := insertFallbackRuntime(t, pool, agentID, "online")
+	insertFallback(t, pool, agentID, 1, stale, "gpt-5.6-terra", nil)
+	insertFallback(t, pool, agentID, 2, fresh, "local-qwen", nil)
+
+	next, err := q.NextOnlineAgentFallback(ctx, db.NextOnlineAgentFallbackParams{AgentID: util.MustParseUUID(agentID), AfterPosition: 0, RuntimeStaleSecs: RuntimeClaimFreshnessSeconds})
+	if err != nil {
+		t.Fatalf("NextOnlineAgentFallback: %v", err)
+	}
+	if next.Position != 2 || util.UUIDToString(next.RuntimeID) != fresh {
+		t.Fatalf("next = position %d on %s, want position 2 on the fresh runtime", next.Position, util.UUIDToString(next.RuntimeID))
 	}
 }
 
