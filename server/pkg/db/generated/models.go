@@ -80,6 +80,18 @@ type AgentMcpServer struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type AgentModelFallback struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	AgentID       pgtype.UUID        `json:"agent_id"`
+	Position      int32              `json:"position"`
+	RuntimeID     pgtype.UUID        `json:"runtime_id"`
+	Model         string             `json:"model"`
+	ThinkingLevel pgtype.Text        `json:"thinking_level"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
 type AgentRuntime struct {
 	ID             pgtype.UUID        `json:"id"`
 	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
@@ -180,6 +192,8 @@ type AgentTaskQueue struct {
 	IssueSnapshot             []byte      `json:"issue_snapshot"`
 	WorkflowStep              pgtype.Text `json:"workflow_step"`
 	ThinkingLevel             pgtype.Text `json:"thinking_level"`
+	Model                     pgtype.Text `json:"model"`
+	FallbackPosition          pgtype.Int4 `json:"fallback_position"`
 }
 
 type AgentToLabel struct {

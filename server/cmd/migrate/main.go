@@ -169,6 +169,7 @@ var concurrentIndexCleanups = map[string]string{
 	"580_project_attachment_audience_target_idx":                "idx_project_attachment_audience_target",
 	"581_activity_log_workspace_recent_idx":                     "idx_activity_log_workspace_recent",
 	"582_comment_workspace_recent_idx":                          "idx_comment_workspace_recent",
+	"586_agent_model_fallback_agent_position_idx":               "idx_agent_model_fallback_agent_position",
 	"510_wakeup_id":                                             "issue_wakeup_id_idx",
 	"511_wakeup_issue":                                          "issue_wakeup_issue_idx",
 	"512_wakeup_due":                                            "issue_wakeup_due_idx",

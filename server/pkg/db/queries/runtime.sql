@@ -394,7 +394,12 @@ WHERE runtime_id = $1 AND kind = 'user'
 RETURNING *;
 
 -- name: DeleteAgentRuntime :exec
-DELETE FROM agent_runtime WHERE id = $1;
+-- agent_model_fallback has no foreign key; drop entries naming this runtime
+-- with it so no agent keeps a fallback that can never claim.
+WITH deleted_fallbacks AS (
+    DELETE FROM agent_model_fallback WHERE runtime_id = $1
+)
+DELETE FROM agent_runtime WHERE agent_runtime.id = $1;
 
 -- name: DeleteSystemAgentsByRuntime :exec
 -- System agents are invisible execution infrastructure (for example the Agent
@@ -403,6 +408,8 @@ DELETE FROM agent_runtime WHERE id = $1;
 WITH deleted_agents AS (
     DELETE FROM agent WHERE agent.runtime_id = $1 AND agent.kind = 'system'
     RETURNING id
+), deleted_fallbacks AS (
+    DELETE FROM agent_model_fallback WHERE agent_id IN (SELECT id FROM deleted_agents)
 )
 DELETE FROM project_attachment_audience
 WHERE target_type = 'agent' AND target_id IN (SELECT id FROM deleted_agents);
@@ -432,10 +439,16 @@ WHERE workspace_id = @workspace_id
   AND LOWER(daemon_id) = LOWER(@daemon_id);
 
 -- name: ReassignAgentsToRuntime :execrows
--- Re-points every agent referencing old_runtime_id at new_runtime_id.
+-- Re-points every agent, and every fallback entry, referencing old_runtime_id
+-- at new_runtime_id. The count is agents only.
+WITH moved_fallbacks AS (
+    UPDATE agent_model_fallback
+    SET runtime_id = @new_runtime_id, updated_at = now()
+    WHERE agent_model_fallback.runtime_id = @old_runtime_id
+)
 UPDATE agent
 SET runtime_id = @new_runtime_id
-WHERE runtime_id = @old_runtime_id;
+WHERE agent.runtime_id = @old_runtime_id;
 
 -- name: LockWorkspaceForRuntimeMerge :exec
 -- Step 1 of the legacy runtime merge's fence, and the same first step every task
