@@ -759,6 +759,29 @@ function TaskRow({
     runDetails.push({ key: "runtime", node: <span className="truncate">{runtimeLabel}</span> });
   }
 
+  const metaParts: { key: string; node: ReactNode }[] = [
+    { key: "status", node: <span className={cfg.color}>{statusLabel}</span> },
+    { key: "time", node: <span>{timeText}</span> },
+  ];
+  if (durationText) metaParts.push({ key: "duration", node: <span>{durationText}</span> });
+  if (failureLabel) {
+    // The localized reason is the whole user-facing explanation here. The raw
+    // `task.error` used to ride along as this element's `title`, which put
+    // untranslated English (and absolute paths) in front of every non-English
+    // workspace (#7411); the full diagnostic lives in the transcript's Run
+    // details instead.
+    metaParts.push({ key: "failure", node: <span className="text-destructive">{failureLabel}</span> });
+  }
+  // Accountable member (MUL-4302 §9): whose behalf this run is on. The guard
+  // mirrors the badge's own render condition (avatar-only needs an initiator).
+  if (task.attribution?.initiator) {
+    metaParts.push({
+      key: "attribution",
+      node: <AttributionBadge attribution={task.attribution} variant="avatar" />,
+    });
+  }
+  metaParts.push(...runDetails);
+
   const rowClass =
     timeMode === "completed"
       ? "group flex items-center gap-3 px-3 py-3 transition-colors hover:bg-muted/30"
@@ -820,63 +843,22 @@ function TaskRow({
             </span>
           )}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-muted-foreground">
-          <span className={cfg.color}>
-            {statusLabel}
-          </span>
-          <Sep />
-          <span>{timeText}</span>
-          {durationText && (
-            <>
-              <Sep />
-              <span>{durationText}</span>
-            </>
-          )}
-          {failureLabel && (
-            <>
-              <Sep />
-              {/* The localized reason is the whole user-facing explanation
-                  here. The raw `task.error` used to ride along as this
-                  element's `title`, which put untranslated English (and
-                  absolute paths) in front of every non-English workspace
-                  (#7411); the full diagnostic lives in the transcript's Run
-                  details instead. */}
-              <span className="text-destructive">{failureLabel}</span>
-            </>
-          )}
-          {/* Accountable member (MUL-4302 §9): whose behalf this run is on.
-              A leading separator keeps the avatar on the same middot rhythm as
-              the rest of the meta line instead of glued to the duration. The
-              guard mirrors the badge's own render condition (avatar-only needs
-              an initiator) so no dangling separator is left for an
-              unattributed run. */}
-          {task.attribution?.initiator && (
-            <>
-              <Sep />
-              <AttributionBadge
-                attribution={task.attribution}
-                variant="avatar"
-              />
-            </>
-          )}
-        </div>
-        {/* Each item carries its own leading middot; the negative margin
+        {/* One meta line: status and timing, then what a finished run used.
+            Each item carries its own leading middot; the negative margin
             clips the one that starts a line, so wrapping never strands a
             separator at a line edge. */}
-        {runDetails.length > 0 && (
-          <div className="mt-0.5 overflow-hidden text-caption text-muted-foreground">
-            <div className="-ml-6 flex flex-wrap items-center gap-y-0.5">
-              {runDetails.map((part) => (
-                <span
-                  key={part.key}
-                  className="relative inline-flex min-w-0 max-w-full items-center gap-1.5 pl-6 before:absolute before:left-2.5 before:text-faint-foreground before:content-['·']"
-                >
-                  {part.node}
-                </span>
-              ))}
-            </div>
+        <div className="mt-0.5 overflow-hidden text-caption text-muted-foreground">
+          <div className="-ml-6 flex flex-wrap items-center gap-y-0.5">
+            {metaParts.map((part) => (
+              <span
+                key={part.key}
+                className="relative inline-flex min-w-0 max-w-full items-center gap-1.5 pl-6 before:absolute before:left-2.5 before:text-faint-foreground before:content-['·']"
+              >
+                {part.node}
+              </span>
+            ))}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Hover-only actions. The row is intentionally non-clickable so
