@@ -543,6 +543,13 @@ WHERE status = 'offline'
   )
   AND NOT EXISTS (
     SELECT 1
+    FROM agent_model_fallback f
+    JOIN agent a ON a.id = f.agent_id
+    WHERE f.runtime_id = agent_runtime.id
+      AND a.archived_at IS NULL
+  )
+  AND NOT EXISTS (
+    SELECT 1
     FROM agent_task_queue
     WHERE agent_task_queue.runtime_id = agent_runtime.id
       AND agent_task_queue.completed_at IS NULL
@@ -566,6 +573,13 @@ SELECT EXISTS (
       WHERE agent.runtime_id = agent_runtime.id
         AND agent.kind = 'user'
         AND agent.archived_at IS NULL
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM agent_model_fallback f
+      JOIN agent a ON a.id = f.agent_id
+      WHERE f.runtime_id = agent_runtime.id
+        AND a.archived_at IS NULL
     )
 ) AS eligible;
 

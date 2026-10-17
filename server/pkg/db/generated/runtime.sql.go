@@ -617,6 +617,13 @@ SELECT EXISTS (
         AND agent.kind = 'user'
         AND agent.archived_at IS NULL
     )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM agent_model_fallback f
+      JOIN agent a ON a.id = f.agent_id
+      WHERE f.runtime_id = agent_runtime.id
+        AND a.archived_at IS NULL
+    )
 ) AS eligible
 `
 
@@ -805,6 +812,13 @@ WHERE status = 'offline'
     WHERE agent.runtime_id = agent_runtime.id
       AND agent.kind = 'user'
       AND agent.archived_at IS NULL
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM agent_model_fallback f
+    JOIN agent a ON a.id = f.agent_id
+    WHERE f.runtime_id = agent_runtime.id
+      AND a.archived_at IS NULL
   )
   AND NOT EXISTS (
     SELECT 1

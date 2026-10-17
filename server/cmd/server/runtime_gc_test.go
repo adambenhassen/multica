@@ -206,6 +206,75 @@ func TestRuntimeGCCandidates_ExcludeBlockedRuntimes(t *testing.T) {
 	}
 }
 
+// TestRuntimeGC_KeepsRuntimeNamedInActiveFallbackList: a runtime referenced
+// only by an active agent's fallback list is not garbage; one referenced only
+// by an archived agent's list is.
+func TestRuntimeGC_KeepsRuntimeNamedInActiveFallbackList(t *testing.T) {
+	if testPool == nil {
+		t.Skip("no database connection")
+	}
+	ctx := context.Background()
+	addFallback := func(agentID, runtimeID string) {
+		t.Helper()
+		if _, err := testPool.Exec(ctx, `
+			INSERT INTO agent_model_fallback (workspace_id, agent_id, position, runtime_id, model)
+			VALUES ($1, $2, 1, $3, 'fallback-model')
+		`, testWorkspaceID, agentID, runtimeID); err != nil {
+			t.Fatalf("insert fallback: %v", err)
+		}
+		t.Cleanup(func() {
+			_, _ = testPool.Exec(context.Background(), `DELETE FROM agent_model_fallback WHERE agent_id = $1`, agentID)
+		})
+	}
+	activeOwnerRuntimeID := createRuntimeGCFixtureRuntime(t, ctx, "fallback-active-owner")
+	activeAgentID := createRuntimeGCFixtureAgent(t, ctx, activeOwnerRuntimeID, "fallback-active")
+	activeFallbackRuntimeID := createRuntimeGCFixtureRuntime(t, ctx, "fallback-active-target")
+	addFallback(activeAgentID, activeFallbackRuntimeID)
+	archivedOwnerRuntimeID := createRuntimeGCFixtureRuntime(t, ctx, "fallback-archived-owner")
+	archivedAgentID := createRuntimeGCFixtureAgent(t, ctx, archivedOwnerRuntimeID, "fallback-archived")
+	if _, err := testPool.Exec(ctx, `UPDATE agent SET archived_at = now() WHERE id = $1`, archivedAgentID); err != nil {
+		t.Fatalf("archive fixture agent: %v", err)
+	}
+	archivedFallbackRuntimeID := createRuntimeGCFixtureRuntime(t, ctx, "fallback-archived-target")
+	addFallback(archivedAgentID, archivedFallbackRuntimeID)
+	queries := db.New(testPool)
+
+	candidates, err := queries.ListStaleOfflineRuntimeGCCandidates(ctx, db.ListStaleOfflineRuntimeGCCandidatesParams{
+		StaleSeconds: offlineRuntimeTTLSeconds,
+		MaxPerTick:   runtimeGCBatchSize,
+	})
+	if err != nil {
+		t.Fatalf("list GC candidates: %v", err)
+	}
+	foundArchived := false
+	for _, id := range candidates {
+		switch util.UUIDToString(id) {
+		case activeFallbackRuntimeID:
+			t.Fatal("runtime in an active agent's fallback list entered the bounded GC batch")
+		case archivedFallbackRuntimeID:
+			foundArchived = true
+		}
+	}
+	if !foundArchived {
+		t.Fatal("runtime only in an archived agent's fallback list missing from GC candidates")
+	}
+
+	result, err := gcRuntime(ctx, testPool, queries, parseUUID(activeFallbackRuntimeID))
+	if err != nil {
+		t.Fatalf("gcRuntime: %v", err)
+	}
+	if result.deleted || result.skipReason != "eligibility_changed" {
+		t.Fatalf("gc result deleted=%v skip_reason=%q, want eligibility-changed skip", result.deleted, result.skipReason)
+	}
+	var entries int
+	if err := testPool.QueryRow(ctx, `SELECT count(*) FROM agent_model_fallback WHERE runtime_id = $1`, activeFallbackRuntimeID).Scan(&entries); err != nil {
+		t.Fatalf("count fallback entries: %v", err)
+	}
+	if entries != 1 {
+		t.Fatalf("fallback entries on kept runtime = %d, want 1", entries)
+	}
+}
+
 func TestRuntimeGC_ArchivedAgentTaskPinnedToAnotherRuntimeFailsClosed(t *testing.T) {
 	if testPool == nil {
 		t.Skip("no database connection")
