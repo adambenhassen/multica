@@ -2351,3 +2351,76 @@ func TestAgentSkillsRemoveAndToggleCallSingleSkillEndpoints(t *testing.T) {
 		}
 	}
 }
+
+func newAgentFallbackSetTestCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "set"}
+	cmd.Flags().StringArray("entry", nil, "")
+	cmd.Flags().Bool("clear", false, "")
+	cmd.Flags().String("output", "json", "")
+	cmd.Flags().String("profile", "", "")
+	return cmd
+}
+
+func TestRunAgentFallbackSetSendsOrderedEntries(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("MULTICA_AGENT_ID", "")
+	t.Setenv("MULTICA_TASK_ID", "")
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut || r.URL.Path != "/api/agents/agent-123/fallbacks" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer srv.Close()
+	setCLITestServerEnv(t, srv.URL)
+
+	cmd := newAgentFallbackSetTestCmd()
+	_ = cmd.Flags().Set("entry", "runtime=rt-codex,model=gpt-5.6-terra,effort=xhigh")
+	_ = cmd.Flags().Set("entry", "runtime=rt-local,model=local-qwen")
+	if _, err := captureStdout(t, func() error { return runAgentFallbackSet(cmd, []string{"agent-123"}) }); err != nil {
+		t.Fatalf("runAgentFallbackSet: %v", err)
+	}
+	want := `{"fallbacks":[{"model":"gpt-5.6-terra","runtime_id":"rt-codex","thinking_level":"xhigh"},{"model":"local-qwen","runtime_id":"rt-local","thinking_level":""}]}`
+	if b, _ := json.Marshal(got); string(b) != want {
+		t.Fatalf("body = %s, want %s", b, want)
+	}
+}
+
+func TestParseFallbackEntryRejectsBadInput(t *testing.T) {
+	for _, raw := range []string{"model=x", "runtime=rt", "runtime=rt,model=x,speed=fast", "runtime=rt,model"} {
+		if _, err := parseFallbackEntry(raw); err == nil {
+			t.Errorf("parseFallbackEntry(%q) = nil error, want rejection", raw)
+		}
+	}
+}
+
+func TestRunAgentFallbackSetRequiresEntryOrClear(t *testing.T) {
+	cmd := newAgentFallbackSetTestCmd()
+	if err := runAgentFallbackSet(cmd, []string{"agent-123"}); err == nil {
+		t.Fatal("expected an error without --entry or --clear")
+	}
+}
+
+func TestRunAgentFallbackSetClearSendsEmptyArray(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("MULTICA_AGENT_ID", "")
+	t.Setenv("MULTICA_TASK_ID", "")
+	var raw []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ = io.ReadAll(r.Body)
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer srv.Close()
+	setCLITestServerEnv(t, srv.URL)
+
+	cmd := newAgentFallbackSetTestCmd()
+	_ = cmd.Flags().Set("clear", "true")
+	if _, err := captureStdout(t, func() error { return runAgentFallbackSet(cmd, []string{"agent-123"}) }); err != nil {
+		t.Fatalf("runAgentFallbackSet: %v", err)
+	}
+	if got, want := string(raw), `{"fallbacks":[]}`; got != want {
+		t.Fatalf("body = %s, want %s", got, want)
+	}
+}

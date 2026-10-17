@@ -84,6 +84,25 @@ var agentSkillsCmd = &cobra.Command{
 	Short: "Manage agent skill assignments",
 }
 
+var agentFallbackCmd = &cobra.Command{
+	Use:   "fallback",
+	Short: "Manage an agent's model fallbacks",
+}
+
+var agentFallbackListCmd = &cobra.Command{
+	Use:   "list <agent-id>",
+	Short: "List an agent's fallbacks in order",
+	Args:  exactArgs(1),
+	RunE:  runAgentFallbackList,
+}
+
+var agentFallbackSetCmd = &cobra.Command{
+	Use:   "set <agent-id>",
+	Short: "Replace an agent's fallbacks (in the order given)",
+	Args:  exactArgs(1),
+	RunE:  runAgentFallbackSet,
+}
+
 // Agent env subcommands. Live behind a dedicated `agent env` group because
 // they're the ONLY post-creation path for reading or writing
 // custom_env values — `multica agent list / get / update` no longer
@@ -161,6 +180,7 @@ func init() {
 	agentCmd.AddCommand(agentTasksCmd)
 	agentCmd.AddCommand(agentAvatarCmd)
 	agentCmd.AddCommand(agentSkillsCmd)
+	agentCmd.AddCommand(agentFallbackCmd)
 	agentCmd.AddCommand(agentEnvCmd)
 
 	agentSkillsCmd.AddCommand(agentSkillsListCmd)
@@ -169,6 +189,9 @@ func init() {
 	agentSkillsCmd.AddCommand(agentSkillsRemoveCmd)
 	agentSkillsCmd.AddCommand(agentSkillsEnableCmd)
 	agentSkillsCmd.AddCommand(agentSkillsDisableCmd)
+
+	agentFallbackCmd.AddCommand(agentFallbackListCmd)
+	agentFallbackCmd.AddCommand(agentFallbackSetCmd)
 
 	agentEnvCmd.AddCommand(agentEnvGetCmd)
 	agentEnvCmd.AddCommand(agentEnvSetCmd)
@@ -260,6 +283,14 @@ func init() {
 	// agent skills add
 	agentSkillsAddCmd.Flags().StringSlice("skill-ids", nil, "Skill IDs to add (comma-separated)")
 	agentSkillsAddCmd.Flags().String("output", "json", "Output format: table or json")
+
+	// agent fallback list
+	agentFallbackListCmd.Flags().String("output", "table", "Output format: table or json")
+
+	// agent fallback set
+	agentFallbackSetCmd.Flags().StringArray("entry", nil, "Fallback as runtime=<id>,model=<id>[,effort=<level>]; repeat in order (max 4)")
+	agentFallbackSetCmd.Flags().Bool("clear", false, "Remove every fallback")
+	agentFallbackSetCmd.Flags().String("output", "json", "Output format: json or table")
 
 	// agent env get
 	agentEnvGetCmd.Flags().String("output", "json", "Output format: json or table")
@@ -1063,6 +1094,88 @@ func runAgentSkillsList(cmd *cobra.Command, args []string) error {
 		})
 	}
 	cli.PrintTable(os.Stdout, headers, rows)
+	return nil
+}
+
+func runAgentFallbackList(cmd *cobra.Command, args []string) error {
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+	var fallbacks []map[string]any
+	if err := client.GetJSON(ctx, "/api/agents/"+args[0]+"/fallbacks", &fallbacks); err != nil {
+		return fmt.Errorf("list agent fallbacks: %w", err)
+	}
+	return printAgentFallbacks(cmd, fallbacks)
+}
+
+func runAgentFallbackSet(cmd *cobra.Command, args []string) error {
+	entries, _ := cmd.Flags().GetStringArray("entry")
+	clear, _ := cmd.Flags().GetBool("clear")
+	if clear == (len(entries) > 0) {
+		return fmt.Errorf("pass one or more --entry runtime=<id>,model=<id>[,effort=<level>], or --clear")
+	}
+	// make, not nil: a nil slice encodes as null, which the server rejects.
+	fallbacks := make([]map[string]string, 0, len(entries))
+	for _, raw := range entries {
+		entry, err := parseFallbackEntry(raw)
+		if err != nil {
+			return err
+		}
+		fallbacks = append(fallbacks, entry)
+	}
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+	var saved []map[string]any
+	if err := client.PutJSON(ctx, "/api/agents/"+args[0]+"/fallbacks", map[string]any{"fallbacks": fallbacks}, &saved); err != nil {
+		return fmt.Errorf("set agent fallbacks: %w", err)
+	}
+	return printAgentFallbacks(cmd, saved)
+}
+
+// parseFallbackEntry reads runtime=<id>,model=<id>[,effort=<level>].
+func parseFallbackEntry(raw string) (map[string]string, error) {
+	entry := map[string]string{"runtime_id": "", "model": "", "thinking_level": ""}
+	for _, part := range strings.Split(raw, ",") {
+		key, value, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if !ok {
+			return nil, fmt.Errorf("--entry %q: %q is not key=value", raw, part)
+		}
+		switch strings.TrimSpace(key) {
+		case "runtime":
+			entry["runtime_id"] = strings.TrimSpace(value)
+		case "model":
+			entry["model"] = strings.TrimSpace(value)
+		case "effort":
+			entry["thinking_level"] = strings.TrimSpace(value)
+		default:
+			return nil, fmt.Errorf("--entry %q: unknown key %q (use runtime, model, effort)", raw, key)
+		}
+	}
+	if entry["runtime_id"] == "" || entry["model"] == "" {
+		return nil, fmt.Errorf("--entry %q: runtime and model are required", raw)
+	}
+	return entry, nil
+}
+
+func printAgentFallbacks(cmd *cobra.Command, fallbacks []map[string]any) error {
+	output, _ := cmd.Flags().GetString("output")
+	if output == "json" {
+		return cli.PrintJSON(os.Stdout, fallbacks)
+	}
+	rows := make([][]string, 0, len(fallbacks))
+	for _, f := range fallbacks {
+		rows = append(rows, []string{
+			fmt.Sprint(f["position"]), strVal(f, "runtime_id"), strVal(f, "model"), strVal(f, "thinking_level"),
+		})
+	}
+	cli.PrintTable(os.Stdout, []string{"POSITION", "RUNTIME", "MODEL", "EFFORT"}, rows)
 	return nil
 }
 
