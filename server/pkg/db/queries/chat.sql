@@ -348,11 +348,14 @@ WHERE t.id = sqlc.arg('task_id')
   AND t.status = 'cancelled'
   AND t.session_id IS NOT NULL
   AND t.runtime_id IS NOT NULL
+  -- A model-fallback run never owns the pointer (see GetLastChatTaskSession).
+  AND t.fallback_position IS NULL
   AND NOT EXISTS (
       SELECT 1 FROM agent_task_queue newer
       WHERE newer.chat_session_id = t.chat_session_id
         AND newer.id <> t.id
         AND newer.session_id IS NOT NULL
+        AND newer.fallback_position IS NULL
         AND newer.created_at > t.created_at
   );
 
@@ -1233,6 +1236,9 @@ RETURNING *;
 -- session_id. Judging each session by its LATEST terminal state means a newer
 -- poisoned row invalidates the whole session, while a genuinely different
 -- healthy session stays eligible.
+--
+-- Model-fallback runs are skipped, as in GetLastTaskSession: the chat resumes
+-- the agent's own session from before the fallback.
 WITH retired_sessions AS (
     SELECT DISTINCT r.retired_session_id AS session_id
     FROM agent_task_queue r
@@ -1269,6 +1275,7 @@ WITH retired_sessions AS (
         OR COALESCE(t.channel_context_revision, 1) = sqlc.narg('channel_context_revision')::bigint
       )
       AND t.session_id IS NOT NULL
+      AND t.fallback_position IS NULL
       AND t.status IN ('completed', 'failed', 'cancelled')
     ORDER BY t.session_id, t.completed_at DESC
 )

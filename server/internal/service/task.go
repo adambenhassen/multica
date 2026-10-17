@@ -4450,14 +4450,17 @@ func (s *TaskService) CompleteTaskWithTransition(ctx context.Context, taskID pgt
 				sessionRuntimeID = t.RuntimeID
 			}
 			// COALESCE in SQL guarantees empty inputs don't wipe the
-			// existing resume pointer; we still surface DB errors.
-			if err := qtx.UpdateChatSessionSession(ctx, db.UpdateChatSessionSessionParams{
-				ID:        t.ChatSessionID,
-				SessionID: pgtype.Text{String: sessionID, Valid: sessionID != ""},
-				WorkDir:   pgtype.Text{String: workDir, Valid: workDir != ""},
-				RuntimeID: sessionRuntimeID,
-			}); err != nil {
-				return fmt.Errorf("update chat session resume pointer: %w", err)
+			// existing resume pointer; we still surface DB errors. A
+			// model-fallback run leaves the pointer on the agent's own session.
+			if !t.FallbackPosition.Valid {
+				if err := qtx.UpdateChatSessionSession(ctx, db.UpdateChatSessionSessionParams{
+					ID:        t.ChatSessionID,
+					SessionID: pgtype.Text{String: sessionID, Valid: sessionID != ""},
+					WorkDir:   pgtype.Text{String: workDir, Valid: workDir != ""},
+					RuntimeID: sessionRuntimeID,
+				}); err != nil {
+					return fmt.Errorf("update chat session resume pointer: %w", err)
+				}
 			}
 			// A turn that recovered by abandoning its session still has to
 			// retire it here. The COALESCE above cannot: a fresh retry that
@@ -5008,8 +5011,9 @@ func (s *TaskService) FailTaskWithTransition(ctx context.Context, taskID pgtype.
 
 		// ResumeUnsafeFailure, not resumeUnsafeFailureReason: the reason-only
 		// check passes an un-upgraded daemon's agent_error.unknown row, which
-		// would re-pin the very session the clear above just removed.
-		if t.ChatSessionID.Valid && !ResumeUnsafeFailure(failureReason, errMsg) {
+		// would re-pin the very session the clear above just removed. A
+		// model-fallback run leaves the pointer on the agent's own session.
+		if t.ChatSessionID.Valid && !t.FallbackPosition.Valid && !ResumeUnsafeFailure(failureReason, errMsg) {
 			// Pin the chat_session's runtime_id alongside the session_id so the
 			// next claim can apply the runtime-guard. Both fields move together:
 			// when there's no session_id to record, leave runtime_id untouched

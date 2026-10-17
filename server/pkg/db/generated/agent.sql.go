@@ -4428,6 +4428,7 @@ WITH retired_sessions AS (
     WHERE t.agent_id = $1 AND t.issue_id = $2
       AND COALESCE(t.context->>'type', '') <> 'triage'
       AND t.session_id IS NOT NULL
+      AND t.fallback_position IS NULL
       AND t.status IN ('completed', 'failed', 'cancelled')
     ORDER BY t.session_id, COALESCE(t.completed_at, t.started_at, t.dispatched_at, t.created_at) DESC
 )
@@ -4493,6 +4494,8 @@ type GetLastTaskSessionRow struct {
 // otherwise an older healthy row could revive the same poisoned session.
 // Exclude explicitly retired sessions even when clean older rows still name them.
 // Triage sessions must never cross into execution or vice versa.
+// Model-fallback runs are skipped: they run fresh on another runtime or model,
+// and the agent's next run continues its own session from before the fallback.
 //
 // Keep failure-reason and text guards aligned with GetLastChatTaskSession and
 // resumeUnsafeFailureReason. Text guards protect legacy or unclassified rows.
