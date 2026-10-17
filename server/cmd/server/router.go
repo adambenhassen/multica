@@ -190,6 +190,32 @@ func parseTrustedProxies(raw string) []netip.Prefix {
 	return out
 }
 
+// parseAgentTimerAgentIDs reads the agents allowed to register time wakeups.
+// IDs are stored in canonical form; entries that are not UUIDs could never
+// match an agent, so they are dropped with one warning naming their 1-based
+// positions in the list.
+func parseAgentTimerAgentIDs(raw string) []string {
+	var ids []string
+	var invalid []int
+	for i, part := range strings.Split(raw, ",") {
+		s := strings.TrimSpace(part)
+		if s == "" {
+			continue
+		}
+		id, err := util.ParseUUID(s)
+		if err != nil {
+			invalid = append(invalid, i+1)
+			continue
+		}
+		ids = append(ids, util.UUIDToString(id))
+	}
+	if len(invalid) > 0 {
+		slog.Warn("MULTICA_AGENT_TIMER_AGENT_IDS: ignoring entries that are not UUIDs",
+			"count", len(invalid), "positions", invalid)
+	}
+	return ids
+}
+
 // normalizeServerVersion maps the unstamped "dev" default (main.go's
 // `version` var, unchanged when the binary wasn't built with
 // -X main.version=<tag>) to an empty string. handler.Config.ServerVersion
@@ -446,6 +472,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		LLMMaxRetries:            opts.LLMMaxRetries,
 		LLMDisableThinking:       opts.LLMDisableThinking,
 		ServerVersion:            normalizeServerVersion(version),
+		AgentTimerAgentIDs:       parseAgentTimerAgentIDs(os.Getenv("MULTICA_AGENT_TIMER_AGENT_IDS")),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
 	invitationRateLimits := handler.DefaultInvitationRateLimits()

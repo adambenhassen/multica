@@ -155,6 +155,10 @@ type Config struct {
 	// Surfaced through /api/config so self-hosted operators can confirm which
 	// server build is deployed. Empty in dev builds.
 	ServerVersion string
+	// AgentTimerAgentIDs lists the agents that may register time ("at")
+	// wakeups themselves; other agents must wait on an event or condition.
+	// Populated from MULTICA_AGENT_TIMER_AGENT_IDS (comma-separated UUIDs).
+	AgentTimerAgentIDs []string
 }
 
 type cloudRuntimeProxy interface {

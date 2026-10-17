@@ -54,7 +54,7 @@ func newIssueWakeupCommand() *cobra.Command {
 		if action == "create" || action == "update" {
 			c.Long = "Create or replace the complete configuration. Events default to once; every/cron use continuous. Updating explicitly re-enables the configuration. Runs use normal comment delivery."
 			c.Long += " Give waits an end with --expires-in or --expires-at; --on-timeout wake runs the target once if the deadline passes first."
-			c.Long += " For task events, use --task-id for one run or --filter-agent-id for its agent. For comment/issue/reaction/attachment changes, use --filter-actor-type member|agent with --filter-actor-id. To wait for a person to comment, use --event comment.created --filter-actor-type member --filter-actor-id USER_ID. Actor filters identify who made the change, not the original author of an edited comment. Without a source filter, all matching events on this issue can wake the target."
+			c.Long += " Task and comment event rules are for members; agents wait on an --until-* condition or hand off with a mention. For task events, use --task-id for one run or --filter-agent-id for its agent. For comment/issue/reaction/attachment changes, use --filter-actor-type member|agent with --filter-actor-id. Members waiting for a person to comment use --event comment.created --filter-actor-type member --filter-actor-id USER_ID. Actor filters identify who made the change, not the original author of an edited comment. Without a source filter, all matching events on this issue can wake the target."
 			c.Flags().String("agent-id", "", "Agent to wake (defaults to authenticated agent)")
 			c.Flags().String("instruction", "", "Instruction for the next run")
 			c.Flags().String("instruction-file", "", "Read instruction from a UTF-8 file")

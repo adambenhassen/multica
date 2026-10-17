@@ -510,6 +510,10 @@ func TestPlatformSkillCoversPlatformContracts(t *testing.T) {
 				"--resolve-properties",
 				"display_values",
 				"`value` keeps the stored ids",
+				// The server refuses agent timers and unconditioned
+				// comment/task wakeups; the reference must say so before
+				// teaching the member forms.
+				"the server rejects them with 400",
 			},
 			notWant: []string{
 				"--no-start",

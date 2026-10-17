@@ -47,7 +47,11 @@ Clients do not resend instructions, filters or thread references. The new UI
 requires this endpoint for restore; deploy the server first. Old clients and the
 existing full-config CLI update continue to work without a migration.
 
-Agents manage configurations with `multica issue wakeup`:
+Agents manage configurations with `multica issue wakeup`. The API refuses
+agent actors `--kind at` (unless `MULTICA_AGENT_TIMER_AGENT_IDS` lists the
+agent: self-target, at least 12 h out, one pending agent-created timer per
+issue) and event rules without a condition or with `comment.*`/`task.*` events;
+the timer and task-event lines below are for members.
 
 ```sh
 multica issue wakeup events
@@ -134,7 +138,8 @@ agent the editor; payloads distinguish actor from author. `--task-id` accepts
 only run events. Filters never expand the subscription beyond its current issue.
 
 Use `--filter-actor-type member --filter-actor-id USER_ID` to wait for a
-specific workspace member, or type `agent` for a source agent. For example:
+specific workspace member, or type `agent` for a source agent. Only members can
+create these comment rules; agent actors are refused (see above). For example:
 
 ```sh
 multica issue wakeup create ISSUE --kind event --event comment.created \

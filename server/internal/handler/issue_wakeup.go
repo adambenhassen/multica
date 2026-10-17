@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -224,6 +227,20 @@ func (h *Handler) CreateIssueWakeup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid wakeup id")
 		return
 	}
+	if actorType == "agent" {
+		pending := false
+		if in.Kind == "at" {
+			var err error
+			if pending, err = h.agentPendingTimer(r.Context(), issue, actorID, existingID); err != nil {
+				wakeupError(w, err)
+				return
+			}
+		}
+		if msg := agentWakeupRejection(in, actorID, h.cfg.AgentTimerAgentIDs, time.Now(), pending); msg != "" {
+			writeError(w, 400, msg)
+			return
+		}
+	}
 	result, err := svc.Save(r.Context(), issue.ID, member, h.wakeupSourceTaskID(r), existingID, in)
 	if err != nil {
 		wakeupError(w, err)
@@ -290,6 +307,42 @@ func (h *Handler) EnableIssueWakeup(w http.ResponseWriter, r *http.Request) {
 	if originator == "" {
 		writeError(w, 403, "a human originator is required")
 		return
+	}
+	if actorType == "agent" {
+		// Enabling re-registers the stored rule, so it is held to the create
+		// rules. Every save bumps the revision, and a request for another
+		// revision is refused here as Enable would refuse it; the checked
+		// configuration is therefore the one Enable turns on.
+		rule, err := h.Queries.GetIssueWakeup(r.Context(), db.GetIssueWakeupParams{ID: id, WorkspaceID: issue.WorkspaceID})
+		if err == nil && rule.IssueID != issue.ID {
+			err = pgx.ErrNoRows
+		}
+		if err != nil {
+			wakeupError(w, err)
+			return
+		}
+		if in.Revision >= 1 && in.Revision != rule.Revision {
+			wakeupError(w, service.ErrWakeupConflict)
+			return
+		}
+		// System rules are the platform's; Enable refuses them by itself.
+		if !rule.SystemRule.Valid {
+			stored := service.WakeupInput{AgentID: uuidToString(rule.AgentID), Kind: rule.Kind, EventTypes: rule.EventTypes, Condition: rule.Condition, At: in.At}
+			if stored.At == nil && rule.NextFireAt.Valid {
+				stored.At = &rule.NextFireAt.Time
+			}
+			pending := false
+			if rule.Kind == "at" {
+				if pending, err = h.agentPendingTimer(r.Context(), issue, actorID, rule.ID); err != nil {
+					wakeupError(w, err)
+					return
+				}
+			}
+			if msg := agentWakeupRejection(stored, actorID, h.cfg.AgentTimerAgentIDs, time.Now(), pending); msg != "" {
+				writeError(w, 400, msg)
+				return
+			}
+		}
 	}
 	svc := service.IssueWakeupService{Tasks: h.TaskService}
 	result, err := svc.Enable(r.Context(), issue.ID, parseUUID(originator), h.wakeupSourceTaskID(r), id, in)
@@ -488,4 +541,75 @@ func (h *Handler) ListPausedWakeups(w http.ResponseWriter, r *http.Request) {
 		out = append(out, paused{IssueID: uuidToString(row.IssueID), ID: uuidToString(row.ID), AgentID: uuidToString(row.AgentID), Reason: row.PausedReason.String})
 	}
 	writeJSON(w, 200, out)
+}
+
+const (
+	agentTimerRejection        = "agents cannot create time wakeups: wait on an event instead (a condition such as --until-issue, --until-status, --until-children-done, --until-pr checks or --until-pr merged); to get the result of a workflow run you dispatch without a PR, pass the issue key as its `issue` input and the CI router reports it here"
+	agentEventRejection        = "agents cannot create next-comment or comment/task event wakeups: use a condition (--until-issue, --until-status, --until-children-done, --until-pr checks or --until-pr merged), or hand off with a mention"
+	agentTimerOwnRejection     = "agents can create time wakeups only for themselves"
+	agentTimerSoonRejection    = "time wakeups must fire at least 12 h out; for anything sooner wait on an event or a condition"
+	agentTimerPendingRejection = "only one pending time wakeup per issue"
+)
+
+// agentPendingTimer reports whether agentID already has an enabled time
+// wakeup on the issue that an agent run created (a source task), other than
+// except, the rule being replaced or enabled. A member's reminder never counts.
+// The read is outside Save's transaction, so concurrent creates can both pass.
+func (h *Handler) agentPendingTimer(ctx context.Context, issue db.Issue, agentID string, except pgtype.UUID) (bool, error) {
+	rows, err := h.Queries.ListIssueWakeups(ctx, db.ListIssueWakeupsParams{IssueID: issue.ID, WorkspaceID: issue.WorkspaceID})
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if row.Kind == "at" && row.Enabled && row.SourceTaskID.Valid && row.ID != except && strings.EqualFold(uuidToString(row.AgentID), agentID) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// agentTimerMinLead keeps allowlisted agents' timers to long-range watches of
+// the outside world (a vendor advisory due in days), not re-check chains.
+const agentTimerMinLead = 12 * time.Hour
+
+// agentWakeupRejection returns why an agent may not register this rule, or ""
+// when it may. MAIN-1761: one seat created 42 self-renewing timers on one
+// issue in 24 h, and unconditioned comment/task subscriptions re-wake agents
+// on every reply. Platform-evaluated conditions stay allowed. pendingTimer
+// reports another enabled time wakeup of the agent on the issue.
+func agentWakeupRejection(in service.WakeupInput, agentID string, timerAgents []string, now time.Time, pendingTimer bool) string {
+	switch in.Kind {
+	case "at":
+		if !slices.ContainsFunc(timerAgents, func(id string) bool { return strings.EqualFold(id, agentID) }) {
+			return agentTimerRejection
+		}
+		if !strings.EqualFold(in.AgentID, agentID) {
+			return agentTimerOwnRejection
+		}
+		if pendingTimer {
+			return agentTimerPendingRejection
+		}
+		fire := now.Add(time.Duration(in.AfterSeconds) * time.Second)
+		if in.At != nil {
+			fire = *in.At
+		}
+		if fire.Sub(now) < agentTimerMinLead {
+			return agentTimerSoonRejection
+		}
+	case "event":
+		// Same test as the service's hasWakeupCondition: a stored rule without
+		// a condition holds NULL, and a decoded body holds nothing or null.
+		if len(in.Condition) > 0 && string(in.Condition) != "null" {
+			return ""
+		}
+		if len(in.EventTypes) == 0 {
+			return agentEventRejection
+		}
+		for _, e := range in.EventTypes {
+			if strings.HasPrefix(e, "comment.") || strings.HasPrefix(e, "task.") {
+				return agentEventRejection
+			}
+		}
+	}
+	return ""
 }
