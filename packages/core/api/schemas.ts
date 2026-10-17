@@ -2087,6 +2087,8 @@ export const AgentTaskSchema = z.object({
   relative_durable_work_dir: z.string().optional().catch(undefined),
   branch_name: z.string().optional().catch(undefined),
   thinking_level: z.string().optional().catch(undefined),
+  model: z.string().optional().catch(undefined),
+  fallback_position: z.number().int().optional().catch(undefined),
   attribution: TaskAttributionSchema.optional(),
   // Per-run token usage. Same independent-degradation rule as the coverage
   // arrays above: usage is additive display metadata, so one malformed entry
@@ -3680,6 +3682,15 @@ export const AgentProjectSkillListSchema = z
 export const AgentProjectMcpServerListSchema = z.array(
   WorkspaceMcpServerSchema.extend({ projects: z.array(ProjectRefSchema).catch([]) }),
 );
+
+export const AgentModelFallbackSchema = z.object({
+  position: z.number().int(),
+  runtime_id: z.string(),
+  model: z.string(),
+  thinking_level: z.string().default(""),
+}).loose();
+
+export const AgentModelFallbackListSchema = z.array(AgentModelFallbackSchema);
 
 export const EMPTY_WORKSPACE_MCP_SERVER: WorkspaceMcpServer = {
   id: "",

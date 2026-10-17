@@ -14,6 +14,7 @@ import {
   EMPTY_LIST_TELEGRAM_INSTALLATIONS_RESPONSE,
   EMPTY_REDEEM_TELEGRAM_BINDING_TOKEN_RESPONSE,
   AgentTaskListSchema,
+  AgentModelFallbackListSchema,
   AgentActivityBucketListSchema,
   TaskMessageListSchema,
   AutopilotQuotaUsageSchema,
@@ -773,6 +774,14 @@ describe("AgentTaskListSchema", () => {
 
     expect(parsed).toHaveLength(1);
     expect(parsed[0]?.thinking_level).toBeUndefined();
+  });
+
+  it("keeps a fallback run's model and position and degrades malformed ones", () => {
+    const [ok] = AgentTaskListSchema.parse([{ ...task, model: "gpt-5.6-terra", fallback_position: 2 }]);
+    expect(ok).toMatchObject({ model: "gpt-5.6-terra", fallback_position: 2 });
+    const [bad] = AgentTaskListSchema.parse([{ ...task, model: 7, fallback_position: "2" }]);
+    expect(bad?.model).toBeUndefined();
+    expect(bad?.fallback_position).toBeUndefined();
   });
 });
 
@@ -2360,5 +2369,17 @@ describe("AgentActivityBucketListSchema duration", () => {
     expect(parsed[0]?.task_count).toBe(201);
     expect(parsed[0]?.duration_ms).toBeUndefined();
     expect(parsed[0]?.duration_count).toBeUndefined();
+  });
+});
+
+describe("AgentModelFallbackListSchema", () => {
+  it("parses entries and defaults a missing effort to the runtime default", () => {
+    expect(AgentModelFallbackListSchema.parse([
+      { position: 1, runtime_id: "rt-1", model: "gpt-5.6-terra" },
+    ])).toEqual([{ position: 1, runtime_id: "rt-1", model: "gpt-5.6-terra", thinking_level: "" }]);
+  });
+
+  it("falls back to an empty list for a malformed response", () => {
+    expect(parseWithFallback({ fallbacks: [] }, AgentModelFallbackListSchema, [], { endpoint: "test" })).toEqual([]);
   });
 });

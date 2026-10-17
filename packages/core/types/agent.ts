@@ -441,6 +441,10 @@ export interface AgentTask {
    * the snapshot — the agent's current setting is not a substitute.
    */
   thinking_level?: string;
+  /** A fallback run's model; absent = the agent's own model. */
+  model?: string;
+  /** 1-based position in the agent's fallback list; absent = the primary. */
+  fallback_position?: number;
   /**
    * Resolved accountable-human provenance of this run (MUL-4302 §9): who it ran
    * "on behalf of", how that was resolved, and the evidence/lineage. Present on
@@ -1356,4 +1360,21 @@ export interface RuntimeLocalSkillImportResult {
   status: "created" | "updated" | "conflict";
   skill?: Skill;
   conflict?: RuntimeLocalSkillImportConflict;
+}
+
+/**
+ * One ordered fallback (runtime, model) of an agent. When a run fails because
+ * of its provider, the next entry runs it again. Position 0 is the agent's own
+ * runtime and model and is not listed.
+ */
+export interface AgentModelFallback {
+  position: number;
+  runtime_id: string;
+  model: string;
+  /** "" = the runtime/model default; never the agent's level. */
+  thinking_level: string;
+}
+
+export interface ReplaceAgentFallbacksRequest {
+  fallbacks: { runtime_id: string; model: string; thinking_level: string }[];
 }

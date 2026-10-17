@@ -245,6 +245,8 @@ import type {
   SetProjectAttachmentAudienceRequest,
   AgentProjectSkill,
   AgentProjectMcpServer,
+  AgentModelFallback,
+  ReplaceAgentFallbacksRequest,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -495,6 +497,7 @@ import {
   PluginPreviewSchema,
   WorkspaceMcpServerListSchema,
   WorkspaceMcpServerSchema,
+  AgentModelFallbackListSchema,
   ShareLinkSchema,
   ShareLinkListResponseSchema,
   ShareLinkInfoSchema,
@@ -4164,6 +4167,27 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(`/api/agents/${agentId}/project-mcp-servers`);
     return parseWithFallback(raw, AgentProjectMcpServerListSchema, [] as AgentProjectMcpServer[], {
       endpoint: "GET /api/agents/:id/project-mcp-servers",
+    });
+  }
+
+  async listAgentFallbacks(agentId: string): Promise<AgentModelFallback[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/fallbacks`);
+    return parseWithFallback(raw, AgentModelFallbackListSchema, [] as AgentModelFallback[], {
+      endpoint: "GET /api/agents/:id/fallbacks",
+    });
+  }
+
+  // Replaces the whole list atomically. Agent owner or workspace owner/admin.
+  async replaceAgentFallbacks(
+    agentId: string,
+    data: ReplaceAgentFallbacksRequest,
+  ): Promise<AgentModelFallback[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/fallbacks`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, AgentModelFallbackListSchema, [] as AgentModelFallback[], {
+      endpoint: "PUT /api/agents/:id/fallbacks",
     });
   }
 

@@ -695,6 +695,24 @@ describe("ApiClient issue move intent", () => {
   });
 });
 
+describe("ApiClient agent model fallbacks", () => {
+  it("lists and replaces agent fallbacks", async () => {
+    const entry = { position: 1, runtime_id: "rt-1", model: "gpt-5.6-terra", thinking_level: "xhigh" };
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify([entry]))));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ApiClient("https://api.example.test");
+
+    await expect(client.listAgentFallbacks("agent-1")).resolves.toEqual([entry]);
+    await client.replaceAgentFallbacks("agent-1", { fallbacks: [{ runtime_id: "rt-1", model: "gpt-5.6-terra", thinking_level: "xhigh" }] });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.example.test/api/agents/agent-1/fallbacks");
+    const [url, init] = fetchMock.mock.calls[1]!;
+    expect(url).toBe("https://api.example.test/api/agents/agent-1/fallbacks");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body)).toEqual({ fallbacks: [{ runtime_id: "rt-1", model: "gpt-5.6-terra", thinking_level: "xhigh" }] });
+  });
+});
+
 describe("ApiClient workspace working agents", () => {
   it("supports an optional source-type filter", async () => {
     const payload = [
