@@ -73,16 +73,101 @@ func TestReplaceAgentFallbacksRejectsInvalidLists(t *testing.T) {
 		{"too many", []map[string]any{entry(codex, "a", ""), entry(codex, "b", ""), entry(codex, "c", ""), entry(codex, "d", ""), entry(codex, "e", "")}, http.StatusBadRequest, "at most 4"},
 		{"unknown effort", []map[string]any{entry(claude, "claude-opus-5-5", "bogus")}, http.StatusBadRequest, "thinking_level"},
 		{"someone else's private runtime", []map[string]any{entry(foreignPrivate, "gpt-5.6-terra", "")}, http.StatusForbidden, "private"},
+		{"missing fallbacks field", nil, http.StatusBadRequest, "fallbacks is required"},
 		{"unknown runtime", []map[string]any{entry("00000000-0000-0000-0000-000000000001", "gpt-5.6-terra", "")}, http.StatusBadRequest, "runtime_id"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w := putFallbacks(t, agentID, map[string]any{"fallbacks": tt.fallbacks}).Want(tt.wantStatus)
+			body := map[string]any{}
+			if tt.fallbacks != nil {
+				body["fallbacks"] = tt.fallbacks
+			}
+			w := putFallbacks(t, agentID, body).Want(tt.wantStatus)
 			if !strings.Contains(w.Body.String(), tt.wantError) {
 				t.Fatalf("error = %s, want it to mention %q", w.Body.String(), tt.wantError)
 			}
 		})
 	}
+}
+
+func TestReplaceAgentFallbacksRejectsNullFallbacks(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	agentID := createHandlerTestAgent(t, "AgentFallbacksNull", []byte("[]"))
+	w := putFallbacks(t, agentID, map[string]any{"fallbacks": nil}).Want(http.StatusBadRequest)
+	if !strings.Contains(w.Body.String(), "fallbacks is required") {
+		t.Fatalf("error = %s, want it to mention fallbacks is required", w.Body.String())
+	}
+}
+
+func putFallbacksAs(t *testing.T, userID, agentID string, fallbacks []map[string]any) *testutil.Response {
+	t.Helper()
+	req := withURLParam(newRequestAs(userID, http.MethodPut, "/api/agents/"+agentID+"/fallbacks", map[string]any{"fallbacks": fallbacks}), "id", agentID)
+	return testutil.Call(t, testHandler.ReplaceAgentFallbacks, req)
+}
+
+func fallbackEntry(runtimeID string) []map[string]any {
+	return []map[string]any{{"runtime_id": runtimeID, "model": "gpt-5.6-terra", "thinking_level": ""}}
+}
+
+func TestReplaceAgentFallbacksAuthorization(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	// createHandlerTestAgent agents are owned by testUserID, a workspace owner.
+	agentID := createHandlerTestAgent(t, "AgentFallbacksAuthz", []byte("[]"))
+	member := dbfx.User(t, "fallback-authz-member", "fallback-authz-member@example.com")
+	dbfx.Member(t, testWorkspaceID, member, "member")
+
+	t.Run("non-owner member cannot replace", func(t *testing.T) {
+		pub := dbfx.Runtime(t, "Fallback authz public", testutil.Cols{"provider": "codex", "visibility": "public"})
+		putFallbacksAs(t, member, agentID, fallbackEntry(pub)).Want(http.StatusForbidden)
+	})
+
+	t.Run("agent actor cannot replace", func(t *testing.T) {
+		pub := dbfx.Runtime(t, "Fallback authz agent public", testutil.Cols{"provider": "codex", "visibility": "public"})
+		caller := createHandlerTestAgent(t, "AgentFallbacksCaller", nil)
+		taskID := insertHandlerTestTask(t, caller)
+		req := withURLParam(newRequest(http.MethodPut, "/api/agents/"+agentID+"/fallbacks", map[string]any{"fallbacks": fallbackEntry(pub)}), "id", agentID)
+		req.Header.Set("X-Actor-Source", "task_token")
+		req.Header.Set("X-Agent-ID", caller)
+		req.Header.Set("X-Task-ID", taskID)
+		testutil.Call(t, testHandler.ReplaceAgentFallbacks, req).Want(http.StatusForbidden)
+	})
+
+	t.Run("runtime from another workspace", func(t *testing.T) {
+		otherWS := dbfx.Workspace(t, "Fallback other workspace", "fallback-other-ws")
+		foreign := dbfx.Runtime(t, "Fallback foreign workspace", testutil.Cols{"workspace_id": otherWS, "provider": "codex", "visibility": "public"})
+		putFallbacks(t, agentID, map[string]any{"fallbacks": fallbackEntry(foreign)}).Want(http.StatusBadRequest)
+	})
+
+	t.Run("private runtime of the agent's owner is accepted", func(t *testing.T) {
+		own := dbfx.Runtime(t, "Fallback owner private", testutil.Cols{"provider": "codex", "visibility": "private"})
+		putFallbacks(t, agentID, map[string]any{"fallbacks": fallbackEntry(own)}).Want(http.StatusOK)
+	})
+
+	t.Run("admin cannot lend their private runtime to another member's agent", func(t *testing.T) {
+		memberAgent := dbfx.Agent(t, "AgentFallbacksMemberOwned", handlerTestRuntimeID(t), testutil.Cols{"owner_id": member})
+		adminPrivate := dbfx.Runtime(t, "Fallback admin private", testutil.Cols{"provider": "codex", "visibility": "private"})
+		w := putFallbacks(t, memberAgent, map[string]any{"fallbacks": fallbackEntry(adminPrivate)}).Want(http.StatusForbidden)
+		if !strings.Contains(w.Body.String(), "private") {
+			t.Fatalf("error = %s, want it to mention private", w.Body.String())
+		}
+	})
+}
+
+func TestListAgentFallbacksPrivateAgentAccess(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	agentID, ownerID, memberID := privateAgentTestFixture(t)
+	get := func(userID string) *testutil.Response {
+		req := withURLParam(newRequestAs(userID, http.MethodGet, "/api/agents/"+agentID+"/fallbacks", nil), "id", agentID)
+		return testutil.Call(t, testHandler.ListAgentFallbacks, req)
+	}
+	get(memberID).Want(http.StatusForbidden)
+	get(ownerID).Want(http.StatusOK)
 }
 
 func TestListAgentTasksReturnsFallbackFields(t *testing.T) {
@@ -94,9 +179,20 @@ func TestListAgentTasksReturnsFallbackFields(t *testing.T) {
 		"runtime_id": handlerTestRuntimeID(t), "status": "completed",
 		"model": "gpt-5.6-terra", "fallback_position": 2,
 	})
+	primaryID := dbfx.Task(t, agentID, testutil.Cols{"runtime_id": handlerTestRuntimeID(t), "status": "completed"})
 	req := withURLParam(newRequest(http.MethodGet, "/api/agents/"+agentID+"/tasks", nil), "id", agentID)
 	var resp []map[string]any
 	testutil.Call(t, testHandler.ListAgentTasks, req).Want(http.StatusOK).JSON(&resp)
+	for _, task := range resp {
+		if task["id"] == primaryID {
+			if _, ok := task["model"]; ok {
+				t.Fatalf("primary task = %+v, want model omitted", task)
+			}
+			if _, ok := task["fallback_position"]; ok {
+				t.Fatalf("primary task = %+v, want fallback_position omitted", task)
+			}
+		}
+	}
 	for _, task := range resp {
 		if task["id"] == taskID {
 			if task["model"] != "gpt-5.6-terra" || task["fallback_position"] != float64(2) {

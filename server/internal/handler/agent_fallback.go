@@ -104,6 +104,10 @@ func (h *Handler) ReplaceAgentFallbacks(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if req.Fallbacks == nil {
+		writeError(w, http.StatusBadRequest, "fallbacks is required; send [] to clear the list")
+		return
+	}
 	if len(req.Fallbacks) > maxAgentFallbacks {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("an agent can have at most %d fallbacks", maxAgentFallbacks))
 		return
@@ -174,8 +178,14 @@ func (h *Handler) ReplaceAgentFallbacks(w http.ResponseWriter, r *http.Request) 
 	defer tx.Rollback(r.Context())
 	qtx := h.Queries.WithTx(tx)
 	// Serialize concurrent replaces of the same list.
-	if _, err := qtx.GetAgentForUpdate(r.Context(), target.ID); err != nil {
+	locked, err := qtx.GetAgentForUpdate(r.Context(), target.ID)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save agent fallbacks")
+		return
+	}
+	// The list was validated against the pre-lock agent; refuse if it moved.
+	if locked.OwnerID != target.OwnerID || locked.RuntimeID != target.RuntimeID || locked.Model != target.Model {
+		writeError(w, http.StatusConflict, "agent changed while saving fallbacks; retry")
 		return
 	}
 	if err := qtx.DeleteAgentFallbacks(r.Context(), target.ID); err != nil {
