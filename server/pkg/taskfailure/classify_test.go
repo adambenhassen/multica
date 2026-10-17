@@ -75,6 +75,11 @@ func TestClassifyRules(t *testing.T) {
 		{"usage limit", "Account exceeded the daily usage limit", ReasonAgentProviderQuotaLimit},
 		{"hit your limit ascii", "you've hit your limit; upgrade to continue", ReasonAgentProviderQuotaLimit},
 		{"hit your limit curly", "you\u2019ve hit your limit", ReasonAgentProviderQuotaLimit},
+		// The Claude Code CLI's own wording (2026-10-17: 282 failures in 7 days fell through to unknown, so none moved
+		// to the agent's model fallback).
+		{"session limit", "You've hit your session limit · resets 5:10pm (UTC)", ReasonAgentProviderQuotaLimit},
+		{"weekly limit", "You've hit your weekly limit · resets 9am (UTC)", ReasonAgentProviderQuotaLimit},
+		{"session limit curly", "You\u2019ve hit your session limit · resets 10:10pm (UTC)", ReasonAgentProviderQuotaLimit},
 		{"credits", "Your account has 0 credits remaining", ReasonAgentProviderQuotaLimit},
 		{"quota", "quota exceeded for project foo", ReasonAgentProviderQuotaLimit},
 
@@ -642,5 +647,29 @@ func TestClassifyKeepsDeadlineExceededAsProviderNetwork(t *testing.T) {
 
 	if got := Classify("post to provider: context deadline exceeded"); got != ReasonAgentProviderNetwork {
 		t.Errorf("Classify(provider deadline) = %q, want %q", got, ReasonAgentProviderNetwork)
+	}
+}
+
+// An installed (upstream) daemon classifies the CLI's "You've hit your session limit · resets …" as the catchall, so
+// FailTask never re-classifies it and the run never reaches the model fallback (2026-10-17, Tech Lead x15).
+func TestNormalizeDaemonReasonUpgradesNamedLimit(t *testing.T) {
+	for _, raw := range []string{
+		"You've hit your session limit · resets 5:10pm (UTC)",
+		"You've hit your weekly limit · resets 9am (UTC)",
+		"You\u2019ve hit your session limit · resets 10:10pm (UTC)",
+	} {
+		for _, reason := range []string{string(ReasonAgentUnknown), "agent_error"} {
+			if got := NormalizeDaemonReason(reason, raw); got != ReasonAgentProviderQuotaLimit {
+				t.Errorf("NormalizeDaemonReason(%q, %q) = %q, want %q", reason, raw, got, ReasonAgentProviderQuotaLimit)
+			}
+		}
+	}
+	// A specific daemon reason is left alone.
+	if got := NormalizeDaemonReason(string(ReasonTimeout), "You've hit your session limit · resets 5pm (UTC)"); got != ReasonTimeout {
+		t.Errorf("specific reason changed to %q", got)
+	}
+	// An unrelated catchall stays the catchall.
+	if got := NormalizeDaemonReason(string(ReasonAgentUnknown), "Incomplete response returned, reason: max_output_tokens"); got != ReasonAgentUnknown {
+		t.Errorf("unrelated catchall changed to %q", got)
 	}
 }

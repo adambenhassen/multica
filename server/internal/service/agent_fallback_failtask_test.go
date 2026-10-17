@@ -31,6 +31,7 @@ func TestFailTaskFallsBackOnProviderFailure(t *testing.T) {
 	tests := []struct {
 		name         string
 		reason       string
+		errMsg       string // "" = "provider failure"
 		runtimeID    string
 		position     any // nil = primary
 		attempt      int32
@@ -45,6 +46,8 @@ func TestFailTaskFallsBackOnProviderFailure(t *testing.T) {
 		{name: "auth on fallback 1 moves to fallback 2", reason: "agent_error.provider_auth_or_access", runtimeID: codex, position: int32(1), attempt: 1, maxAttempts: 2, wantRuntime: local, wantModel: "local-qwen", wantPosition: 2},
 		{name: "last fallback fails normally", reason: "agent_error.model_not_found_or_unavailable", runtimeID: local, position: int32(2), attempt: 1, maxAttempts: 2},
 		{name: "non-provider failure never falls back", reason: "agent_error.unknown", runtimeID: primaryRuntimeID, attempt: 1, maxAttempts: 2},
+		// An installed daemon labels the CLI's quota wording as the catchall (2026-10-17: Tech Lead x15, no fallback ran).
+		{name: "catchall session limit moves to the first fallback", reason: "agent_error.unknown", errMsg: "You've hit your session limit · resets 5:10pm (UTC)", runtimeID: primaryRuntimeID, attempt: 1, maxAttempts: 2, wantRuntime: codex, wantModel: "gpt-5.6-terra", wantPosition: 1},
 		{name: "network falls back only after its retries", reason: "agent_error.provider_network", runtimeID: primaryRuntimeID, attempt: 3, maxAttempts: 3, wantRuntime: codex, wantModel: "gpt-5.6-terra", wantPosition: 1},
 		{name: "network below its ceiling retries on the primary", reason: "agent_error.provider_network", runtimeID: primaryRuntimeID, attempt: 1, maxAttempts: 3, wantRuntime: primaryRuntimeID},
 		{name: "pending successor blocks the fallback", reason: "agent_error.provider_quota_limit", runtimeID: primaryRuntimeID, attempt: 1, maxAttempts: 2, successor: true},
@@ -79,7 +82,11 @@ func TestFailTaskFallsBackOnProviderFailure(t *testing.T) {
 				})
 			}
 
-			failed, err := svc.FailTask(ctx, parentID, "provider failure", "src-session", "/tmp/src-workdir", "", tt.reason, false, "", "")
+			errMsg := tt.errMsg
+			if errMsg == "" {
+				errMsg = "provider failure"
+			}
+			failed, err := svc.FailTask(ctx, parentID, errMsg, "src-session", "/tmp/src-workdir", "", tt.reason, false, "", "")
 			if err != nil {
 				t.Fatalf("FailTask: %v", err)
 			}

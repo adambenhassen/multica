@@ -151,6 +151,7 @@ func Classify(rawError string) Reason {
 	// 4. Quota / billing. 402 / insufficient balance / monthly usage
 	//    limit / credits exhausted.
 	case httpQuotaCodeRe.MatchString(lower),
+		namedLimitRe.MatchString(lower),
 		containsAny(lower,
 			"insufficient_balance",
 			"balance is too low",
@@ -520,6 +521,17 @@ var legacyUsageLimit403Reasons = map[string]bool{
 	"agent_error":                           true,
 }
 
+// namedLimitRe is the CLI's own quota wording, "You've hit your session limit · resets 5:10pm (UTC)" (also
+// "weekly limit"). Neither "usage limit" nor "you've hit your limit" matches it: on 2026-10-17, 282 such failures in
+// 7 days landed in the catchall, so none moved to the agent's model fallback.
+var namedLimitRe = regexp.MustCompile(`you['\x{2019}]ve hit your (?:[\w']+ ){0,2}limit\b`)
+
+// legacyNamedLimitReasons are the catchalls an installed daemon reports for namedLimitRe failures.
+var legacyNamedLimitReasons = map[string]bool{
+	string(ReasonAgentUnknown): true,
+	"agent_error":              true,
+}
+
 // NormalizeDaemonReason upgrades a failure_reason reported by an older daemon
 // onto the taxonomy this server understands, using the raw error text as the
 // witness. It returns the reason unchanged when nothing applies.
@@ -536,6 +548,9 @@ var legacyUsageLimit403Reasons = map[string]bool{
 // can be deleted once no daemon old enough to produce its wire shape is still
 // reporting.
 func NormalizeDaemonReason(reason, rawError string) Reason {
+	if legacyNamedLimitReasons[reason] && namedLimitRe.MatchString(strings.ToLower(rawError)) {
+		return ReasonAgentProviderQuotaLimit
+	}
 	if legacyConcurrentRequestLimitReasons[reason] &&
 		strings.Contains(strings.ToLower(rawError), concurrentRequestLimitWitness) {
 		return ReasonAgentProviderCapacityOrRateLimit
