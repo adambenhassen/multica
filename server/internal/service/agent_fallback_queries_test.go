@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/multica-ai/multica/server/internal/util"
@@ -125,8 +127,8 @@ func TestNextOnlineAgentFallbackSkipsOfflineAndEarlierEntries(t *testing.T) {
 	if next.Position != 2 || util.UUIDToString(next.RuntimeID) != online || next.ThinkingLevel.String != "high" {
 		t.Fatalf("next = %+v, want position 2 on the online runtime with effort high", next)
 	}
-	if _, err := q.NextOnlineAgentFallback(ctx, db.NextOnlineAgentFallbackParams{AgentID: util.MustParseUUID(agentID), AfterPosition: 2}); err == nil {
-		t.Fatal("expected no entry after the last position")
+	if _, err := q.NextOnlineAgentFallback(ctx, db.NextOnlineAgentFallbackParams{AgentID: util.MustParseUUID(agentID), AfterPosition: 2}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("after the last position err = %v, want pgx.ErrNoRows", err)
 	}
 }
 
@@ -147,5 +149,56 @@ func TestDeleteAgentRuntimeDropsItsFallbacks(t *testing.T) {
 	}
 	if n != 0 {
 		t.Fatalf("fallbacks left for deleted runtime = %d, want 0", n)
+	}
+}
+
+func TestDeleteAgentRuntimesByProfileDropsTheirFallbacks(t *testing.T) {
+	pool := newResolveOriginatorPool(t)
+	ctx := context.Background()
+	q := db.New(pool)
+	_, _, agentID, _ := seedAttributionFixture(t, pool)
+	var profileID, workspaceID string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO runtime_profile (workspace_id, display_name, protocol_family, command_name, created_by)
+		SELECT a.workspace_id, 'fallback-profile', 'codex', 'fallback-profile-' || gen_random_uuid()::text, a.owner_id
+		FROM agent a WHERE a.id = $1
+		RETURNING id::text, workspace_id::text`, agentID).Scan(&profileID, &workspaceID); err != nil {
+		t.Fatalf("insert runtime profile: %v", err)
+	}
+	t.Cleanup(func() { pool.Exec(context.Background(), `DELETE FROM runtime_profile WHERE id = $1`, profileID) })
+
+	profileRuntime := insertFallbackRuntime(t, pool, agentID, "online")
+	otherRuntime := insertFallbackRuntime(t, pool, agentID, "online")
+	if _, err := pool.Exec(ctx, `UPDATE agent_runtime SET profile_id = $2 WHERE id = $1`, profileRuntime, profileID); err != nil {
+		t.Fatalf("bind runtime to profile: %v", err)
+	}
+	insertFallback(t, pool, agentID, 1, profileRuntime, "gpt-5.6-terra", nil)
+	insertFallback(t, pool, agentID, 2, otherRuntime, "local-qwen", nil)
+
+	deleted, err := q.DeleteAgentRuntimesByProfile(ctx, db.DeleteAgentRuntimesByProfileParams{
+		ProfileID:   util.MustParseUUID(profileID),
+		WorkspaceID: util.MustParseUUID(workspaceID),
+	})
+	if err != nil {
+		t.Fatalf("DeleteAgentRuntimesByProfile: %v", err)
+	}
+	if len(deleted) != 1 || util.UUIDToString(deleted[0].ID) != profileRuntime {
+		t.Fatalf("deleted runtimes = %+v, want only %s", deleted, profileRuntime)
+	}
+	var positions []int32
+	rows, err := pool.Query(ctx, `SELECT position FROM agent_model_fallback WHERE agent_id = $1 ORDER BY position`, agentID)
+	if err != nil {
+		t.Fatalf("list fallbacks: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p int32
+		if err := rows.Scan(&p); err != nil {
+			t.Fatalf("scan fallback: %v", err)
+		}
+		positions = append(positions, p)
+	}
+	if len(positions) != 1 || positions[0] != 2 {
+		t.Fatalf("fallback positions left = %v, want only [2] (the unrelated runtime's)", positions)
 	}
 }

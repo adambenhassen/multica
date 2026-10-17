@@ -77,9 +77,15 @@ func (q *Queries) CreateRuntimeProfile(ctx context.Context, arg CreateRuntimePro
 }
 
 const deleteAgentRuntimesByProfile = `-- name: DeleteAgentRuntimesByProfile :many
-DELETE FROM agent_runtime
-WHERE profile_id = $1 AND workspace_id = $2
-RETURNING id, workspace_id, owner_id, daemon_id, provider
+WITH deleted_runtimes AS (
+    DELETE FROM agent_runtime
+    WHERE agent_runtime.profile_id = $1 AND agent_runtime.workspace_id = $2
+    RETURNING agent_runtime.id, agent_runtime.workspace_id, agent_runtime.owner_id, agent_runtime.daemon_id, agent_runtime.provider
+), deleted_fallbacks AS (
+    DELETE FROM agent_model_fallback
+    WHERE runtime_id IN (SELECT id FROM deleted_runtimes)
+)
+SELECT id, workspace_id, owner_id, daemon_id, provider FROM deleted_runtimes
 `
 
 type DeleteAgentRuntimesByProfileParams struct {
@@ -99,6 +105,8 @@ type DeleteAgentRuntimesByProfileRow struct {
 // the profile-delete path must remove the profile's registered runtime
 // instances itself. Returns the deleted rows so the caller can broadcast /
 // audit. Runs inside the same transaction as DeleteRuntimeProfile.
+// agent_model_fallback has no foreign key; entries naming the deleted runtimes
+// go with them so no agent keeps a fallback that can never claim.
 func (q *Queries) DeleteAgentRuntimesByProfile(ctx context.Context, arg DeleteAgentRuntimesByProfileParams) ([]DeleteAgentRuntimesByProfileRow, error) {
 	rows, err := q.db.Query(ctx, deleteAgentRuntimesByProfile, arg.ProfileID, arg.WorkspaceID)
 	if err != nil {
