@@ -90,6 +90,20 @@ func TestReplaceAgentFallbacksRejectsInvalidLists(t *testing.T) {
 	}
 }
 
+func TestReplaceAgentFallbacksRejectsOwnerlessRuntime(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	agentID := createHandlerTestAgent(t, "AgentFallbacksOwnerless", []byte("[]"))
+	ownerless := dbfx.Runtime(t, "Fallback ownerless", testutil.Cols{"provider": "codex", "visibility": "public", "owner_id": nil})
+	w := putFallbacks(t, agentID, map[string]any{"fallbacks": []map[string]any{
+		{"runtime_id": ownerless, "model": "gpt-5.6-terra", "thinking_level": ""},
+	}}).Want(http.StatusForbidden)
+	if !strings.Contains(w.Body.String(), "no owner") {
+		t.Fatalf("error = %s, want the ownerless-runtime message", w.Body.String())
+	}
+}
+
 func TestReplaceAgentFallbacksRejectsNullFallbacks(t *testing.T) {
 	if testHandler == nil || testPool == nil {
 		t.Skip("database not available")

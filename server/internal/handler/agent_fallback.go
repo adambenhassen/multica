@@ -143,6 +143,10 @@ func (h *Handler) ReplaceAgentFallbacks(w http.ResponseWriter, r *http.Request) 
 		}
 		// Same gate as binding the agent itself, plus the claim-time rule that a
 		// private runtime only runs its owner's agents.
+		if !rt.OwnerID.Valid {
+			writeError(w, http.StatusForbidden, fmt.Sprintf("fallback %d: this runtime has no owner and cannot run agents", n))
+			return
+		}
 		if !canUseRuntimeForAgent(member, rt) || (rt.Visibility == "private" && rt.OwnerID != target.OwnerID) {
 			writeError(w, http.StatusForbidden, fmt.Sprintf("fallback %d: this runtime is private; only its owner's agents can use it", n))
 			return
