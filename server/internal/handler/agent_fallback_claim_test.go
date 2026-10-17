@@ -5,7 +5,10 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/testutil"
+	"github.com/multica-ai/multica/server/internal/util"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 // TestClaimFallbackRunSendsEntryModel claims a fallback run on its fallback
@@ -56,4 +59,52 @@ func TestClaimFallbackRunSendsEntryModel(t *testing.T) {
 	if got.ServiceTier != "" || len(got.CustomArgs) != 0 {
 		t.Errorf("service_tier/custom_args = %q/%v, want both dropped on another runtime", got.ServiceTier, got.CustomArgs)
 	}
+}
+
+func TestTaskRuntimeBound(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	primaryRuntimeID := createClaimReclaimRuntime(t, ctx, "Bound primary")
+	fallbackRuntimeID := createClaimReclaimRuntime(t, ctx, "Bound secondary")
+	agentID, _ := createClaimReclaimAgentAndIssue(t, ctx, primaryRuntimeID, "Bound agent")
+	dbfx.Insert(t, "agent_model_fallback", testutil.Cols{
+		"workspace_id": testWorkspaceID, "agent_id": agentID, "position": 1,
+		"runtime_id": fallbackRuntimeID, "model": "gpt-5.6-terra",
+	})
+	agent, err := testHandler.Queries.GetAgent(ctx, util.MustParseUUID(agentID))
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+
+	run := func(runtimeID, model string, position int32) db.AgentTaskQueue {
+		task := db.AgentTaskQueue{
+			RuntimeID: util.MustParseUUID(runtimeID),
+			Model:     pgtype.Text{String: model, Valid: model != ""},
+		}
+		if position != 0 {
+			task.FallbackPosition = pgtype.Int4{Int32: position, Valid: true}
+		}
+		return task
+	}
+	check := func(name string, task db.AgentTaskQueue, want bool) {
+		t.Helper()
+		got, err := taskRuntimeBound(ctx, testHandler.Queries, agent, task)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if got != want {
+			t.Errorf("%s: bound = %v, want %v", name, got, want)
+		}
+	}
+
+	check("primary run on the agent's runtime", run(primaryRuntimeID, "", 0), true)
+	check("primary run on a fallback-only runtime", run(fallbackRuntimeID, "gpt-5.6-terra", 0), false)
+	check("fallback run on its entry", run(fallbackRuntimeID, "gpt-5.6-terra", 1), true)
+	check("fallback run with another model", run(fallbackRuntimeID, "gpt-5.5", 1), false)
+	check("fallback run on the agent's runtime", run(primaryRuntimeID, "gpt-5.6-terra", 1), false)
+
+	dbfx.Exec(t, `DELETE FROM agent_model_fallback WHERE agent_id = $1`, agentID)
+	check("fallback run after its entry is removed", run(fallbackRuntimeID, "gpt-5.6-terra", 1), false)
 }

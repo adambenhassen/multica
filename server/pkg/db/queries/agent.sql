@@ -743,12 +743,13 @@ WHERE id = (
           WHERE a.id = atq.agent_id
             -- A task's persisted runtime is not authority after an agent rebind.
             AND (
-                a.runtime_id = atq.runtime_id
+                (atq.fallback_position IS NULL AND a.runtime_id = atq.runtime_id)
                 OR (atq.fallback_position IS NOT NULL AND EXISTS (
                     SELECT 1 FROM agent_model_fallback f
                     WHERE f.agent_id = a.id
                       AND f.position = atq.fallback_position
                       AND f.runtime_id = atq.runtime_id
+                      AND f.model = atq.model
                 ))
             )
             -- Queued private-runtime rows are claimable so the handler can
@@ -869,12 +870,13 @@ WHERE id = (
           JOIN agent_runtime r ON r.id = atq.runtime_id
           WHERE a.id = atq.agent_id
             AND (
-                a.runtime_id = atq.runtime_id
+                (atq.fallback_position IS NULL AND a.runtime_id = atq.runtime_id)
                 OR (atq.fallback_position IS NOT NULL AND EXISTS (
                     SELECT 1 FROM agent_model_fallback f
                     WHERE f.agent_id = a.id
                       AND f.position = atq.fallback_position
                       AND f.runtime_id = atq.runtime_id
+                      AND f.model = atq.model
                 ))
             )
             AND (
@@ -924,12 +926,13 @@ WHERE id IN (
           JOIN agent_runtime r ON r.id = atq.runtime_id
           WHERE a.id = atq.agent_id
             AND (
-                a.runtime_id = atq.runtime_id
+                (atq.fallback_position IS NULL AND a.runtime_id = atq.runtime_id)
                 OR (atq.fallback_position IS NOT NULL AND EXISTS (
                     SELECT 1 FROM agent_model_fallback f
                     WHERE f.agent_id = a.id
                       AND f.position = atq.fallback_position
                       AND f.runtime_id = atq.runtime_id
+                      AND f.model = atq.model
                 ))
             )
             AND (
@@ -2152,12 +2155,13 @@ WHERE atq.runtime_id = $1
       JOIN agent_runtime r ON r.id = atq.runtime_id
       WHERE a.id = atq.agent_id
         AND (
-            a.runtime_id = atq.runtime_id
+            (atq.fallback_position IS NULL AND a.runtime_id = atq.runtime_id)
             OR (atq.fallback_position IS NOT NULL AND EXISTS (
                 SELECT 1 FROM agent_model_fallback f
                 WHERE f.agent_id = a.id
                   AND f.position = atq.fallback_position
                   AND f.runtime_id = atq.runtime_id
+                  AND f.model = atq.model
             ))
         )
         AND (
@@ -2281,12 +2285,13 @@ WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
       JOIN agent_runtime r ON r.id = atq.runtime_id
       WHERE a.id = atq.agent_id
         AND (
-            a.runtime_id = atq.runtime_id
+            (atq.fallback_position IS NULL AND a.runtime_id = atq.runtime_id)
             OR (atq.fallback_position IS NOT NULL AND EXISTS (
                 SELECT 1 FROM agent_model_fallback f
                 WHERE f.agent_id = a.id
                   AND f.position = atq.fallback_position
                   AND f.runtime_id = atq.runtime_id
+                  AND f.model = atq.model
             ))
         )
         AND (

@@ -24,11 +24,13 @@ ORDER BY f.position
 LIMIT 1;
 
 -- name: AgentFallbackBindsRuntime :one
--- Whether a fallback run's runtime is still the agent's entry at that
--- position. Reordering or removing entries stops runs queued under the old list.
+-- Whether a fallback run's runtime and model are still the agent's entry at
+-- that position. Reordering, editing or removing entries stops runs queued
+-- under the old list.
 SELECT EXISTS (
     SELECT 1 FROM agent_model_fallback
-    WHERE agent_id = @agent_id AND position = @position::int AND runtime_id = @runtime_id
+    WHERE agent_id = @agent_id AND position = @position::int
+      AND runtime_id = @runtime_id AND model = @model
 ) AS bound;
 
 -- name: CreateFallbackTask :one

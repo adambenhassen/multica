@@ -2042,7 +2042,8 @@ func claimPollHintDelay(now, fireAt time.Time) time.Duration {
 //     blocks until this gate commits — closing the TOCTOU window between the
 //     claim-time runtime read and daemon delivery (PUCK-89 blocker 1);
 //   - the private-runtime owner fence re-runs against the locked row;
-//   - agent.runtime_id still equals the claimed task's runtime (rebind fence);
+//   - the task is still bound to its runtime (rebind fence): a primary run by
+//     agent.runtime_id, a fallback run by its agent_model_fallback entry;
 //   - agent ownership still satisfies the private-runtime binding.
 //   - response requesting-user identity is refreshed from that same owner;
 //

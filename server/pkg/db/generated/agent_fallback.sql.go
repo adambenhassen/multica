@@ -14,7 +14,8 @@ import (
 const agentFallbackBindsRuntime = `-- name: AgentFallbackBindsRuntime :one
 SELECT EXISTS (
     SELECT 1 FROM agent_model_fallback
-    WHERE agent_id = $1 AND position = $2::int AND runtime_id = $3
+    WHERE agent_id = $1 AND position = $2::int
+      AND runtime_id = $3 AND model = $4
 ) AS bound
 `
 
@@ -22,12 +23,19 @@ type AgentFallbackBindsRuntimeParams struct {
 	AgentID   pgtype.UUID `json:"agent_id"`
 	Position  int32       `json:"position"`
 	RuntimeID pgtype.UUID `json:"runtime_id"`
+	Model     string      `json:"model"`
 }
 
-// Whether a fallback run's runtime is still the agent's entry at that
-// position. Reordering or removing entries stops runs queued under the old list.
+// Whether a fallback run's runtime and model are still the agent's entry at
+// that position. Reordering, editing or removing entries stops runs queued
+// under the old list.
 func (q *Queries) AgentFallbackBindsRuntime(ctx context.Context, arg AgentFallbackBindsRuntimeParams) (bool, error) {
-	row := q.db.QueryRow(ctx, agentFallbackBindsRuntime, arg.AgentID, arg.Position, arg.RuntimeID)
+	row := q.db.QueryRow(ctx, agentFallbackBindsRuntime,
+		arg.AgentID,
+		arg.Position,
+		arg.RuntimeID,
+		arg.Model,
+	)
 	var bound bool
 	err := row.Scan(&bound)
 	return bound, err
