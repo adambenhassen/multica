@@ -468,6 +468,8 @@ type AgentTaskResponse struct {
 	// partial work, and that is when the pointer matters most.
 	BranchName            string                 `json:"branch_name,omitempty"`
 	ThinkingLevel         string                 `json:"thinking_level,omitempty"`        // agent effort snapshotted at claim; empty means runtime default or unrecorded
+	Model                 string                 `json:"model,omitempty"`                 // fallback run's model; empty = the agent's model
+	FallbackPosition      *int32                 `json:"fallback_position,omitempty"`     // 1-based fallback list position; nil = primary
 	TriggerCommentID      *string                `json:"trigger_comment_id,omitempty"`    // comment that triggered this task
 	CoalescedCommentIDs   []string               `json:"coalesced_comment_ids,omitempty"` // MUL-4195: earlier comments folded into this run when it had not yet started, so a single run still covers every deliberate comment; trigger_comment_id is the newest. Surfaced so the UI can show which comments a run covered. omitempty so old clients ignore it
 	CoalescedComments     []CoalescedCommentData `json:"coalesced_comments,omitempty"`    // MUL-4195: full detail (thread_id/author/created_at/content) of the folded comments, so the daemon prompt can address each without assuming they share the triggering thread. omitempty so old clients ignore it
@@ -842,6 +844,10 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 	if t.HandoffNote.Valid {
 		handoffNote = t.HandoffNote.String
 	}
+	var fallbackPosition *int32
+	if t.FallbackPosition.Valid {
+		fallbackPosition = &t.FallbackPosition.Int32
+	}
 	return AgentTaskResponse{
 		// Task-scoped provenance must not transfer through copied retry context.
 		CancelledByCommentChange: t.Status == "cancelled" && cancellation.TaskID != "" && cancellation.TaskID == uuidToString(t.ID),
@@ -862,6 +868,8 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		FailureReason:          failureReason,
 		BranchName:             branchName,
 		ThinkingLevel:          t.ThinkingLevel.String,
+		Model:                  t.Model.String,
+		FallbackPosition:       fallbackPosition,
 		Attempt:                t.Attempt,
 		MaxAttempts:            t.MaxAttempts,
 		ParentTaskID:           uuidToPtr(t.ParentTaskID),

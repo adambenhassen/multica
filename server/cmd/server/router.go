@@ -2277,6 +2277,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/restore", h.RestoreAgent)
 					r.Post("/cancel-tasks", h.CancelAgentTasks)
 					r.Get("/tasks", h.ListAgentTasks)
+					r.Get("/fallbacks", h.ListAgentFallbacks)
+					r.Put("/fallbacks", h.ReplaceAgentFallbacks)
 					r.Get("/dingtalk/groups", h.ListDingTalkGroupsForAgent)
 					r.Get("/skills", h.ListAgentSkills)
 					r.Get("/project-skills", h.ListAgentProjectSkills)
