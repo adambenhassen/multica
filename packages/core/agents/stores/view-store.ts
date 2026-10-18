@@ -23,7 +23,12 @@ export type AgentsScope = "mine" | "all" | "archived";
 
 export const AGENT_SCOPES: AgentsScope[] = ["mine", "all", "archived"];
 
-export type AgentSortField = "lastActive" | "name" | "runs" | "created";
+export type AgentSortField =
+  | "lastActive"
+  | "name"
+  | "runs"
+  | "lastHour"
+  | "created";
 
 export type AgentSortDirection = "asc" | "desc";
 
@@ -35,6 +40,7 @@ export const AGENT_SORT_DEFAULT_DIRECTION: Record<
   lastActive: "desc",
   name: "asc",
   runs: "desc",
+  lastHour: "desc",
   created: "desc",
 };
 
@@ -73,6 +79,7 @@ export type AgentColumnKey =
   | "runtime"
   | "lastActive"
   | "runs"
+  | "lastHour"
   | "model"
   | "concurrency"
   | "created";

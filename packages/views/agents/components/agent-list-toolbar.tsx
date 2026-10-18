@@ -63,6 +63,7 @@ const COLUMN_KEYS: AgentColumnKey[] = [
   "runtime",
   "lastActive",
   "runs",
+  "lastHour",
   "model",
   "concurrency",
   "created",
@@ -72,6 +73,7 @@ const SORT_FIELDS: AgentSortField[] = [
   "lastActive",
   "name",
   "runs",
+  "lastHour",
   "created",
 ];
 
@@ -185,6 +187,7 @@ export function AgentListToolbar({
     lastActive: t(($) => $.columns.last_active),
     name: t(($) => $.columns.agent),
     runs: t(($) => $.columns.runs),
+    lastHour: t(($) => $.columns.last_hour),
     created: t(($) => $.columns.created),
   };
 
@@ -195,6 +198,7 @@ export function AgentListToolbar({
     runtime: t(($) => $.columns.runtime),
     lastActive: t(($) => $.columns.last_active),
     runs: t(($) => $.columns.runs),
+    lastHour: t(($) => $.columns.last_hour),
     model: t(($) => $.columns.model),
     concurrency: t(($) => $.columns.concurrency),
     created: t(($) => $.columns.created),

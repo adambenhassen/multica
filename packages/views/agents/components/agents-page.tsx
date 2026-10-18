@@ -87,7 +87,7 @@ import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 // the documented exception to the single-line management-list rule.
 const GRID_COLS =
   "grid-cols-[0.75rem_minmax(120px,1fr)_var(--agc-status-mobile)_1.75rem_0.75rem] " +
-  "@2xl:grid-cols-[0.75rem_1rem_minmax(200px,1fr)_var(--agc-status-desktop)_var(--agc-owner)_var(--agc-access)_var(--agc-runtime)_var(--agc-lastactive)_var(--agc-runs)_var(--agc-model)_var(--agc-concurrency)_var(--agc-created)_1.75rem_0.75rem]";
+  "@2xl:grid-cols-[0.75rem_1rem_minmax(200px,1fr)_var(--agc-status-desktop)_var(--agc-owner)_var(--agc-access)_var(--agc-runtime)_var(--agc-lastactive)_var(--agc-runs)_var(--agc-lasthour)_var(--agc-model)_var(--agc-concurrency)_var(--agc-created)_1.75rem_0.75rem]";
 
 // Two-line rows; the virtualizer's fixed-size contract.
 const ROW_HEIGHT = 64;
@@ -104,6 +104,8 @@ const COLUMN_WIDTHS: Record<AgentColumnKey, number> = {
   runtime: 144,
   lastActive: 120,
   runs: 88,
+  // Fits the longest header label "Dernière heure" plus the sort arrow.
+  lastHour: 112,
   // Fits a model id like "claude-fable-5-1" plus an effort badge ("xhigh").
   model: 176,
   // Fits the header label "Concurrency" (~104px incl. padding).
@@ -112,9 +114,9 @@ const COLUMN_WIDTHS: Record<AgentColumnKey, number> = {
 };
 
 // Fixed tracks (edges 12+12, checkbox 16, name min 200, kebab 28) plus the
-// 13 gap-x-3 gaps between the wide template's 14 tracks (zero-width tracks
+// 14 gap-x-3 gaps between the wide template's 15 tracks (zero-width tracks
 // still carry gaps).
-const FIXED_TRACKS_WIDTH = 268 + 13 * 12;
+const FIXED_TRACKS_WIDTH = 268 + 14 * 12;
 
 function columnTrackVars(
   isVisible: (key: AgentColumnKey) => boolean,
@@ -135,6 +137,7 @@ function columnTrackVars(
     "--agc-runtime": width("runtime"),
     "--agc-lastactive": width("lastActive"),
     "--agc-runs": width("runs"),
+    "--agc-lasthour": width("lastHour"),
     "--agc-model": width("model"),
     "--agc-concurrency": width("concurrency"),
     "--agc-created": width("created"),
@@ -147,6 +150,8 @@ export interface AgentListRow {
   runtime: AgentRuntime | null;
   presence: AgentPresenceDetail | null;
   runCount: number;
+  /** Runs created in the trailing hour. */
+  lastHourCount: number;
   /** Newest run's completion (or start while running); null = none in 30d. */
   lastRunAt: string | null;
   owner: MemberWithUser | null;
@@ -653,6 +658,18 @@ function AgentListHeader({
       ) : (
         <ListGridHeaderCell className="hidden px-0 @2xl:flex" />
       )}
+      {isColVisible("lastHour") ? (
+        <ListGridHeaderCell
+          className="hidden @2xl:flex"
+          align="right"
+          sorted={sorted("lastHour")}
+          onSort={() => onSort("lastHour")}
+        >
+          {t(($) => $.columns.last_hour)}
+        </ListGridHeaderCell>
+      ) : (
+        <ListGridHeaderCell className="hidden px-0 @2xl:flex" />
+      )}
       {isColVisible("model") ? (
         <ListGridHeaderCell className="hidden @2xl:flex">
           {t(($) => $.columns.model)}
@@ -714,6 +731,9 @@ function LoadingSkeleton() {
         <ListGridHeaderCell className="hidden @2xl:flex">
           <Skeleton className="h-3 w-10" />
         </ListGridHeaderCell>
+        <ListGridHeaderCell className="hidden justify-end @2xl:flex">
+          <Skeleton className="h-3 w-12" />
+        </ListGridHeaderCell>
         <ListGridHeaderCell className="hidden px-0 @2xl:flex" />
         <ListGridHeaderCell className="hidden justify-end @2xl:flex">
           <Skeleton className="h-3 w-14" />
@@ -749,6 +769,9 @@ function LoadingSkeleton() {
           </ListGridCell>
           <ListGridCell className="hidden justify-end @2xl:flex">
             <Skeleton className="h-3 w-8" />
+          </ListGridCell>
+          <ListGridCell className="hidden justify-end @2xl:flex">
+            <Skeleton className="h-3 w-4" />
           </ListGridCell>
           <ListGridCell className="hidden px-0 @2xl:flex" />
           <ListGridCell className="hidden justify-end @2xl:flex">
@@ -881,6 +904,7 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
         runtime: runtimesById.get(agent.runtime_id) ?? null,
         presence: presenceMap.get(agent.id) ?? null,
         runCount: runs?.run_count ?? 0,
+        lastHourCount: runs?.last_hour_count ?? 0,
         lastRunAt: runs?.last_run_at ?? null,
         owner: agent.owner_id ? membersById.get(agent.owner_id) ?? null : null,
         isOwnedByMe: isOwner,
@@ -909,6 +933,10 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
       }
       if (sortField === "runs") {
         return (a.runCount - b.runCount) * dir ||
+          a.agent.name.localeCompare(b.agent.name);
+      }
+      if (sortField === "lastHour") {
+        return (a.lastHourCount - b.lastHourCount) * dir ||
           a.agent.name.localeCompare(b.agent.name);
       }
       if (sortField === "created") {
@@ -1014,13 +1042,16 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
   // would sort on placeholder values (lastRunAt null, runCount 0) and visibly
   // re-order the list once each query resolves. Gate the first real paint on
   // exactly the auxiliary queries the current sort / filter depends on —
-  // nothing for name/created, run-counts for runs and the default
+  // nothing for name/created, run-counts for runs, lastHour and the default
   // lastActive, plus presence whenever an availability filter is active. The
   // queries still run in parallel, so this defers the first paint by at most
   // one extra round-trip (shown as skeleton) and never serialises them. An
   // empty workspace (showEmpty) skips the gate so the empty state is never
   // blocked on the auxiliary queries.
-  const needsRunCounts = sortField === "lastActive" || sortField === "runs";
+  const needsRunCounts =
+    sortField === "lastActive" ||
+    sortField === "runs" ||
+    sortField === "lastHour";
   const needsPresence = filters.availability.length > 0;
   const listReady =
     (!needsRunCounts || !runCountsPending) &&
@@ -1137,6 +1168,13 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
                       {isColVisible("runs") ? (
                         <ListGridCell className="hidden justify-end font-mono text-caption tabular-nums text-muted-foreground @2xl:flex">
                           {row.runCount.toLocaleString(locale)}
+                        </ListGridCell>
+                      ) : (
+                        <ListGridCell className="hidden px-0 @2xl:flex" />
+                      )}
+                      {isColVisible("lastHour") ? (
+                        <ListGridCell className="hidden justify-end font-mono text-caption tabular-nums text-muted-foreground @2xl:flex">
+                          {row.lastHourCount.toLocaleString(locale)}
                         </ListGridCell>
                       ) : (
                         <ListGridCell className="hidden px-0 @2xl:flex" />

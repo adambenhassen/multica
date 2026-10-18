@@ -19,7 +19,12 @@ import { AgentsPage } from "./agents-page";
 const mocks = vi.hoisted(() => ({
   agents: [] as Agent[],
   agentsLoading: false,
-  runCounts: [] as Array<{ agent_id: string; run_count: number; last_run_at: string | null }>,
+  runCounts: [] as Array<{
+    agent_id: string;
+    run_count: number;
+    last_hour_count?: number;
+    last_run_at: string | null;
+  }>,
   runCountsPending: false,
   presence: {
     byAgent: new Map<string, unknown>(),
@@ -355,5 +360,20 @@ describe("AgentsPage model and concurrency columns", () => {
 
     expect(screen.getByRole("columnheader", { name: "Concurrency" })).toBeInTheDocument();
     expect(screen.getByText("7")).toBeInTheDocument();
+  });
+
+  it("shows each agent's runs from the last hour and sorts by them", () => {
+    mocks.viewState.sortField = "lastHour";
+    mocks.viewState.sortDirection = "desc";
+    mocks.runCounts = [
+      { agent_id: ALPHA.id, run_count: 40, last_hour_count: 2, last_run_at: null },
+      { agent_id: BETA.id, run_count: 30, last_hour_count: 9, last_run_at: null },
+    ];
+
+    renderPage();
+
+    expect(screen.getByRole("columnheader", { name: "Last hour" })).toBeInTheDocument();
+    expect(screen.getByText("9")).toBeInTheDocument();
+    expect(betaPrecedesAlpha()).toBe(true);
   });
 });

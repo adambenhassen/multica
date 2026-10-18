@@ -78,6 +78,7 @@ function makeRow(
     runtime: null,
     presence: null,
     runCount: 0,
+    lastHourCount: 0,
     lastRunAt: null,
     owner: ownerId
       ? ({ user_id: ownerId, name: `Owner ${ownerId}`, email: "" } as AgentListRow["owner"])

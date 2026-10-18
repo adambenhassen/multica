@@ -73,6 +73,7 @@
     "runtime": "Runtime",
     "activity_7d": "Activity (7d)",
     "runs": "Runs",
+    "last_hour": "Last hour",
     "last_active": "Last active",
     "model": "Model",
     "concurrency": "Concurrency",

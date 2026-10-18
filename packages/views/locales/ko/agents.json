@@ -71,6 +71,7 @@
     "runtime": "런타임",
     "activity_7d": "활동(7일)",
     "runs": "실행",
+    "last_hour": "최근 1시간",
     "last_active": "최근 활동",
     "model": "모델",
     "concurrency": "동시 실행",

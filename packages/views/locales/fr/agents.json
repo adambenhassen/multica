@@ -73,6 +73,7 @@
     "runtime": "Runtime",
     "activity_7d": "Activité (7 j)",
     "runs": "Exécutions",
+    "last_hour": "Dernière heure",
     "last_active": "Dernière activité",
     "model": "Modèle",
     "concurrency": "Parallélisme",

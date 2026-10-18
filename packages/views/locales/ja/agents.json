@@ -63,6 +63,7 @@
     "runtime": "ランタイム",
     "activity_7d": "アクティビティ（7日）",
     "runs": "実行",
+    "last_hour": "直近1時間",
     "last_active": "最終アクティブ",
     "model": "モデル",
     "concurrency": "同時実行数",

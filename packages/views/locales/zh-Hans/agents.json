@@ -71,6 +71,7 @@
     "runtime": "运行时",
     "activity_7d": "活动（7 天）",
     "runs": "运行次数",
+    "last_hour": "最近 1 小时",
     "last_active": "最近活跃",
     "model": "模型",
     "concurrency": "并发",

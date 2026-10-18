@@ -223,6 +223,7 @@ export interface AgentActivityBucket {
 export interface AgentRunCount {
   agent_id: string;
   run_count: number;
+  last_hour_count: number;
   last_run_at: string | null;
 }
 

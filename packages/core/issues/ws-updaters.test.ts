@@ -1075,7 +1075,7 @@ describe("onIssueDeleted", () => {
       ],
     );
     qc.setQueryData<AgentRunCount[]>(agentRunCountsKeys.last30d(WS_ID), [
-      { agent_id: AGENT_ID, run_count: 1, last_run_at: null },
+      { agent_id: AGENT_ID, run_count: 1, last_hour_count: 1, last_run_at: null },
     ]);
     qc.setQueryData<AgentTask[]>(agentTasksKeys.detail(WS_ID, AGENT_ID), [
       makeTask(),
