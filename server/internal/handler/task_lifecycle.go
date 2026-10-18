@@ -150,12 +150,18 @@ type RerunIssueRequest struct {
 	// assignee — so clicking retry on row that belonged to a now-displaced
 	// agent re-fires that same agent, not the new assignee.
 	TaskID string `json:"task_id,omitempty"`
+	// Continue runs the current assignee resuming its latest session on the
+	// issue instead of starting fresh. Ignored when TaskID is set.
+	Continue bool `json:"continue,omitempty"`
 }
 
 // RerunIssue manually re-enqueues an agent run for the issue. By default it
 // targets the issue's current assignee (agent or squad leader); if the
 // request body carries task_id, the rerun targets the agent that ran that
-// specific past task instead. The new task is flagged force_fresh_session=true:
+// specific past task instead. With "continue" and no task_id, the run resumes
+// the assignee's latest session and never replaces a waiting run; one already
+// waiting answers 409 already_active (ContinueIssue). Otherwise the new task
+// is flagged force_fresh_session=true:
 // the daemon claim handler skips the (agent_id, issue_id) session-resume
 // lookup so the agent starts a clean session. A user clicking rerun has just
 // judged the prior output bad — replaying the same conversation would replay
@@ -208,13 +214,25 @@ func (h *Handler) RerunIssue(w http.ResponseWriter, r *http.Request) {
 		return h.canInvokeAgent(r.Context(), agent, actorType, actorID, originatorUserID, workspaceID)
 	}
 
-	task, err := h.TaskService.RerunIssue(r.Context(), issue.ID, sourceTaskID, pgtype.UUID{}, actorUserID, canInvoke)
+	var (
+		task *db.AgentTaskQueue
+		err  error
+	)
+	if req.Continue && !sourceTaskID.Valid {
+		task, err = h.TaskService.ContinueIssue(r.Context(), issue.ID, actorUserID, canInvoke)
+	} else {
+		task, err = h.TaskService.RerunIssue(r.Context(), issue.ID, sourceTaskID, pgtype.UUID{}, actorUserID, canInvoke)
+	}
 	if errors.Is(err, service.ErrRerunInvokeNotAllowed) {
 		h.writeDispatchBlocked(w, http.StatusForbidden, ReasonInvocationNotAllowed)
 		return
 	}
 	if errors.Is(err, service.ErrIssueInTriage) {
 		h.writeDispatchBlocked(w, http.StatusForbidden, ReasonIssueInTriage)
+		return
+	}
+	if errors.Is(err, service.ErrRunAlreadyQueued) {
+		h.writeDispatchBlocked(w, http.StatusConflict, ReasonAlreadyActive)
 		return
 	}
 	// Not a dispatch refusal: the issue may well be runnable, and only the named

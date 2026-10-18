@@ -761,6 +761,43 @@ func TestRerunIssueSetsForceFreshSession(t *testing.T) {
 	}
 }
 
+// TestContinueIssueDoesNotForceFreshSession guards the "run now" path: it
+// targets the assignee like a no-source rerun but leaves force_fresh_session
+// false and carries no rerun lineage, so the claim handler resumes the agent's
+// latest session on the issue.
+func TestContinueIssueDoesNotForceFreshSession(t *testing.T) {
+	if testPool == nil {
+		t.Skip("no database connection")
+	}
+
+	issueID, agentID, _ := setupRerunTestFixture(t)
+	t.Cleanup(func() { cleanupRerunFixture(t, issueID) })
+
+	ctx := context.Background()
+	queries := db.New(testPool)
+	hub := realtime.NewHub()
+	go hub.Run()
+	bus := events.New()
+	taskService := service.NewTaskService(queries, nil, hub, bus)
+
+	task, err := taskService.ContinueIssue(ctx, pgtype.UUID{Bytes: parseUUIDBytes(issueID), Valid: true}, pgtype.UUID{}, nil)
+	if err != nil {
+		t.Fatalf("ContinueIssue failed: %v", err)
+	}
+	if task == nil {
+		t.Fatal("ContinueIssue returned nil task")
+	}
+	if task.ForceFreshSession {
+		t.Fatal("expected continue run to leave force_fresh_session=false")
+	}
+	if task.RerunOfTaskID.Valid {
+		t.Fatal("expected continue run to carry no rerun_of_task_id")
+	}
+	if got := util.UUIDToString(task.AgentID); got != agentID {
+		t.Fatalf("continue run agent_id = %q, want assignee %q", got, agentID)
+	}
+}
+
 // TestRerunIssueTargetsSourceTaskAgent asserts that when a source task ID is
 // supplied (the execution-log retry-button path), the rerun targets the agent
 // that ran that specific past task — not the issue's current assignee.
