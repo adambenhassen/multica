@@ -284,7 +284,7 @@ describe("OverviewPage", () => {
     expect(within(feed()).getByText("Fix the reconnect")).toBeTruthy();
   });
 
-  it("counts the agents running now in the header, and opens the Active tab from it", async () => {
+  it("counts the runs in progress now in the header, and opens the Active tab from it", async () => {
     apiRef.current.getAgentTaskSnapshot = () =>
       Promise.resolve([
         { id: "t-1", agent_id: "agent-1", issue_id: "issue-1", status: "running", started_at: NOW, created_at: NOW },
@@ -294,7 +294,7 @@ describe("OverviewPage", () => {
     scriptFeed((p) => (p.issues?.includes("issue-1") ? [move("a-1", SHIP)] : []));
     renderPage();
 
-    const chip = await screen.findByRole("button", { name: "2 agents working" });
+    const chip = await screen.findByRole("button", { name: "2 runs working" });
     expect(chip.getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(chip);
     expect(chip.getAttribute("aria-pressed")).toBe("true");

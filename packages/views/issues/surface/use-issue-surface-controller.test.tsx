@@ -1359,8 +1359,8 @@ describe("useIssueSurfaceController", () => {
   });
 
   // --- working-chip scope (MUL-4884, MUL-5525) ---------------------------
-  // The header chip promises "N agents working" where N is the number of agents
-  // holding rows that clicking it leaves. The running-issue ids still come from
+  // The header chip promises "N runs working" where N is the number of runs
+  // on rows that clicking it leaves. The running-issue ids still come from
   // the working-agents endpoint and go to the server as a filter; the COUNT
   // comes from the `working_agents` facet over the surface's own compiled
   // query, so scope and filters can never diverge from the list again.

@@ -72,7 +72,7 @@ beforeEach(() => {
 });
 
 describe("WorkspaceAgentWorkingChip", () => {
-  it("counts exactly the agents the surface projection supplies", () => {
+  it("counts the runs, not the agents, the surface projection supplies", () => {
     renderWithI18n(
       <WorkspaceAgentWorkingChip
         value={false}
@@ -82,7 +82,7 @@ describe("WorkspaceAgentWorkingChip", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "3 agents working" }),
+      screen.getByRole("button", { name: "5 runs working" }),
     ).toBeTruthy();
     expect(mockState.avatarAgentIds).toEqual([
       "agent-1",
@@ -101,7 +101,7 @@ describe("WorkspaceAgentWorkingChip", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "0 agents working" }),
+      screen.getByRole("button", { name: "0 runs working" }),
     ).toBeTruthy();
     expect(screen.queryByTestId("agent-avatar-stack")).toBeNull();
     expect(mockState.buttonVariant).toBe("outline");
@@ -118,7 +118,7 @@ describe("WorkspaceAgentWorkingChip", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Agents working: —" }),
+      screen.getByRole("button", { name: "Runs working: —" }),
     ).toBeTruthy();
     expect(screen.queryByTestId("agent-avatar-stack")).toBeNull();
   });
@@ -150,7 +150,7 @@ describe("WorkspaceAgentWorkingChip", () => {
       />,
     );
 
-    const button = screen.getByRole("button", { name: "Agents working: —" });
+    const button = screen.getByRole("button", { name: "Runs working: —" });
     expect(mockState.buttonVariant).toBe("outline");
     expect(button.className).not.toContain("text-muted-foreground");
   });

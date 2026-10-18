@@ -24,7 +24,9 @@ vi.mock("../../agents/components/agent-avatar-stack", () => ({
   ),
 }));
 
-vi.mock("./workspace-agent-working-chip", () => ({
+vi.mock("./workspace-agent-working-chip", async (importOriginal) => ({
+  countRuns: (await importOriginal<typeof import("./workspace-agent-working-chip")>())
+    .countRuns,
   WorkingAgentsHoverContent: ({
     agents,
   }: {
@@ -109,16 +111,16 @@ describe("SubIssuesAgentWorkingChip", () => {
     ]);
   });
 
-  it("counts the agents the server returned", () => {
+  it("counts the runs the server returned", () => {
     mockState.agents = [
-      makeAgent({ id: "agent-1", issue_ids: ["child-1"] }),
+      makeAgent({ id: "agent-1", running_task_count: 2, issue_ids: ["child-1", "child-3"] }),
       makeAgent({ id: "agent-2", issue_ids: ["child-2"] }),
     ];
 
     render(<SubIssuesAgentWorkingChip parentIssueId="parent-1" />);
 
     expect(
-      screen.getByText("agent_activity.chip_agents_working:2", { ignore: '[aria-hidden="true"] *' }),
+      screen.getByText("agent_activity.chip_runs_working:3", { ignore: '[aria-hidden="true"] *' }),
     ).not.toBeNull();
     expect(screen.getByTestId("agent-avatar-stack").textContent).toBe(
       "agent-1,agent-2",
@@ -137,7 +139,7 @@ describe("SubIssuesAgentWorkingChip", () => {
     // The number and the hover body must never disagree — they are the same
     // list, not two derivations of one snapshot.
     expect(
-      screen.getByText("agent_activity.chip_agents_working:3", { ignore: '[aria-hidden="true"] *' }),
+      screen.getByText("agent_activity.chip_runs_working:3", { ignore: '[aria-hidden="true"] *' }),
     ).not.toBeNull();
     expect(screen.getByTestId("hover-body").textContent).toBe("3");
   });

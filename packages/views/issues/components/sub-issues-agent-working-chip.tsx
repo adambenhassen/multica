@@ -11,7 +11,10 @@ import {
 import { useWorkspaceId } from "@multica/core/hooks";
 import { workspaceWorkingAgentsOptions } from "@multica/core/agents";
 import { AgentAvatarStack } from "../../agents/components/agent-avatar-stack";
-import { WorkingAgentsHoverContent } from "./workspace-agent-working-chip";
+import {
+  WorkingAgentsHoverContent,
+  countRuns,
+} from "./workspace-agent-working-chip";
 import { useT } from "../../i18n";
 
 interface SubIssuesAgentWorkingChipProps {
@@ -20,9 +23,9 @@ interface SubIssuesAgentWorkingChipProps {
 }
 
 /**
- * Aggregate "N agents working" chip for the sub-issues header in issue
+ * Aggregate "N runs working" chip for the sub-issues header in issue
  * detail (multica#5825). The per-row IssueAgentActivityIndicator answers
- * "which sub-issue is being worked on"; this chip answers "how many agents
+ * "which sub-issue is being worked on"; this chip answers "how many runs
  * are on this parent's children right now" without scanning the rows — and
  * keeps that signal visible while the list is collapsed.
  *
@@ -60,8 +63,8 @@ export const SubIssuesAgentWorkingChip = memo(
         >
           <AgentAvatarStack agentIds={agentIds} size="xs" max={3} />
           <ShimmerText className="text-micro font-medium tabular-nums">
-            {t(($) => $.agent_activity.chip_agents_working, {
-              count: agentIds.length,
+            {t(($) => $.agent_activity.chip_runs_working, {
+              count: countRuns(agents),
             })}
           </ShimmerText>
         </HoverCardTrigger>

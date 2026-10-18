@@ -31,6 +31,11 @@ export function chipActivity(
   return agents.length > 0 ? "some" : "none";
 }
 
+/** Runs, not agents: one agent can hold several runs at once. */
+export function countRuns(agents: readonly WorkingAgentSummary[]): number {
+  return agents.reduce((sum, agent) => sum + agent.running_task_count, 0);
+}
+
 /**
  * Which colour tier the chip wears, and the only classes allowed alongside
  * it. Activity uses a tint, the active filter uses the filled brand tier,
@@ -125,8 +130,8 @@ export function WorkingAgentsHoverContent({
 /**
  * Agents-working filter chip for an issue surface header.
  *
- * The number IS the post-click row count's authority: it counts the agents
- * working on rows this surface's scope AND active filters would show, resolved
+ * The number IS the post-click row count's authority: it counts the runs
+ * on rows this surface's scope AND active filters would show, resolved
  * by the surface controller from the server-side `working_agents` facet — the
  * same compiled query the rows come from. Before MUL-5525 it ran its own
  * workspace-wide `/api/working-agents` read, so on a project page it could
@@ -148,10 +153,11 @@ export function WorkspaceAgentWorkingChip({
   const { t } = useT("issues");
   const activity = chipActivity(agents);
   const agentIds = agents?.map((agent) => agent.id) ?? [];
+  const runCount = countRuns(agents ?? []);
   const label =
     activity === "unknown"
-      ? t(($) => $.agent_activity.chip_agents_working_unknown)
-      : t(($) => $.agent_activity.chip_agents_working, { count: agentIds.length });
+      ? t(($) => $.agent_activity.chip_runs_working_unknown)
+      : t(($) => $.agent_activity.chip_runs_working, { count: runCount });
   const appearance = chipAppearance(value, activity);
 
   const trigger = (
@@ -167,7 +173,7 @@ export function WorkspaceAgentWorkingChip({
         <AgentAvatarStack agentIds={agentIds} size="sm" max={3} />
       )}
       <span className="tabular-nums md:hidden">
-        {activity === "unknown" ? "—" : agentIds.length}
+        {activity === "unknown" ? "—" : runCount}
       </span>
       <span className="hidden tabular-nums md:inline">{label}</span>
     </Button>

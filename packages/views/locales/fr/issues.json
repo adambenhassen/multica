@@ -698,11 +698,11 @@
     "filter_active_label": "Affichage des tâches avec des agents au travail",
     "tasks_count_one": "{{count}} exécution",
     "tasks_count_other": "{{count}} exécutions",
-    "chip_agents_working_one": "{{count}} agent au travail",
-    "chip_agents_working_other": "{{count}} agents au travail",
+    "chip_runs_working_one": "{{count}} exécution en cours",
+    "chip_runs_working_other": "{{count}} exécutions en cours",
     "issues_count_one": "{{count}} tâche",
     "issues_count_other": "{{count}} tâches",
-    "chip_agents_working_unknown": "Agents au travail : —"
+    "chip_runs_working_unknown": "Exécutions en cours : —"
   },
   "filtered_empty": {
     "title": "Aucune tâche ne correspond à ces filtres",

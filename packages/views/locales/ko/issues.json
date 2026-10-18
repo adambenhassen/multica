@@ -674,9 +674,9 @@
     "unknown_hover": "작업 중인 에이전트: 아직 불러오지 않았습니다",
     "filter_active_label": "에이전트가 작업 중인 태스크만 보는 중",
     "tasks_count_other": "실행 {{count}}개",
-    "chip_agents_working_other": "작업 중인 에이전트 {{count}}개",
+    "chip_runs_working_other": "진행 중인 실행 {{count}}개",
     "issues_count_other": "태스크 {{count}}개",
-    "chip_agents_working_unknown": "작업 중인 에이전트: —"
+    "chip_runs_working_unknown": "진행 중인 실행: —"
   },
   "filtered_empty": {
     "title": "필터 조건에 맞는 태스크가 없습니다",

@@ -674,9 +674,9 @@
     "unknown_hover": "作業中のエージェント: まだ読み込まれていません",
     "filter_active_label": "エージェントが作業中のタスクを表示中",
     "tasks_count_other": "実行 {{count}} 件",
-    "chip_agents_working_other": "作業中のエージェント {{count}} 件",
+    "chip_runs_working_other": "進行中の実行 {{count}} 件",
     "issues_count_other": "タスク {{count}} 件",
-    "chip_agents_working_unknown": "作業中のエージェント: —"
+    "chip_runs_working_unknown": "進行中の実行: —"
   },
   "filtered_empty": {
     "title": "フィルター条件に一致するタスクがありません",
