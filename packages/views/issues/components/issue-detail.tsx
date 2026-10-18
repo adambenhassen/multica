@@ -85,6 +85,7 @@ import { StagePicker, maxSiblingStage } from "./pickers/stage-picker";
 import { StartDatePicker } from "./pickers/start-date-picker";
 import { DueDatePicker } from "./pickers/due-date-picker";
 import { AssigneePicker } from "./pickers/assignee-picker";
+import { RunAssigneeButton } from "./run-assignee-button";
 import { LabelPicker } from "./pickers/label-picker";
 import { CustomPropertyValueEditor, CustomPropertyValueDisplay } from "./pickers/custom-property-picker";
 import { Switch } from "@multica/ui/components/ui/switch";
@@ -2537,6 +2538,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           </PropRow>
           <PropRow label={t(($) => $.detail.prop_assignee)}>
             <AssigneePicker assigneeType={issue.assignee_type} assigneeId={issue.assignee_id} onUpdate={handleUpdateField} align="start" />
+            <RunAssigneeButton issueId={issue.id} assigneeType={issue.assignee_type} assigneeId={issue.assignee_id} />
           </PropRow>
           <PropRow label={t(($) => $.detail.prop_project)}>
             <IssueProjectPicker

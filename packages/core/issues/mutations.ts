@@ -1234,3 +1234,13 @@ export function useRetryIssueRun(issueId: string) {
     onSuccess: () => client.invalidateQueries({ queryKey: issueKeys.tasks(issueId) }),
   });
 }
+
+// Runs the issue's current assignee now, resuming its latest session rather
+// than starting fresh like a retry.
+export function useRunIssueAssignee(issueId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.rerunIssue(issueId, undefined, { continue: true }),
+    onSuccess: () => client.invalidateQueries({ queryKey: issueKeys.tasks(issueId) }),
+  });
+}
