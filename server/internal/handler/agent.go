@@ -2804,12 +2804,14 @@ type AgentActivityBucket struct {
 }
 
 // AgentRunCount is the trailing-30-day total task run count per agent,
-// powering the Agents-list RUNS column, plus the newest run time for the
-// LAST ACTIVE column (null when no run in the window has started).
+// powering the Agents-list RUNS column, plus the trailing-hour count for the
+// LAST HOUR column and the newest run time for the LAST ACTIVE column (null
+// when no run in the window has started).
 type AgentRunCount struct {
-	AgentID   string  `json:"agent_id"`
-	RunCount  int32   `json:"run_count"`
-	LastRunAt *string `json:"last_run_at"`
+	AgentID       string  `json:"agent_id"`
+	RunCount      int32   `json:"run_count"`
+	LastHourCount int32   `json:"last_hour_count"`
+	LastRunAt     *string `json:"last_run_at"`
 }
 
 // WorkspaceWorkingAgent is the privacy-safe agent summary returned by the
@@ -2977,9 +2979,10 @@ func (h *Handler) GetWorkspaceAgentRunCounts(w http.ResponseWriter, r *http.Requ
 			continue
 		}
 		resp = append(resp, AgentRunCount{
-			AgentID:   agentID,
-			RunCount:  row.RunCount,
-			LastRunAt: timestampToPtr(row.LastRunAt),
+			AgentID:       agentID,
+			RunCount:      row.RunCount,
+			LastHourCount: row.LastHourCount,
+			LastRunAt:     timestampToPtr(row.LastRunAt),
 		})
 	}
 

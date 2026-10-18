@@ -13,9 +13,10 @@ func TestAgentRunCountsLastRunAt(t *testing.T) {
 	agentID := dbfx.Agent(t, "run counts agent", runtimeID)
 
 	type row struct {
-		AgentID   string  `json:"agent_id"`
-		RunCount  int     `json:"run_count"`
-		LastRunAt *string `json:"last_run_at"`
+		AgentID       string  `json:"agent_id"`
+		RunCount      int     `json:"run_count"`
+		LastHourCount int     `json:"last_hour_count"`
+		LastRunAt     *string `json:"last_run_at"`
 	}
 	read := func(t *testing.T) row {
 		t.Helper()
@@ -68,4 +69,17 @@ func TestAgentRunCountsLastRunAt(t *testing.T) {
 		"started_at": testutil.Raw("now() - interval '10 minutes'"),
 	})
 	t.Run("running_run", func(t *testing.T) { wantAbout(t, read(t).LastRunAt, 10*time.Minute) })
+
+	// Runs created over an hour ago count toward the 30-day total only.
+	dbfx.Task(t, agentID, testutil.Cols{
+		"runtime_id": runtimeID,
+		"status":     "queued",
+		"created_at": testutil.Raw("now() - interval '2 hours'"),
+	})
+	t.Run("last_hour_count", func(t *testing.T) {
+		got := read(t)
+		if got.RunCount != 4 || got.LastHourCount != 3 {
+			t.Fatalf("run_count/last_hour_count = %d/%d, want 4/3", got.RunCount, got.LastHourCount)
+		}
+	})
 }

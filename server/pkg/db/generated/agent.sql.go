@@ -4697,6 +4697,7 @@ const getWorkspaceAgentRunCounts = `-- name: GetWorkspaceAgentRunCounts :many
 SELECT
     atq.agent_id,
     COUNT(*)::int AS run_count,
+    (COUNT(*) FILTER (WHERE atq.created_at > now() - INTERVAL '1 hour'))::int AS last_hour_count,
     MAX(COALESCE(atq.completed_at, atq.started_at))::timestamptz AS last_run_at
 FROM agent_task_queue atq
 JOIN agent a ON a.id = atq.agent_id
@@ -4706,9 +4707,10 @@ GROUP BY atq.agent_id
 `
 
 type GetWorkspaceAgentRunCountsRow struct {
-	AgentID   pgtype.UUID        `json:"agent_id"`
-	RunCount  int32              `json:"run_count"`
-	LastRunAt pgtype.Timestamptz `json:"last_run_at"`
+	AgentID       pgtype.UUID        `json:"agent_id"`
+	RunCount      int32              `json:"run_count"`
+	LastHourCount int32              `json:"last_hour_count"`
+	LastRunAt     pgtype.Timestamptz `json:"last_run_at"`
 }
 
 // Total task runs per agent over the trailing 30 days, used by the Agents
@@ -4716,7 +4718,8 @@ type GetWorkspaceAgentRunCountsRow struct {
 // agent shouldn't show "5,420 runs from 2 years ago") and keeps the scan
 // bounded as the workspace ages. last_run_at backs the LAST ACTIVE column:
 // the newest run's completion, or its start while it is still running; NULL
-// when no run in the window has started.
+// when no run in the window has started. last_hour_count backs the LAST HOUR
+// column with the same created_at anchor as run_count.
 func (q *Queries) GetWorkspaceAgentRunCounts(ctx context.Context, workspaceID pgtype.UUID) ([]GetWorkspaceAgentRunCountsRow, error) {
 	rows, err := q.db.Query(ctx, getWorkspaceAgentRunCounts, workspaceID)
 	if err != nil {
@@ -4726,7 +4729,12 @@ func (q *Queries) GetWorkspaceAgentRunCounts(ctx context.Context, workspaceID pg
 	items := []GetWorkspaceAgentRunCountsRow{}
 	for rows.Next() {
 		var i GetWorkspaceAgentRunCountsRow
-		if err := rows.Scan(&i.AgentID, &i.RunCount, &i.LastRunAt); err != nil {
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.RunCount,
+			&i.LastHourCount,
+			&i.LastRunAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

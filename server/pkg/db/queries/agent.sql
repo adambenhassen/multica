@@ -2452,10 +2452,12 @@ LIMIT @row_limit;
 -- agent shouldn't show "5,420 runs from 2 years ago") and keeps the scan
 -- bounded as the workspace ages. last_run_at backs the LAST ACTIVE column:
 -- the newest run's completion, or its start while it is still running; NULL
--- when no run in the window has started.
+-- when no run in the window has started. last_hour_count backs the LAST HOUR
+-- column with the same created_at anchor as run_count.
 SELECT
     atq.agent_id,
     COUNT(*)::int AS run_count,
+    (COUNT(*) FILTER (WHERE atq.created_at > now() - INTERVAL '1 hour'))::int AS last_hour_count,
     MAX(COALESCE(atq.completed_at, atq.started_at))::timestamptz AS last_run_at
 FROM agent_task_queue atq
 JOIN agent a ON a.id = atq.agent_id
