@@ -285,10 +285,22 @@ func registerActivityListeners(bus *events.Bus, queries *db.Queries) {
 		handleTaskActivity(ctx, bus, queries, e, "task_completed")
 	})
 
-	// task:failed — record "task_failed" activity
+	// task:failed — record "task_failed" activity, unless a retry or fallback
+	// child took over; that child records the terminal outcome.
 	bus.Subscribe(protocol.EventTaskFailed, func(e events.Event) {
+		if taskFailureRetryPending(e) {
+			return
+		}
 		handleTaskActivity(ctx, bus, queries, e, "task_failed")
 	})
+}
+
+// taskFailureRetryPending reports whether a task:failed event was handed to a
+// retry or model-fallback child (TaskService sets retry_pending).
+func taskFailureRetryPending(e events.Event) bool {
+	payload, _ := e.Payload.(map[string]any)
+	pending, _ := payload["retry_pending"].(bool)
+	return pending
 }
 
 // handleTaskActivity records an activity for task:completed or task:failed events.

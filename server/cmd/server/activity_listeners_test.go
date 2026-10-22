@@ -469,6 +469,39 @@ func TestActivityTaskFailed(t *testing.T) {
 	}
 }
 
+// A failure handed to a retry or model-fallback child is not an outcome; the
+// child reports the terminal one.
+func TestActivityTaskFailedRetryPendingRecordsNothing(t *testing.T) {
+	queries := db.New(testPool)
+	bus := events.New()
+	registerActivityListeners(bus, queries)
+
+	issueID := createTestIssue(t, testWorkspaceID, testUserID)
+	t.Cleanup(func() {
+		cleanupActivities(t, issueID)
+		cleanupTestIssue(t, issueID)
+	})
+
+	bus.Publish(events.Event{
+		Type:        protocol.EventTaskFailed,
+		WorkspaceID: testWorkspaceID,
+		ActorType:   "system",
+		ActorID:     "",
+		Payload: map[string]any{
+			"task_id":        "00000000-0000-0000-0000-000000000002",
+			"agent_id":       testUserID,
+			"issue_id":       issueID,
+			"status":         "failed",
+			"failure_reason": "agent_error.provider_quota_limit",
+			"retry_pending":  true,
+		},
+	})
+
+	if activities := listActivitiesForIssue(t, queries, issueID); len(activities) != 0 {
+		t.Fatalf("expected no activity for a retry-pending failure, got %d (%q)", len(activities), activities[0].Action)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Duplicate marks (MUL-7349) log on both issues. Every publisher of a mark
 // change carries both ends of it, the way UpdateIssue does, and the mark row

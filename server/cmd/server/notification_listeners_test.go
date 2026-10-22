@@ -737,6 +737,44 @@ func TestNotification_TaskFailed(t *testing.T) {
 	}
 }
 
+// TestNotification_TaskFailedRetryPending verifies that a failure handed to a
+// retry or model-fallback child notifies nobody: the child reports the
+// terminal outcome.
+func TestNotification_TaskFailedRetryPending(t *testing.T) {
+	queries := db.New(testPool)
+	bus := newNotificationBus(t, queries)
+
+	issueID := createTestIssue(t, testWorkspaceID, testUserID)
+	t.Cleanup(func() {
+		cleanupInboxForIssue(t, issueID)
+		cleanupTestIssue(t, issueID)
+	})
+
+	agentID := "00000000-0000-0000-0000-aaaaaaaaaaaa"
+
+	addTestSubscriber(t, issueID, "member", testUserID, "creator")
+	addTestSubscriber(t, issueID, "agent", agentID, "assignee")
+
+	bus.Publish(events.Event{
+		Type:        protocol.EventTaskFailed,
+		WorkspaceID: testWorkspaceID,
+		ActorType:   "system",
+		ActorID:     "",
+		Payload: map[string]any{
+			"task_id":        "00000000-0000-0000-0000-bbbbbbbbbbbb",
+			"agent_id":       agentID,
+			"issue_id":       issueID,
+			"status":         "failed",
+			"failure_reason": "agent_error.provider_quota_limit",
+			"retry_pending":  true,
+		},
+	})
+
+	if items := inboxItemsForRecipient(t, queries, testUserID); len(items) != 0 {
+		t.Fatalf("expected no inbox item for a retry-pending failure, got %d (%q)", len(items), items[0].Type)
+	}
+}
+
 // TestNotification_PriorityChanged verifies that all subscribers except the actor
 // receive a "priority_changed" notification when an issue priority changes.
 func TestNotification_PriorityChanged(t *testing.T) {
