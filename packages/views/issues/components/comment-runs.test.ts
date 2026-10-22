@@ -248,6 +248,21 @@ describe("groupCommentRuns", () => {
     expect(buildCommentRunView([run], [reply]).standaloneRuns).toHaveLength(1);
     expect(buildCommentRunView([run], []).standaloneRuns).toEqual([]);
   });
+  it("drops a failed run that a fallback run took over, down the fallback chain", () => {
+    const failed = { status: "failed" as const, trigger_comment_id: "root", started_at: "2026-09-07T00:00:01Z",
+      delivered_comment_ids: ["root"], error: "You've hit your session limit" };
+    const primary = task("primary", failed);
+    const first = task("first", { ...failed, parent_task_id: primary.id, fallback_position: 1, created_at: "2026-09-07T00:00:02Z" });
+    const second = task("second", { status: "completed", trigger_comment_id: "root", delivered_comment_ids: ["root"],
+      parent_task_id: first.id, fallback_position: 2, created_at: "2026-09-07T00:00:03Z" });
+    const timeline = [comment("root")];
+    expect(groupCommentRuns([primary, first, second], timeline).get("root")?.map((run) => run.task.id)).toEqual(["second"]);
+    expect(buildCommentRunView([primary, first, second], timeline).standaloneRuns).toEqual([]);
+  });
+  it("keeps a failed run that nothing took over", () => {
+    const run = task("primary", { status: "failed", trigger_comment_id: "root", started_at: "2026-09-07T00:00:01Z", delivered_comment_ids: ["root"] });
+    expect(groupCommentRuns([run], [comment("root")]).get("root")?.map((r) => r.task.id)).toEqual(["primary"]);
+  });
   it("keeps merged runs after their latest delivered input, including nested replies", () => {
     const timeline = [comment("root"), comment("reply", { parent_id: "root" }), comment("nested", { parent_id: "reply" })];
     const run = task("run", { trigger_comment_id: "nested", coalesced_comment_ids: ["root", "reply"], delivered_comment_ids: ["root", "reply", "nested"] });

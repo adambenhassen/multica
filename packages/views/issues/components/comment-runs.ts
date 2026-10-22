@@ -47,6 +47,11 @@ function isObsoleteCommentRun(task: AgentTask): boolean {
     && !task.dispatched_at && !task.started_at && !task.delivered_comment_ids?.length;
 }
 
+/** A failed run whose fallback run took over is history, not an outcome in the thread. */
+function fallbackParentIds(tasks: readonly AgentTask[]): Set<string> {
+  return new Set(tasks.flatMap((task) => task.fallback_position && task.parent_task_id ? [task.parent_task_id] : []));
+}
+
 /** Anchor each run on its latest covered input; associate replies by task identity. */
 export function buildCommentRunView(
   tasks: readonly AgentTask[],
@@ -97,9 +102,10 @@ export function buildCommentRunView(
   const priorAnchors = new Map([...previous.values()].flatMap((runs) => runs.map((run) => [run.task.id, run.anchorCommentId] as const)));
   const placements: CommentRun[] = [];
   const parents = new Map<string, string | undefined>();
+  const tookOver = fallbackParentIds(inlineTasks);
   for (const task of [...inlineTasks].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))) {
     const reply = replies.get(task.id);
-    if (isObsoleteCommentRun(task) && !reply) continue;
+    if ((isObsoleteCommentRun(task) || (task.status === "failed" && tookOver.has(task.id))) && !reply) continue;
     let anchorId: string | undefined;
     let source: AgentTask | undefined = task;
     const visited = new Set<string>();
