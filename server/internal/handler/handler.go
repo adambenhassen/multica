@@ -159,6 +159,11 @@ type Config struct {
 	// wakeups themselves; other agents must wait on an event or condition.
 	// Populated from MULTICA_AGENT_TIMER_AGENT_IDS (comma-separated UUIDs).
 	AgentTimerAgentIDs []string
+	// GitExtraCACerts is the PEM of the private CAs the operator added to the
+	// backend's trust store through SSL_CERT_DIR (see internal/gitca). It is
+	// handed to daemons with the workspace repos so their git can reach a
+	// repository host the backend already trusts. Empty when none are set.
+	GitExtraCACerts []byte
 }
 
 type cloudRuntimeProxy interface {

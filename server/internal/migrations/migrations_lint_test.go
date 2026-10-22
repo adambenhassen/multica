@@ -22,17 +22,23 @@ func TestMigrationNumericPrefixesAreUnique(t *testing.T) {
 	// upstream's. The migrator applies and records by full name, so a shared
 	// number is safe at runtime.
 	forkStems := map[string]bool{
-		"573_project_skill":                          false,
-		"574_project_skill_skill_idx":                false,
-		"575_project_mcp_server":                     false,
-		"576_project_mcp_server_server_idx":          false,
-		"577_project_attachment_restricted":          false,
-		"578_project_attachment_audience":            false,
-		"579_project_attachment_audience_item_idx":   false,
-		"580_project_attachment_audience_target_idx": false,
-		"581_activity_log_workspace_recent_idx":      false,
-		"582_comment_workspace_recent_idx":           false,
-		"583_project_attachment_excluded":            false,
+		"573_project_skill":                           false,
+		"574_project_skill_skill_idx":                 false,
+		"575_project_mcp_server":                      false,
+		"576_project_mcp_server_server_idx":           false,
+		"577_project_attachment_restricted":           false,
+		"578_project_attachment_audience":             false,
+		"579_project_attachment_audience_item_idx":    false,
+		"580_project_attachment_audience_target_idx":  false,
+		"581_activity_log_workspace_recent_idx":       false,
+		"582_comment_workspace_recent_idx":            false,
+		"583_project_attachment_excluded":             false,
+		"584_agent_task_thinking_level":               false,
+		"585_agent_model_fallback":                    false,
+		"586_agent_model_fallback_agent_position_idx": false,
+		"587_agent_task_fallback":                     false,
+		"588_skill_invocation":                        false,
+		"589_skill_invocation_workspace_idx":          false,
 	}
 	stemByNumber := make(map[int]string)
 	for _, file := range files {
