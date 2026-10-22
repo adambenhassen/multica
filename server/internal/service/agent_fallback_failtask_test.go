@@ -11,7 +11,6 @@ import (
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
-	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 func TestFailTaskFallsBackOnProviderFailure(t *testing.T) {
@@ -28,12 +27,6 @@ func TestFailTaskFallsBackOnProviderFailure(t *testing.T) {
 	local := insertFallbackRuntime(t, pool, agentID, "online")
 	insertFallback(t, pool, agentID, 1, codex, "gpt-5.6-terra", nil)
 	insertFallback(t, pool, agentID, 2, local, "local-qwen", nil)
-	// Listeners stay silent on a failure a child took over (retry_pending).
-	var retryPending any
-	svc.Bus.Subscribe(protocol.EventTaskFailed, func(e events.Event) {
-		payload, _ := e.Payload.(map[string]any)
-		retryPending = payload["retry_pending"]
-	})
 
 	tests := []struct {
 		name         string
@@ -93,16 +86,12 @@ func TestFailTaskFallsBackOnProviderFailure(t *testing.T) {
 			if errMsg == "" {
 				errMsg = "provider failure"
 			}
-			retryPending = nil
 			failed, err := svc.FailTask(ctx, parentID, errMsg, "src-session", "/tmp/src-workdir", "", tt.reason, false, "", "")
 			if err != nil {
 				t.Fatalf("FailTask: %v", err)
 			}
 			if failed.Status != "failed" {
 				t.Fatalf("parent status = %q, want failed", failed.Status)
-			}
-			if want := tt.wantRuntime != ""; retryPending != want {
-				t.Fatalf("task:failed retry_pending = %v, want %v", retryPending, want)
 			}
 
 			var (

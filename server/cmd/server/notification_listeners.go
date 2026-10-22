@@ -1044,11 +1044,10 @@ func registerNotificationListeners(bus *events.Bus, queries *db.Queries) {
 
 	// task:completed — no inbox notification (completion is visible from status change)
 
-	// task:failed — notify all subscribers except the agent, unless a retry or
-	// fallback child took over; that child reports the terminal outcome.
+	// task:failed — notify all subscribers except the agent
 	bus.Subscribe(protocol.EventTaskFailed, func(e events.Event) {
 		payload, ok := e.Payload.(map[string]any)
-		if !ok || taskFailureRetryPending(e) {
+		if !ok {
 			return
 		}
 		agentID, _ := payload["agent_id"].(string)
