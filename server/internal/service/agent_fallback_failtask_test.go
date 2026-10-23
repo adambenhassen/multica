@@ -187,7 +187,7 @@ func TestFailTaskRetryKeepsFallbackEntry(t *testing.T) {
 				t.Fatalf("retry child = %s %q pos %+v attempt %d, want %s %q pos 1 attempt 2", runtime, model.String, position, attempt, codex, "gpt-5.6-terra")
 			}
 
-			claimed, err := svc.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(codex))
+			claimed, err := svc.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(codex), claimScope{claimPath: claimPathRuntime})
 			if err != nil {
 				t.Fatalf("claim: %v", err)
 			}

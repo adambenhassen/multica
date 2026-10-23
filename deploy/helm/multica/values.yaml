@@ -151,6 +151,10 @@ backend:
     # Comma-separated agent UUIDs that may create their own time ("at")
     # wakeups. Empty = no agent may; members are unaffected.
     agentTimerAgentIds: ""
+    # Self-host allowlist (#9400): comma-separated exact emails allowed to
+    # create workspaces. Empty = every signed-in user may create one.
+    # disableWorkspaceCreation=true still blocks everyone.
+    workspaceCreationAllowedEmails: ""
     # Set to "1" or "true" to disable first-party anonymous self-host
     # telemetry collection and delivery.
     doNotTrack: ""

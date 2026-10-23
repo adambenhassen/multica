@@ -32,8 +32,7 @@ func TestClaimFallbackRunSendsEntryModel(t *testing.T) {
 		"model": "gpt-5.6-terra", "fallback_position": 1,
 	})
 
-	req := newDaemonTokenRequest("POST", "/api/daemon/runtimes/"+fallbackRuntimeID+"/tasks/claim", nil,
-		testWorkspaceID, "fallback-claim")
+	req := newOwnerDaemonRequest("POST", "/api/daemon/runtimes/"+fallbackRuntimeID+"/tasks/claim", nil)
 	req = withURLParam(req, "runtimeId", fallbackRuntimeID)
 	w := testutil.Call(t, testHandler.ClaimTaskByRuntime, req).Want(http.StatusOK)
 

@@ -38,7 +38,7 @@ func (a audienceAgent) queueTask(t *testing.T) string {
 // slim claim referenced.
 func (a audienceAgent) claimSkillIDs(t *testing.T) map[string]bool {
 	t.Helper()
-	req := newDaemonTokenRequest("POST", "/api/daemon/runtimes/"+a.runtimeID+"/tasks/claim", nil, testWorkspaceID, "audience-daemon")
+	req := newOwnerDaemonRequest("POST", "/api/daemon/runtimes/"+a.runtimeID+"/tasks/claim", nil)
 	req.Header.Set("X-Client-Capabilities", protocol.DaemonCapabilitySkillBundlesV1)
 	req = withURLParam(req, "runtimeId", a.runtimeID)
 	var resp struct {

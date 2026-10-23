@@ -94,7 +94,7 @@ func TestClaimFallbackBindingIsExact(t *testing.T) {
 	claim := func(f runtimeClaimAccessFixture, runtimeID string) *db.AgentTaskQueue {
 		t.Helper()
 		svc := NewTaskService(db.New(f.pool), f.pool, nil, events.New())
-		got, err := svc.claimTask(ctx, f.agentID, util.MustParseUUID(runtimeID))
+		got, err := svc.claimTask(ctx, f.agentID, util.MustParseUUID(runtimeID), claimScope{claimPath: claimPathRuntime})
 		if err != nil {
 			t.Fatalf("claim: %v", err)
 		}

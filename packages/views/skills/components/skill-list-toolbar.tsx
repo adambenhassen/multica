@@ -19,6 +19,7 @@ import { labelListOptions } from "@multica/core/labels/queries";
 import type { Agent, Label, MemberWithUser } from "@multica/core/types";
 import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
 import { Button } from "@multica/ui/components/ui/button";
+import { IconButton } from "@multica/ui/components/common/icon-button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -547,7 +548,7 @@ export function SkillListToolbar({
                     </DropdownMenuRadioGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button
+                <IconButton
                   variant="outline"
                   size="icon-sm"
                   onClick={() =>
@@ -555,7 +556,7 @@ export function SkillListToolbar({
                       sortDirection === "asc" ? "desc" : "asc",
                     )
                   }
-                  title={
+                  label={
                     sortDirection === "asc"
                       ? t(($) => $.toolbar.direction_asc)
                       : t(($) => $.toolbar.direction_desc)
@@ -566,7 +567,7 @@ export function SkillListToolbar({
                   ) : (
                     <ArrowDown className="size-3.5" />
                   )}
-                </Button>
+                </IconButton>
               </div>
             </div>
 

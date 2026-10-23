@@ -25,6 +25,7 @@ import {
   type AgentSortField,
 } from "@multica/core/agents/stores";
 import { Button } from "@multica/ui/components/ui/button";
+import { IconButton } from "@multica/ui/components/common/icon-button";
 import { Input } from "@multica/ui/components/ui/input";
 import {
   DropdownMenu,
@@ -577,7 +578,7 @@ export function AgentListToolbar({
                     </DropdownMenuRadioGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button
+                <IconButton
                   variant="outline"
                   size="icon-sm"
                   onClick={() =>
@@ -585,7 +586,7 @@ export function AgentListToolbar({
                       sortDirection === "asc" ? "desc" : "asc",
                     )
                   }
-                  title={
+                  label={
                     sortDirection === "asc"
                       ? t(($) => $.toolbar.direction_asc)
                       : t(($) => $.toolbar.direction_desc)
@@ -596,7 +597,7 @@ export function AgentListToolbar({
                   ) : (
                     <ArrowDown className="size-3.5" />
                   )}
-                </Button>
+                </IconButton>
               </div>
             </div>
 
