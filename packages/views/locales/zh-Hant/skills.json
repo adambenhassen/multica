@@ -11,11 +11,11 @@
       },
       "used": {
         "label": "使用中",
-        "description": "至少分配給一個智慧體的 skill"
+        "description": "至少分配給一個智慧體或專案的 skill"
       },
       "unused": {
         "label": "未使用",
-        "description": "未分配給任何智慧體的 skill"
+        "description": "未分配給任何智慧體或專案的 skill"
       },
       "mine": {
         "label": "我建立的",
@@ -43,12 +43,14 @@
       "fallback": "拉取 skill 列表時出錯。",
       "retry": "重試"
     },
-    "supporting_data_warning": "部分工作區資料載入失敗。建立者歸屬、執行時名稱、編輯權限可能顯示不完整。"
+    "supporting_data_warning": "部分工作區資料載入失敗。建立者歸屬、執行時名稱、編輯權限、使用資料（執行次數和最近使用）可能顯示不完整。"
   },
   "table": {
     "name": "名稱",
     "created_by": "新增者",
     "used_by": "被誰使用",
+    "runs": "執行次數",
+    "last_used": "最近使用",
     "source": "來源",
     "updated": "更新時間",
     "created": "建立時間",
@@ -61,7 +63,10 @@
     "source_runtime_unknown": "來自某個執行時",
     "source_clawhub": "來自 ClawHub",
     "source_skills_sh": "來自 Skills.sh",
-    "source_github": "來自 GitHub"
+    "source_github": "來自 GitHub",
+    "section_project": "專案 skill",
+    "section_rest": "其他 skill",
+    "plus_agents_other": "+{{count}} 個智慧體"
   },
   "actions": {
     "row_menu": "操作",
@@ -213,11 +218,14 @@
       "labels": "標籤",
       "used_by_other": "被 {{count}} 個智慧體使用",
       "used_by_empty": "還未分配給任何智慧體。開啟某個智慧體的 Skills 標籤頁進行分配。",
+      "not_assigned": "未分配",
       "permissions_owner": "你可以編輯和刪除該技能。改動將在智慧體下次執行時生效。",
       "permissions_locked_creator": "只有建立者（{{name}}）或工作區管理員可以編輯該技能。",
       "permissions_locked": "只有建立者或工作區管理員可以編輯該技能。",
       "properties_help": "關於 skill 屬性",
-      "character_count": "{{count}} 個字元"
+      "character_count": "{{count}} 個字元",
+      "projects_title_other": "已關聯到 {{count}} 個專案",
+      "projects_hint": "在這些專案中工作的智慧體會獲得這個 skill，範圍以各專案的接收對象為準。"
     },
     "files": {
       "list_aria": "技能檔案",

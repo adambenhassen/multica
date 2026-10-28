@@ -1433,7 +1433,8 @@
   },
   "mcp_usage": {
     "agent_count_other": "已分配給 {{count}} 個智慧體",
-    "none": "未分配給任何智慧體"
+    "project_count_other": "{{count}} 個專案",
+    "none": "未分配給任何智慧體或專案"
   },
   "mcp_sources": {
     "title": "為智慧體接入工具的方式",

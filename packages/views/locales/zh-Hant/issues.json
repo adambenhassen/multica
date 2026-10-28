@@ -440,6 +440,11 @@
     "prop_priority": "優先順序",
     "prop_stage": "階段",
     "prop_assignee": "負責人",
+    "run_assignee": "立即執行",
+    "run_assignee_failed": "啟動執行失敗",
+    "run_assignee_blocked": "未啟動——你沒有該智慧體的使用權限",
+    "run_assignee_triage": "待分診的任務無法執行",
+    "run_assignee_queued": "已有一個執行在等待啟動",
     "prop_start_date": "開始日期",
     "prop_due_date": "截止日期",
     "prop_project": "專案",
@@ -680,9 +685,9 @@
     "unknown_hover": "工作中的智慧體：尚未載入",
     "filter_active_label": "正在檢視有智慧體在工作的任務",
     "tasks_count_other": "{{count}} 次執行",
-    "chip_agents_working_other": "{{count}} 個智慧體工作中",
+    "chip_runs_working_other": "{{count}} 次執行進行中",
     "issues_count_other": "{{count}} 個任務",
-    "chip_agents_working_unknown": "工作中的智慧體：—"
+    "chip_runs_working_unknown": "進行中的執行：—"
   },
   "filtered_empty": {
     "title": "沒有符合篩選條件的任務",
@@ -747,7 +752,8 @@
     "more_runs_other": "顯示其餘 {{count}} 次執行",
     "strip_aria": "每次執行的費用——開啟執行時間線",
     "strip_no_usage": "沒有用量記錄",
-    "sparkline_now": "現在"
+    "sparkline_now": "現在",
+    "fallback_marker": "備用 {{n}}"
   },
   "runs_timeline": {
     "title": "執行記錄",

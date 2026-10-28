@@ -70,8 +70,10 @@
     "runtime": "執行時",
     "activity_7d": "活動（7 天）",
     "runs": "執行次數",
+    "last_hour": "最近 1 小時",
     "last_active": "最近活躍",
     "model": "模型",
+    "concurrency": "並行",
     "created": "建立時間",
     "owner": "owner",
     "access": "訪問權限"
@@ -678,7 +680,9 @@
       "save_failed_toast": "無法儲存 MCP 配置",
       "redacted_title": "已配置，但當前不可見",
       "redacted_hint": "只有智慧體 owner 或工作區 admin 可以檢視此配置。",
-      "dialog_json_help": "以 JSON 編輯完整的伺服器配置。"
+      "dialog_json_help": "以 JSON 編輯完整的伺服器配置。",
+      "from_projects_title": "來自專案",
+      "from_projects_hint": "該智慧體在所列專案的任務中會獲得這些 Server。請在各專案頁面管理。"
     },
     "composio_mcp": {
       "subtitle": "勾選 toolkit，只在你自己（這個智慧體的建立者）直接或透過下級智慧體鏈路觸發這個智慧體時，才把它掛載為 MCP server。",
@@ -757,7 +761,9 @@
       "add_dialog_confirm_default": "新增",
       "add_dialog_confirm_other": "新增 {{count}} 個 skill",
       "add_dialog_cancel": "取消",
-      "add_failed_toast": "新增 skill 失敗"
+      "add_failed_toast": "新增 skill 失敗",
+      "from_projects_title": "來自專案",
+      "from_projects_hint": "該智慧體在所列專案的任務中會獲得這些 skill。請在各專案頁面管理。"
     },
     "integrations": {
       "members_note": "只有工作區的所有者和管理員可以管理此連線。你可以在\"設定 → 整合\"中檢視已連線的 Bot。"
@@ -793,6 +799,11 @@
       "cancelled_count": "{{count}} 次已取消",
       "avg_duration": "平均 {{value}}",
       "avg_duration_label": "平均耗時",
+      "tokens_count": "{{tokens}} Token",
+      "tokens_input": "輸入",
+      "tokens_output": "輸出",
+      "tokens_cache_read": "快取讀",
+      "tokens_cache_write": "快取寫",
       "failed_count": "{{count}} 次失敗",
       "failed_label": "失敗",
       "source_issue": "任務",
@@ -814,7 +825,8 @@
       "cancel_failed_toast": "取消執行失敗",
       "started_prefix": "{{when}}啟動",
       "dispatched_prefix": "{{when}}派發",
-      "queued_prefix": "{{when}}排隊"
+      "queued_prefix": "{{when}}排隊",
+      "fallback_marker": "備用 {{n}}"
     }
   },
   "char_counter": {
@@ -1012,8 +1024,6 @@
     }
   },
   "last_active": {
-    "today": "今天",
-    "days_ago_other": "{{count}} 天前",
     "none": "30 天內無活動"
   },
   "toolbar": {
@@ -1035,5 +1045,22 @@
   "actions": {
     "selected_other": "已選 {{count}} 項",
     "clear_selection": "清除選擇"
+  },
+  "project_source": {
+    "also_via_project": "也來自 {{project}}",
+    "also_via_many_other": "也來自 {{count}} 個專案"
+  },
+  "fallbacks": {
+    "title": "備用模型",
+    "description": "執行因供應商問題失敗時，會用下一個備用模型重新執行。",
+    "entry": "備用 {{n}}",
+    "add": "新增備用模型",
+    "move_up": "上移",
+    "move_down": "下移",
+    "remove": "刪除備用模型",
+    "cancel": "取消",
+    "save_failed": "無法儲存備用模型",
+    "load_failed": "無法載入備用模型。",
+    "retry": "重試"
   }
 }

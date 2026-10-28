@@ -73,6 +73,7 @@ import zhHantModals from "./zh-Hant/modals.json";
 import zhHantRuntimes from "./zh-Hant/runtimes.json";
 import zhHantLayout from "./zh-Hant/layout.json";
 import zhHantUsage from "./zh-Hant/usage.json";
+import zhHantOverview from "./zh-Hant/overview.json";
 import zhHantUi from "./zh-Hant/ui.json";
 import zhHantSquads from "./zh-Hant/squads.json";
 import zhHantBilling from "./zh-Hant/billing.json";
@@ -238,6 +239,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     runtimes: zhHantRuntimes,
     layout: zhHantLayout,
     usage: zhHantUsage,
+    overview: zhHantOverview,
     ui: zhHantUi,
     squads: zhHantSquads,
     billing: zhHantBilling,

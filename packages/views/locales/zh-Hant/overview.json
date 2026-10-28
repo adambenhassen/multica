@@ -1,0 +1,46 @@
+{
+  "title": "動態",
+  "load_failed": "載入失敗",
+  "retry": "重試",
+  "display": {
+    "button": "顯示",
+    "on_all": "在「全部」中顯示",
+    "comments": "評論",
+    "other": "其他變更",
+    "latest_only": "隱藏任務的較早狀態變更"
+  },
+  "working_now": "正在處理：{{names}}",
+  "activity": {
+    "heading": "最近動態",
+    "today": "今天",
+    "yesterday": "昨天",
+    "commented": "發表了評論",
+    "replied": "回覆了評論",
+    "marked": "標記為 {{status}}",
+    "moved": "移至 {{status}}",
+    "with_excerpt": "{{phrase}}：「{{excerpt}}」",
+    "run_failed": "執行失敗",
+    "issue_created": "任務已建立"
+  },
+  "status_changes": {
+    "empty": "暫無狀態變更",
+    "empty_active": "目前沒有智慧體在處理任務",
+    "empty_filtered": "沒有變更為此狀態的記錄",
+    "empty_failures": "沒有失敗的執行",
+    "filter_label": "按新狀態篩選",
+    "filters": {
+      "all": "全部",
+      "active": "處理中",
+      "in_progress": "進行中",
+      "blocked": "已阻塞",
+      "done": "已完成",
+      "cancelled": "已取消",
+      "failures": "失敗的執行"
+    }
+  },
+  "issue_filter": {
+    "label": "已篩選",
+    "filter": "僅顯示此任務",
+    "clear": "清除任務篩選"
+  }
+}
