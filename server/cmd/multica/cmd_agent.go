@@ -289,7 +289,7 @@ func init() {
 	agentFallbackListCmd.Flags().String("output", "table", "Output format: table or json")
 
 	// agent fallback set
-	agentFallbackSetCmd.Flags().StringArray("entry", nil, "Fallback as runtime=<id>,model=<id>[,effort=<level>]; repeat in order (max 4)")
+	agentFallbackSetCmd.Flags().StringArray("entry", nil, "Fallback as runtime=<id>,model=<id>[,effort=<level>][,account=<name|id>]; repeat in order (max 4). The same runtime and model may repeat on another account")
 	agentFallbackSetCmd.Flags().Bool("clear", false, "Remove every fallback")
 	agentFallbackSetCmd.Flags().String("output", "json", "Output format: json or table")
 
@@ -1119,7 +1119,7 @@ func runAgentFallbackSet(cmd *cobra.Command, args []string) error {
 	entries, _ := cmd.Flags().GetStringArray("entry")
 	clear, _ := cmd.Flags().GetBool("clear")
 	if clear == (len(entries) > 0) {
-		return fmt.Errorf("pass one or more --entry runtime=<id>,model=<id>[,effort=<level>], or --clear")
+		return fmt.Errorf("pass one or more --entry runtime=<id>,model=<id>[,effort=<level>][,account=<name|id>], or --clear")
 	}
 	// make, not nil: a nil slice encodes as null, which the server rejects.
 	fallbacks := make([]map[string]string, 0, len(entries))
@@ -1136,6 +1136,15 @@ func runAgentFallbackSet(cmd *cobra.Command, args []string) error {
 	}
 	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
+	for _, entry := range fallbacks {
+		if ref, ok := entry["account_id"]; ok {
+			id, err := resolveAccountID(ctx, client, ref)
+			if err != nil {
+				return err
+			}
+			entry["account_id"] = id
+		}
+	}
 	var saved []map[string]any
 	if err := client.PutJSON(ctx, "/api/agents/"+args[0]+"/fallbacks", map[string]any{"fallbacks": fallbacks}, &saved); err != nil {
 		return fmt.Errorf("set agent fallbacks: %w", err)
@@ -1143,7 +1152,8 @@ func runAgentFallbackSet(cmd *cobra.Command, args []string) error {
 	return printAgentFallbacks(cmd, saved)
 }
 
-// parseFallbackEntry reads runtime=<id>,model=<id>[,effort=<level>].
+// parseFallbackEntry reads runtime=<id>,model=<id>[,effort=<level>][,account=<name|id>].
+// account holds the raw reference; the caller resolves it to an id.
 func parseFallbackEntry(raw string) (map[string]string, error) {
 	entry := map[string]string{"runtime_id": "", "model": "", "thinking_level": ""}
 	for _, part := range strings.Split(raw, ",") {
@@ -1158,8 +1168,10 @@ func parseFallbackEntry(raw string) (map[string]string, error) {
 			entry["model"] = strings.TrimSpace(value)
 		case "effort":
 			entry["thinking_level"] = strings.TrimSpace(value)
+		case "account":
+			entry["account_id"] = strings.TrimSpace(value)
 		default:
-			return nil, fmt.Errorf("--entry %q: unknown key %q (use runtime, model, effort)", raw, key)
+			return nil, fmt.Errorf("--entry %q: unknown key %q (use runtime, model, effort, account)", raw, key)
 		}
 	}
 	if entry["runtime_id"] == "" || entry["model"] == "" {

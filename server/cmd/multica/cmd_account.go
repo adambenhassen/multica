@@ -60,12 +60,14 @@ func init() {
 	accountCreateCmd.Flags().String("provider", "", "Runtime provider the account is for, e.g. claude or codex (required)")
 	accountCreateCmd.Flags().Bool("env-stdin", false, "Read the env JSON object from stdin. Mutually exclusive with --env-file.")
 	accountCreateCmd.Flags().String("env-file", "", "Read the env JSON object from a file path (suggested mode: 0600). Mutually exclusive with --env-stdin.")
+	accountCreateCmd.Flags().Bool("override-runtime-default", false, "Agents on \"Runtime default\" for this provider run with this account (moves the override from any other account of the provider)")
 	accountCreateCmd.Flags().String("output", "json", "Output format: table or json")
 
 	accountUpdateCmd.Flags().String("name", "", "New name")
 	accountUpdateCmd.Flags().String("provider", "", "New provider (rejected while agents use the account)")
 	accountUpdateCmd.Flags().Bool("env-stdin", false, "Read the replacement env JSON object from stdin. Values equal to '****' preserve the existing entry; pass '{}' to clear. Mutually exclusive with --env-file.")
 	accountUpdateCmd.Flags().String("env-file", "", "Read the replacement env JSON object from a file path (suggested mode: 0600). Mutually exclusive with --env-stdin.")
+	accountUpdateCmd.Flags().Bool("override-runtime-default", false, "Turn the runtime-default override on (true) or off (=false) for this account")
 	accountUpdateCmd.Flags().String("output", "json", "Output format: table or json")
 }
 
@@ -126,14 +128,18 @@ func runAccountList(cmd *cobra.Command, _ []string) error {
 	if output == "json" {
 		return cli.PrintJSON(os.Stdout, accounts)
 	}
-	headers := []string{"ID", "NAME", "PROVIDER", "KEYS"}
+	headers := []string{"ID", "NAME", "PROVIDER", "KEYS", "RUNTIME DEFAULT"}
 	rows := make([][]string, 0, len(accounts))
 	for _, a := range accounts {
 		keys := ""
 		if n, ok := a["env_key_count"].(float64); ok {
 			keys = strconv.Itoa(int(n))
 		}
-		rows = append(rows, []string{strVal(a, "id"), strVal(a, "name"), strVal(a, "provider"), keys})
+		override := ""
+		if v, _ := a["overrides_runtime_default"].(bool); v {
+			override = "override"
+		}
+		rows = append(rows, []string{strVal(a, "id"), strVal(a, "name"), strVal(a, "provider"), keys, override})
 	}
 	cli.PrintTable(os.Stdout, headers, rows)
 	return nil
@@ -159,8 +165,9 @@ func runAccountCreate(cmd *cobra.Command, _ []string) error {
 	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
+	override, _ := cmd.Flags().GetBool("override-runtime-default")
 	var result map[string]any
-	body := map[string]any{"name": name, "provider": provider, "env": env}
+	body := map[string]any{"name": name, "provider": provider, "env": env, "overrides_runtime_default": override}
 	if err := client.PostJSON(ctx, "/api/accounts", body, &result); err != nil {
 		return fmt.Errorf("create account: %w", err)
 	}
@@ -177,6 +184,10 @@ func runAccountUpdate(cmd *cobra.Command, args []string) error {
 		v, _ := cmd.Flags().GetString("provider")
 		body["provider"] = v
 	}
+	if cmd.Flags().Changed("override-runtime-default") {
+		v, _ := cmd.Flags().GetBool("override-runtime-default")
+		body["overrides_runtime_default"] = v
+	}
 	env, ok, err := resolveEnvFlags(cmd, "env")
 	if err != nil {
 		return err
@@ -185,7 +196,7 @@ func runAccountUpdate(cmd *cobra.Command, args []string) error {
 		body["env"] = env
 	}
 	if len(body) == 0 {
-		return fmt.Errorf("nothing to update — provide --name, --provider, --env-file, or --env-stdin")
+		return fmt.Errorf("nothing to update — provide --name, --provider, --override-runtime-default, --env-file, or --env-stdin")
 	}
 
 	client, err := newAPIClient(cmd)

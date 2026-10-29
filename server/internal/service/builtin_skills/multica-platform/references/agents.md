@@ -270,7 +270,11 @@ Read-side facts (these are the wrong assumptions to avoid):
   <name|id|none>` selects it; the account must match the agent's runtime
   provider. At task start the account's env is layered over `custom_env`, and
   the account wins on a shared key. Only workspace owners/admins create or edit
-  accounts (`multica account create|update --env-file|--env-stdin`).
+  accounts (`multica account create|update --env-file|--env-stdin`). An account
+  with `--override-runtime-default` applies to every agent of its provider left
+  on "Runtime default". A fallback entry can name its own account
+  (`agent fallback set --entry runtime=…,model=…,account=<name|id>`), so a run
+  that hits one subscription's limit reruns on another.
 
 ### mcp_config
 

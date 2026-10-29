@@ -143,3 +143,43 @@ func TestRunAgentUpdateAccountFlag(t *testing.T) {
 		}
 	})
 }
+
+func TestRunAgentFallbackSetResolvesAccountRefs(t *testing.T) {
+	var got map[string]any
+	accountTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut || r.URL.Path != "/api/agents/agent-1/fallbacks" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(`[]`))
+	})
+	cmd := newAgentFallbackSetTestCmd()
+	_ = cmd.Flags().Set("entry", "runtime=rt-claude,model=claude-opus-5-5,account=Claude A")
+	if _, err := captureStdout(t, func() error { return runAgentFallbackSet(cmd, []string{"agent-1"}) }); err != nil {
+		t.Fatalf("runAgentFallbackSet: %v", err)
+	}
+	want := `{"fallbacks":[{"account_id":"acc-1","model":"claude-opus-5-5","runtime_id":"rt-claude","thinking_level":""}]}`
+	if b, _ := json.Marshal(got); string(b) != want {
+		t.Fatalf("body = %s, want %s", b, want)
+	}
+}
+
+func TestRunAccountUpdateSendsOverrideOnlyWhenSet(t *testing.T) {
+	var got map[string]any
+	accountTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(`{"id":"acc-1","name":"Claude A"}`))
+	})
+	cmd := newAccountTestCmd(func(cmd *cobra.Command) {
+		cmd.Flags().Bool("env-stdin", false, "")
+		cmd.Flags().String("env-file", "", "")
+		cmd.Flags().Bool("override-runtime-default", false, "")
+	})
+	_ = cmd.Flags().Set("override-runtime-default", "false")
+	if _, err := captureStdout(t, func() error { return runAccountUpdate(cmd, []string{"Claude A"}) }); err != nil {
+		t.Fatalf("runAccountUpdate: %v", err)
+	}
+	if v, ok := got["overrides_runtime_default"]; !ok || v != false || len(got) != 1 {
+		t.Fatalf("body = %v; want only overrides_runtime_default=false", got)
+	}
+}
