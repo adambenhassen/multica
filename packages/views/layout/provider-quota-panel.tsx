@@ -32,16 +32,12 @@ export function ProviderQuotaPanel() {
       aria-label={t(($) => $.quota.label)}
       className="max-h-40 overflow-y-auto px-2 pt-0.5 pb-1"
     >
-      <div className="grid grid-cols-[minmax(0,7rem)_auto_minmax(2rem,1fr)_auto_auto] gap-x-2 gap-y-0.5 text-caption text-muted-foreground">
+      <div className="grid grid-cols-[minmax(0.75rem,auto)_auto_minmax(2rem,1fr)_auto_auto] gap-x-2 gap-y-0.5 text-caption text-muted-foreground">
         {sortQuotaAccounts(accounts).map((account) => (
           <AccountRows
             key={account.id}
             account={account}
-            name={
-              (perProvider.get(account.provider) ?? 0) > 1
-                ? `${PROVIDER_NAME[account.provider]} · ${account.label}`
-                : PROVIDER_NAME[account.provider]
-            }
+            multi={(perProvider.get(account.provider) ?? 0) > 1}
           />
         ))}
       </div>
@@ -49,8 +45,15 @@ export function ProviderQuotaPanel() {
   );
 }
 
-function AccountRows({ account, name }: { account: ProviderQuotaAccount; name: string }) {
+function AccountRows({ account, multi }: { account: ProviderQuotaAccount; multi: boolean }) {
   const { t } = useT("layout");
+  const providerName = PROVIDER_NAME[account.provider];
+  const name = multi ? `${providerName} · ${account.label}` : providerName;
+  const header = multi ? (
+    <span title={name} className="col-span-5 min-w-0 truncate text-foreground">
+      {name}
+    </span>
+  ) : null;
   const nameCell = (show: boolean) => (
     <span title={show ? name : undefined} className="min-w-0 truncate text-foreground">
       {show ? name : ""}
@@ -61,21 +64,25 @@ function AccountRows({ account, name }: { account: ProviderQuotaAccount; name: s
     const message =
       account.error === "login_expired" ? t(($) => $.quota.login_expired) : t(($) => $.quota.unavailable);
     return (
-      <Tooltip>
-        <TooltipTrigger render={<div tabIndex={0} className={ROW_CLASS} />}>
-          {nameCell(true)}
-          <span className="col-span-4">—</span>
-          <span className="sr-only">{message}</span>
-        </TooltipTrigger>
-        <TooltipContent>{message}</TooltipContent>
-      </Tooltip>
+      <>
+        {header}
+        <Tooltip>
+          <TooltipTrigger render={<div tabIndex={0} className={ROW_CLASS} />}>
+            {nameCell(!multi)}
+            <span className="col-span-4">—</span>
+            <span className="sr-only">{message}</span>
+          </TooltipTrigger>
+          <TooltipContent>{message}</TooltipContent>
+        </Tooltip>
+      </>
     );
   }
 
   return (
     <>
+      {header}
       {account.windows.map((window, i) => (
-        <WindowRow key={window.kind} name={name} window={window} nameCell={nameCell(i === 0)} />
+        <WindowRow key={window.kind} name={name} window={window} nameCell={nameCell(!multi && i === 0)} />
       ))}
     </>
   );
@@ -116,7 +123,7 @@ function WindowRow({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct}
-        className="h-1 w-full overflow-hidden rounded-full bg-muted"
+        className="h-1 w-full overflow-hidden rounded-full bg-foreground/10"
       >
         <div className={cn("h-full", BAR_CLASS[quotaLevel(pct)])} style={{ width: `${pct}%` }} />
       </div>

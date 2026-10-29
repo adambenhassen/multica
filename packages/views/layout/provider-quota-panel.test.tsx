@@ -62,6 +62,31 @@ describe("ProviderQuotaPanel", () => {
     expect(screen.getByText("Codex")).toBeInTheDocument();
   });
 
+  it("gives each account of a multi-account provider a full-width plain header row", () => {
+    quota.current = { accounts: [claude("work", 1, 1), claude("personal", 1, 1)] };
+    renderWithI18n(<ProviderQuotaPanel />);
+    for (const text of ["Claude · personal", "Claude · work"]) {
+      const header = screen.getByText(text);
+      expect(header).toHaveClass("col-span-5");
+      expect(header).not.toHaveAttribute("tabindex");
+    }
+    expect(screen.queryByText("Claude")).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Claude · work Session" })).toBeInTheDocument();
+  });
+
+  it("renders a header then a focusable dash row for a multi-account errored account", () => {
+    quota.current = {
+      accounts: [{ ...codex("old", 0), windows: [], error: "login_expired" }, codex("personal", 61)],
+    };
+    renderWithI18n(<ProviderQuotaPanel />);
+    const header = screen.getByText("Codex · old");
+    expect(header).toHaveClass("col-span-5");
+    expect(header).not.toHaveAttribute("tabindex");
+    const dash = screen.getByText("—");
+    expect(dash.closest('[tabindex="0"]')).toBeInTheDocument();
+    expect(screen.getByText("Login expired", { selector: ".sr-only" })).toBeInTheDocument();
+  });
+
   it("colours bars by threshold", () => {
     quota.current = { accounts: [claude("personal", 80, 95)] };
     renderWithI18n(<ProviderQuotaPanel />);
