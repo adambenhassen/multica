@@ -32,7 +32,7 @@ export function ProviderQuotaPanel() {
       aria-label={t(($) => $.quota.label)}
       className="max-h-56 overflow-y-auto px-2 pt-0.5 pb-1"
     >
-      <div className="grid grid-cols-[minmax(0.75rem,auto)_auto_minmax(2rem,1fr)_auto_auto] gap-x-2 gap-y-0.5 text-caption text-muted-foreground">
+      <div className="grid grid-cols-[minmax(0.75rem,auto)_auto_minmax(1.5rem,1fr)_auto_auto] gap-x-1.5 gap-y-0.5 text-caption text-muted-foreground">
         {sortQuotaAccounts(accounts).map((account) => (
           <AccountRows
             key={account.id}
@@ -116,7 +116,7 @@ function WindowRow({
   const row = (
     <>
       {nameCell}
-      <span>{kindLabel}</span>
+      <span className="whitespace-nowrap">{kindLabel}</span>
       <div
         role="progressbar"
         aria-label={`${name} ${kindLabel}`}
@@ -127,8 +127,8 @@ function WindowRow({
       >
         <div className={cn("h-full", BAR_CLASS[quotaLevel(pct)])} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-right tabular-nums">{pct}%</span>
-      <span className="text-right tabular-nums">{reset}</span>
+      <span className="whitespace-nowrap text-right tabular-nums">{pct}%</span>
+      <span className="whitespace-nowrap text-right tabular-nums">{reset}</span>
     </>
   );
 
