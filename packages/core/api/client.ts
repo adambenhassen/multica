@@ -3616,7 +3616,14 @@ export class ApiClient {
   }
 
   async getProviderQuota(): Promise<ProviderQuotaResponse> {
-    const raw = await this.fetch<unknown>("/api/provider-quota");
+    let raw: unknown;
+    try {
+      raw = await this.fetch<unknown>("/api/provider-quota");
+    } catch (err) {
+      // A 404 means the backend predates the route: show no quota, not an error.
+      if (err instanceof ApiError && err.status === 404) return EMPTY_PROVIDER_QUOTA;
+      throw err;
+    }
     return parseWithFallback<ProviderQuotaResponse>(raw, ProviderQuotaResponseSchema, EMPTY_PROVIDER_QUOTA, {
       endpoint: "GET /api/provider-quota",
     });

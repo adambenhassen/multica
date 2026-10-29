@@ -62,4 +62,14 @@ describe("provider quota API", () => {
   it.each([[null], [[]], ["x"], [{ accounts: "nope" }]])("falls back to an empty list for %j", async (bad) => {
     expect(await read(bad)).toEqual({ accounts: [] });
   });
+
+  it("returns an empty list when the backend predates the route (404)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("not found", { status: 404 })));
+    expect(await new ApiClient("https://api.example.test").getProviderQuota()).toEqual({ accounts: [] });
+  });
+
+  it("still throws on other HTTP errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("boom", { status: 500 })));
+    await expect(new ApiClient("https://api.example.test").getProviderQuota()).rejects.toThrow();
+  });
 });

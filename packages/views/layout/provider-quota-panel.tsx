@@ -82,7 +82,7 @@ function AccountRows({ account, multi }: { account: ProviderQuotaAccount; multi:
     <>
       {header}
       {account.windows.map((window, i) => (
-        <WindowRow key={window.kind} name={name} window={window} nameCell={nameCell(!multi && i === 0)} />
+        <WindowRow key={`${window.kind}-${i}`} name={name} window={window} nameCell={nameCell(!multi && i === 0)} />
       ))}
     </>
   );
