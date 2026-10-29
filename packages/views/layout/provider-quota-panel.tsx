@@ -111,7 +111,12 @@ function WindowRow({
           : "hours" in parts
             ? t(($) => $.quota.reset_hours, { hours: parts.hours, minutes: parts.minutes })
             : t(($) => $.quota.reset_minutes, { minutes: parts.minutes });
-  const kindLabel = window.kind === "session" ? t(($) => $.quota.session) : t(($) => $.quota.weekly);
+  const kindLabel =
+    window.kind === "session"
+      ? t(($) => $.quota.session)
+      : window.kind === "fable"
+        ? t(($) => $.quota.fable)
+        : t(($) => $.quota.weekly);
 
   const row = (
     <>

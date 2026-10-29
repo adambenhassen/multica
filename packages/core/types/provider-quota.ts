@@ -1,5 +1,5 @@
 export type QuotaProvider = "claude" | "codex";
-export type QuotaWindowKind = "session" | "weekly";
+export type QuotaWindowKind = "session" | "weekly" | "fable";
 
 export interface QuotaWindow {
   kind: QuotaWindowKind;

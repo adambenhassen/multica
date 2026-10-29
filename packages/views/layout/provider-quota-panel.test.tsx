@@ -54,6 +54,22 @@ describe("ProviderQuotaPanel", () => {
     expect(screen.getByText("2d")).toBeInTheDocument();
   });
 
+  it("renders a Claude Fable window as a third row after Weekly", () => {
+    const acct = claude("personal", 42, 18);
+    quota.current = {
+      accounts: [
+        { ...acct, windows: [...acct.windows, { kind: "fable" as const, used_percent: 55, resets_at: "2026-11-02T13:00:00Z" }] },
+      ],
+    };
+    renderWithI18n(<ProviderQuotaPanel />);
+    const bars = screen.getAllByRole("progressbar");
+    expect(bars.map((b) => b.getAttribute("aria-valuenow"))).toEqual(["42", "18", "55"]);
+    expect(bars.map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Claude Session", "Claude Weekly", "Claude Fable",
+    ]);
+    expect(screen.getByText("Fable")).toBeInTheDocument();
+  });
+
   it("appends the label only when a provider has several accounts", () => {
     quota.current = { accounts: [claude("work", 1, 1), claude("personal", 1, 1), codex("personal", 1)] };
     renderWithI18n(<ProviderQuotaPanel />);

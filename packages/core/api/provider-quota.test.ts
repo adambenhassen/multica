@@ -33,6 +33,12 @@ describe("provider quota API", () => {
     expect(await read({ accounts: [{ ...account, provider: "gemini" }] })).toEqual({ accounts: [] });
   });
 
+  it("keeps a fable window", async () => {
+    const fable = { kind: "fable", used_percent: 55, resets_at: "2026-11-02T20:00:00Z" };
+    const got = await read({ accounts: [{ ...account, windows: [...account.windows, fable] }] });
+    expect(got.accounts[0]!.windows).toEqual([...account.windows, fable]);
+  });
+
   it("drops windows with an unknown kind", async () => {
     const got = await read({
       accounts: [{ ...account, windows: [{ kind: "monthly", used_percent: 1, resets_at: null }, account.windows[1]] }],

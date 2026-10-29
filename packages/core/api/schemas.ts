@@ -3629,7 +3629,7 @@ export const SkillAgentUsageListSchema = z.array(z.object({
 // GET /api/provider-quota — sidebar Claude/Codex usage. Unknown providers and
 // window kinds from a newer sidecar are dropped instead of failing the list.
 const QuotaWindowSchema = z.object({
-  kind: z.enum(["session", "weekly"]),
+  kind: z.enum(["session", "weekly", "fable"]),
   used_percent: z.number().catch(0).transform((v) => Math.min(100, Math.max(0, v))),
   resets_at: z.string().nullable().default(null).catch(null),
 }).loose();

@@ -74,6 +74,7 @@
     "label": "Quota des fournisseurs",
     "session": "Session",
     "weekly": "Hebdo",
+    "fable": "Fable",
     "resets_at": "Réinitialisation le {{time}}",
     "login_expired": "Connexion expirée",
     "unavailable": "Utilisation indisponible",

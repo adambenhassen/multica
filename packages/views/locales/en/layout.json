@@ -74,6 +74,7 @@
     "label": "Provider quota",
     "session": "Session",
     "weekly": "Weekly",
+    "fable": "Fable",
     "resets_at": "Resets {{time}}",
     "login_expired": "Login expired",
     "unavailable": "Couldn't load usage",

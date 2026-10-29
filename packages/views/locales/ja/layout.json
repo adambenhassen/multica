@@ -74,6 +74,7 @@
     "label": "プロバイダーのクォータ",
     "session": "セッション",
     "weekly": "週間",
+    "fable": "Fable",
     "resets_at": "{{time}} にリセット",
     "login_expired": "ログインの期限切れ",
     "unavailable": "使用量を読み込めません",

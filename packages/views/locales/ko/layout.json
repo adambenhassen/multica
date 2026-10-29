@@ -74,6 +74,7 @@
     "label": "제공자 할당량",
     "session": "세션",
     "weekly": "주간",
+    "fable": "Fable",
     "resets_at": "{{time}}에 초기화",
     "login_expired": "로그인 만료됨",
     "unavailable": "사용량을 불러올 수 없음",
