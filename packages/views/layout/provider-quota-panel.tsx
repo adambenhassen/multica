@@ -15,7 +15,7 @@ const BAR_CLASS = {
   critical: "bg-destructive",
 } as const;
 
-const ROW_CLASS = "col-span-5 grid grid-cols-subgrid items-center";
+const ROW_CLASS = "col-span-5 grid grid-cols-subgrid items-center rounded-sm focus-visible:outline-2 focus-visible:outline-ring";
 
 export function ProviderQuotaPanel() {
   const { t } = useT("layout");
@@ -28,10 +28,11 @@ export function ProviderQuotaPanel() {
 
   return (
     <div
+      role="group"
       aria-label={t(($) => $.quota.label)}
       className="max-h-40 overflow-y-auto px-2 pb-1"
     >
-      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] gap-x-2 gap-y-0.5 text-caption text-muted-foreground">
+      <div className="grid grid-cols-[minmax(0,7rem)_auto_minmax(2rem,1fr)_auto_auto] gap-x-2 gap-y-0.5 text-caption text-muted-foreground">
         {sortQuotaAccounts(accounts).map((account) => (
           <AccountRows
             key={account.id}
@@ -51,7 +52,9 @@ export function ProviderQuotaPanel() {
 function AccountRows({ account, name }: { account: ProviderQuotaAccount; name: string }) {
   const { t } = useT("layout");
   const nameCell = (show: boolean) => (
-    <span className="truncate text-foreground">{show ? name : ""}</span>
+    <span title={name} className="min-w-0 truncate text-foreground">
+      {show ? name : ""}
+    </span>
   );
 
   if (account.error || account.windows.length === 0) {
@@ -59,7 +62,9 @@ function AccountRows({ account, name }: { account: ProviderQuotaAccount; name: s
       account.error === "login_expired" ? t(($) => $.quota.login_expired) : t(($) => $.quota.unavailable);
     return (
       <Tooltip>
-        <TooltipTrigger render={<div className={ROW_CLASS} />}>
+        <TooltipTrigger
+          render={<div tabIndex={0} aria-label={`${name}: ${message}`} className={ROW_CLASS} />}
+        >
           {nameCell(true)}
           <span className="col-span-4">—</span>
         </TooltipTrigger>
@@ -71,16 +76,24 @@ function AccountRows({ account, name }: { account: ProviderQuotaAccount; name: s
   return (
     <>
       {account.windows.map((window, i) => (
-        <WindowRow key={window.kind} window={window} nameCell={nameCell(i === 0)} />
+        <WindowRow key={window.kind} name={name} window={window} nameCell={nameCell(i === 0)} />
       ))}
     </>
   );
 }
 
-function WindowRow({ window, nameCell }: { window: QuotaWindow; nameCell: ReactNode }) {
+function WindowRow({
+  window,
+  name,
+  nameCell,
+}: {
+  window: QuotaWindow;
+  name: string;
+  nameCell: ReactNode;
+}) {
   const { t } = useT("layout");
   const locale = useLocale();
-  const pct = Math.round(window.used_percent);
+  const pct = Math.min(100, Math.max(0, Math.round(window.used_percent)));
   const parts = resetParts(window.resets_at, Date.now());
   const reset =
     parts === null
@@ -100,13 +113,13 @@ function WindowRow({ window, nameCell }: { window: QuotaWindow; nameCell: ReactN
       <span>{kindLabel}</span>
       <div
         role="progressbar"
-        aria-label={kindLabel}
+        aria-label={`${name} ${kindLabel}`}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct}
         className="h-1 w-full overflow-hidden rounded-full bg-muted"
       >
-        <div className={cn("h-full", BAR_CLASS[quotaLevel(window.used_percent)])} style={{ width: `${pct}%` }} />
+        <div className={cn("h-full", BAR_CLASS[quotaLevel(pct)])} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-right tabular-nums">{pct}%</span>
       <span className="text-right tabular-nums">{reset}</span>
@@ -116,7 +129,7 @@ function WindowRow({ window, nameCell }: { window: QuotaWindow; nameCell: ReactN
   if (!window.resets_at) return <div className={ROW_CLASS}>{row}</div>;
   return (
     <Tooltip>
-      <TooltipTrigger render={<div className={ROW_CLASS} />}>{row}</TooltipTrigger>
+      <TooltipTrigger render={<div tabIndex={0} className={ROW_CLASS} />}>{row}</TooltipTrigger>
       <TooltipContent>
         {t(($) => $.quota.resets_at, {
           time: new Date(window.resets_at).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }),

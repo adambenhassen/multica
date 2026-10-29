@@ -77,4 +77,25 @@ describe("ProviderQuotaPanel", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
+
+  it("makes an errored row keyboard-focusable with an accessible reason", () => {
+    quota.current = { accounts: [{ ...codex("personal", 0), windows: [], error: "login_expired" }] };
+    renderWithI18n(<ProviderQuotaPanel />);
+    const row = screen.getByLabelText("Codex: Login expired");
+    expect(row).toHaveAttribute("tabindex", "0");
+  });
+
+  it("colours by the rounded percent that is displayed", () => {
+    quota.current = { accounts: [codex("personal", 79.6)] };
+    renderWithI18n(<ProviderQuotaPanel />);
+    expect(screen.getByText("80%")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar").firstElementChild).toHaveClass("bg-warning");
+  });
+
+  it("names each progressbar after its account", () => {
+    quota.current = { accounts: [claude("personal", 42, 18)] };
+    renderWithI18n(<ProviderQuotaPanel />);
+    expect(screen.getByRole("progressbar", { name: "Claude Session" })).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Claude Weekly" })).toBeInTheDocument();
+  });
 });
