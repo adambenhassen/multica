@@ -30,7 +30,7 @@ export function ProviderQuotaPanel() {
     <div
       role="group"
       aria-label={t(($) => $.quota.label)}
-      className="max-h-40 overflow-y-auto px-2 pb-1"
+      className="max-h-40 overflow-y-auto px-2 pt-0.5 pb-1"
     >
       <div className="grid grid-cols-[minmax(0,7rem)_auto_minmax(2rem,1fr)_auto_auto] gap-x-2 gap-y-0.5 text-caption text-muted-foreground">
         {sortQuotaAccounts(accounts).map((account) => (
@@ -52,7 +52,7 @@ export function ProviderQuotaPanel() {
 function AccountRows({ account, name }: { account: ProviderQuotaAccount; name: string }) {
   const { t } = useT("layout");
   const nameCell = (show: boolean) => (
-    <span title={name} className="min-w-0 truncate text-foreground">
+    <span title={show ? name : undefined} className="min-w-0 truncate text-foreground">
       {show ? name : ""}
     </span>
   );
@@ -62,11 +62,10 @@ function AccountRows({ account, name }: { account: ProviderQuotaAccount; name: s
       account.error === "login_expired" ? t(($) => $.quota.login_expired) : t(($) => $.quota.unavailable);
     return (
       <Tooltip>
-        <TooltipTrigger
-          render={<div tabIndex={0} aria-label={`${name}: ${message}`} className={ROW_CLASS} />}
-        >
+        <TooltipTrigger render={<div tabIndex={0} className={ROW_CLASS} />}>
           {nameCell(true)}
           <span className="col-span-4">—</span>
+          <span className="sr-only">{message}</span>
         </TooltipTrigger>
         <TooltipContent>{message}</TooltipContent>
       </Tooltip>

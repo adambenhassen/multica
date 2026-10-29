@@ -81,8 +81,8 @@ describe("ProviderQuotaPanel", () => {
   it("makes an errored row keyboard-focusable with an accessible reason", () => {
     quota.current = { accounts: [{ ...codex("personal", 0), windows: [], error: "login_expired" }] };
     renderWithI18n(<ProviderQuotaPanel />);
-    const row = screen.getByLabelText("Codex: Login expired");
-    expect(row).toHaveAttribute("tabindex", "0");
+    const reason = screen.getByText("Login expired", { selector: ".sr-only" });
+    expect(reason.closest('[tabindex="0"]')).toBeInTheDocument();
   });
 
   it("colours by the rounded percent that is displayed", () => {
