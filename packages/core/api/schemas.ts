@@ -506,6 +506,7 @@ export const AgentAccountSchema = z.object({
   provider: z.string(),
   env_key_count: z.number().optional().default(0),
   env_keys: z.array(z.string()).nullish().transform((v) => v ?? []),
+  overrides_runtime_default: z.boolean().nullish().catch(false).transform((v) => v ?? false),
   created_at: z.string(),
   updated_at: z.string(),
 }).loose();
@@ -517,6 +518,7 @@ export const EMPTY_AGENT_ACCOUNT: AgentAccount = {
   provider: "",
   env_key_count: 0,
   env_keys: [],
+  overrides_runtime_default: false,
   created_at: "",
   updated_at: "",
 };
@@ -3787,6 +3789,7 @@ export const AgentModelFallbackSchema = z.object({
   runtime_id: z.string(),
   model: z.string(),
   thinking_level: z.string().catch(""),
+  account_id: z.string().nullish().catch(null).transform((v) => v ?? null),
 }).loose();
 
 export const AgentModelFallbackListSchema = z.array(AgentModelFallbackSchema);

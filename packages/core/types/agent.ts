@@ -906,6 +906,8 @@ export interface AgentAccount {
   env_key_count: number;
   /** Key names; empty for callers who are not workspace owner/admin. */
   env_keys: string[];
+  /** Agents on "Runtime default" of this provider run with this account. */
+  overrides_runtime_default: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -918,6 +920,7 @@ export interface CreateAgentAccountRequest {
   name: string;
   provider: string;
   env: Record<string, string>;
+  overrides_runtime_default?: boolean;
 }
 
 /**
@@ -928,6 +931,8 @@ export interface UpdateAgentAccountRequest {
   name?: string;
   provider?: string;
   env?: Record<string, string>;
+  /** Turning it on moves the override off any other account of the provider. */
+  overrides_runtime_default?: boolean;
 }
 
 /**
@@ -1452,8 +1457,16 @@ export interface AgentModelFallback {
   model: string;
   /** "" = the runtime/model default; never the agent's level. */
   thinking_level: string;
+  /** Workspace account this fallback runs with; null = runtime default. */
+  account_id: string | null;
 }
 
 export interface ReplaceAgentFallbacksRequest {
-  fallbacks: { runtime_id: string; model: string; thinking_level: string }[];
+  fallbacks: {
+    runtime_id: string;
+    model: string;
+    thinking_level: string;
+    /** Omitted or "" = runtime default. Older servers ignore it. */
+    account_id?: string;
+  }[];
 }

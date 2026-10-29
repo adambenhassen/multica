@@ -2376,7 +2376,14 @@ describe("AgentModelFallbackListSchema", () => {
   it("parses entries and defaults a missing effort to the runtime default", () => {
     expect(AgentModelFallbackListSchema.parse([
       { position: 1, runtime_id: "rt-1", model: "gpt-5.6-terra" },
-    ])).toEqual([{ position: 1, runtime_id: "rt-1", model: "gpt-5.6-terra", thinking_level: "" }]);
+    ])).toEqual([{ position: 1, runtime_id: "rt-1", model: "gpt-5.6-terra", thinking_level: "", account_id: null }]);
+  });
+
+  it("keeps an entry's account and reads a missing or malformed one as the runtime default", () => {
+    expect(AgentModelFallbackListSchema.parse([
+      { position: 1, runtime_id: "rt-1", model: "m-1", account_id: "acc-1" },
+      { position: 2, runtime_id: "rt-1", model: "m-1", account_id: 7 },
+    ])).toMatchObject([{ account_id: "acc-1" }, { account_id: null }]);
   });
 
   it("degrades a null or malformed effort per entry instead of dropping the list", () => {

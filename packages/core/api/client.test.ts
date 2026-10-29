@@ -697,7 +697,7 @@ describe("ApiClient issue move intent", () => {
 
 describe("ApiClient agent model fallbacks", () => {
   it("lists and replaces agent fallbacks", async () => {
-    const entry = { position: 1, runtime_id: "rt-1", model: "gpt-5.6-terra", thinking_level: "xhigh" };
+    const entry = { position: 1, runtime_id: "rt-1", model: "gpt-5.6-terra", thinking_level: "xhigh", account_id: "acc-1" };
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify([entry]))));
     vi.stubGlobal("fetch", fetchMock);
     const client = new ApiClient("https://api.example.test");
@@ -843,7 +843,13 @@ describe("ApiClient agent account response schemas", () => {
     const client = new ApiClient("https://api.example.test");
 
     await expect(client.listAgentAccounts()).resolves.toEqual([
-      expect.objectContaining({ id: "account-1", env_key_count: 0, env_keys: [] }),
+      expect.objectContaining({
+        id: "account-1",
+        env_key_count: 0,
+        env_keys: [],
+        // Older backends omit the runtime override flag.
+        overrides_runtime_default: false,
+      }),
     ]);
   });
 });
