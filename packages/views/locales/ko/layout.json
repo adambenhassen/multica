@@ -69,5 +69,17 @@
       "title": "Discord 참여하기",
       "dismiss": "닫기"
     }
+  },
+  "quota": {
+    "label": "제공자 할당량",
+    "session": "세션",
+    "weekly": "주간",
+    "resets_at": "{{time}}에 초기화",
+    "login_expired": "로그인 만료됨",
+    "unavailable": "사용량을 불러올 수 없음",
+    "reset_days": "{{days}}일",
+    "reset_hours": "{{hours}}시간 {{minutes}}분",
+    "reset_minutes": "{{minutes}}분",
+    "reset_soon": "1분 미만"
   }
 }

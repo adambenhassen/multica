@@ -69,5 +69,17 @@
       "title": "加入 Discord",
       "dismiss": "关闭"
     }
+  },
+  "quota": {
+    "label": "服务商额度",
+    "session": "会话",
+    "weekly": "每周",
+    "resets_at": "{{time}} 重置",
+    "login_expired": "登录已过期",
+    "unavailable": "无法加载用量",
+    "reset_days": "{{days}}天",
+    "reset_hours": "{{hours}}小时{{minutes}}分",
+    "reset_minutes": "{{minutes}}分",
+    "reset_soon": "<1分"
   }
 }

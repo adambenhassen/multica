@@ -69,5 +69,17 @@
       "title": "Discord に参加",
       "dismiss": "閉じる"
     }
+  },
+  "quota": {
+    "label": "プロバイダーのクォータ",
+    "session": "セッション",
+    "weekly": "週間",
+    "resets_at": "{{time}} にリセット",
+    "login_expired": "ログインの期限切れ",
+    "unavailable": "使用量を読み込めません",
+    "reset_days": "{{days}}日",
+    "reset_hours": "{{hours}}時間{{minutes}}分",
+    "reset_minutes": "{{minutes}}分",
+    "reset_soon": "1分未満"
   }
 }

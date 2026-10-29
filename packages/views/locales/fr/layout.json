@@ -69,5 +69,17 @@
       "title": "Rejoignez notre Discord",
       "dismiss": "Ignorer"
     }
+  },
+  "quota": {
+    "label": "Quota des fournisseurs",
+    "session": "Session",
+    "weekly": "Hebdo",
+    "resets_at": "Réinitialisation {{time}}",
+    "login_expired": "Connexion expirée",
+    "unavailable": "Utilisation indisponible",
+    "reset_days": "{{days}} j",
+    "reset_hours": "{{hours}} h {{minutes}} min",
+    "reset_minutes": "{{minutes}} min",
+    "reset_soon": "<1 min"
   }
 }

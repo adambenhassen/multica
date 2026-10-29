@@ -107,6 +107,7 @@ vi.mock("../common/use-app-foreground", () => ({
   useAppForeground: () => appForeground.current,
 }));
 vi.mock("./help-launcher", () => ({ HelpLauncher: () => null }));
+vi.mock("./provider-quota-panel", () => ({ ProviderQuotaPanel: () => null }));
 vi.mock("../auth", () => ({ useLogout: () => vi.fn() }));
 vi.mock("../issues/components/status-icon", () => ({ StatusIcon: () => <span /> }));
 vi.mock("../navigation", () => ({

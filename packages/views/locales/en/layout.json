@@ -69,5 +69,17 @@
       "title": "Join our Discord",
       "dismiss": "Dismiss"
     }
+  },
+  "quota": {
+    "label": "Provider quota",
+    "session": "Session",
+    "weekly": "Weekly",
+    "resets_at": "Resets {{time}}",
+    "login_expired": "Login expired",
+    "unavailable": "Couldn't load usage",
+    "reset_days": "{{days}}d",
+    "reset_hours": "{{hours}}h {{minutes}}m",
+    "reset_minutes": "{{minutes}}m",
+    "reset_soon": "<1m"
   }
 }
