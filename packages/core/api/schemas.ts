@@ -95,6 +95,9 @@ import type {
   User,
   WebhookDelivery,
   WorkspaceMcpServer,
+  ProviderQuotaAccount,
+  ProviderQuotaResponse,
+  QuotaWindow,
 } from "../types";
 import type { CloudRuntimeNode } from "../runtimes/cloud-runtime";
 import type { CreateFeedbackResponse } from "../feedback/types";
@@ -3622,6 +3625,39 @@ export const SkillAgentUsageListSchema = z.array(z.object({
   run_count: z.number().int().nonnegative().catch(0),
   last_used_at: z.string().nullable().default(null).catch(null),
 }).loose());
+
+// GET /api/provider-quota — sidebar Claude/Codex usage. Unknown providers and
+// window kinds from a newer sidecar are dropped instead of failing the list.
+const QuotaWindowSchema = z.object({
+  kind: z.enum(["session", "weekly"]),
+  used_percent: z.number().catch(0).transform((v) => Math.min(100, Math.max(0, v))),
+  resets_at: z.string().nullable().default(null).catch(null),
+}).loose();
+
+const ProviderQuotaAccountSchema = z.object({
+  id: z.string(),
+  provider: z.enum(["claude", "codex"]),
+  label: z.string().default("").catch(""),
+  windows: z.array(z.unknown()).catch([]).transform((windows) =>
+    windows.flatMap((window) => {
+      const parsed = QuotaWindowSchema.safeParse(window);
+      return parsed.success ? [parsed.data as QuotaWindow] : [];
+    }),
+  ),
+  error: z.string().nullable().default(null).catch(null),
+  updated_at: z.string().nullable().default(null).catch(null),
+}).loose();
+
+export const ProviderQuotaResponseSchema = z.object({
+  accounts: z.array(z.unknown()).transform((accounts) =>
+    accounts.flatMap((account) => {
+      const parsed = ProviderQuotaAccountSchema.safeParse(account);
+      return parsed.success ? [parsed.data as ProviderQuotaAccount] : [];
+    }),
+  ),
+}).loose();
+
+export const EMPTY_PROVIDER_QUOTA: ProviderQuotaResponse = { accounts: [] };
 
 export const SkillImportExistingSkillSchema = z.object({
   id: z.string(),

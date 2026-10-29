@@ -251,6 +251,7 @@ import type {
   AgentProjectMcpServer,
   AgentModelFallback,
   ReplaceAgentFallbacksRequest,
+  ProviderQuotaResponse,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -473,6 +474,8 @@ import {
   SkillSummaryListSchema,
   SkillUsageListSchema,
   SkillAgentUsageListSchema,
+  ProviderQuotaResponseSchema,
+  EMPTY_PROVIDER_QUOTA,
   ProjectSkillListSchema,
   ProjectMcpServerListSchema,
   AgentProjectSkillListSchema,
@@ -3609,6 +3612,13 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(`/api/skills/${skillId}/usage`);
     return parseWithFallback<SkillAgentUsage[]>(raw, SkillAgentUsageListSchema, [], {
       endpoint: "GET /api/skills/{id}/usage",
+    });
+  }
+
+  async getProviderQuota(): Promise<ProviderQuotaResponse> {
+    const raw = await this.fetch<unknown>("/api/provider-quota");
+    return parseWithFallback<ProviderQuotaResponse>(raw, ProviderQuotaResponseSchema, EMPTY_PROVIDER_QUOTA, {
+      endpoint: "GET /api/provider-quota",
     });
   }
 
