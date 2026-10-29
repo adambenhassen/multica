@@ -353,6 +353,9 @@ deleted_agent_builder_drafts AS (
 deleted_agent_model_fallbacks AS (
     DELETE FROM agent_model_fallback WHERE workspace_id = $1
 ),
+deleted_agent_accounts AS (
+    DELETE FROM agent_account WHERE workspace_id = $1
+),
 deleted_comment_reactions AS (
     DELETE FROM comment_reaction WHERE workspace_id = $1
 ),

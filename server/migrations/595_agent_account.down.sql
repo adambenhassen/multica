@@ -1,0 +1,2 @@
+ALTER TABLE agent DROP COLUMN IF EXISTS account_id;
+DROP TABLE IF EXISTS agent_account;

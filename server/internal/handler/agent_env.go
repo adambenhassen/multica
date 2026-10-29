@@ -42,6 +42,15 @@ const (
 type AgentEnvResponse struct {
 	AgentID   string            `json:"agent_id"`
 	CustomEnv map[string]string `json:"custom_env"`
+	// AccountOverride names the custom_env keys the agent's account replaces
+	// at task start. Key names only; null when the agent has no account.
+	AccountOverride *AgentEnvAccountOverride `json:"account_override"`
+}
+
+type AgentEnvAccountOverride struct {
+	AccountID   string   `json:"account_id"`
+	AccountName string   `json:"account_name"`
+	Keys        []string `json:"keys"`
 }
 
 // UpdateAgentEnvRequest is the wire shape for `PUT
@@ -169,8 +178,9 @@ func (h *Handler) GetAgentEnv(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, AgentEnvResponse{
-		AgentID:   uuidToString(agent.ID),
-		CustomEnv: customEnv,
+		AgentID:         uuidToString(agent.ID),
+		CustomEnv:       customEnv,
+		AccountOverride: h.agentEnvAccountOverride(r, agent, customEnv),
 	})
 }
 
@@ -281,8 +291,9 @@ func (h *Handler) UpdateAgentEnv(w http.ResponseWriter, r *http.Request) {
 	h.publish(protocol.EventAgentStatus, workspaceID, "member", uuidToString(member.UserID), map[string]any{"agent": broadcastAgentResponse(resp)})
 
 	writeJSON(w, http.StatusOK, AgentEnvResponse{
-		AgentID:   uuidToString(updated.ID),
-		CustomEnv: merged,
+		AgentID:         uuidToString(updated.ID),
+		CustomEnv:       merged,
+		AccountOverride: h.agentEnvAccountOverride(r, updated, merged),
 	})
 }
 

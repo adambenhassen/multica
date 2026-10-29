@@ -2154,6 +2154,18 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				})
 			})
 
+			// Accounts: workspace env sets agents opt into. Writes and env
+			// reveals are owner/admin only, enforced in the handlers.
+			r.Route("/api/accounts", func(r chi.Router) {
+				r.Get("/", h.ListAgentAccounts)
+				r.Post("/", h.CreateAgentAccount)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Put("/", h.UpdateAgentAccount)
+					r.Delete("/", h.DeleteAgentAccount)
+					r.Get("/env", h.GetAgentAccountEnv)
+				})
+			})
+
 			// Labels
 			r.Route("/api/labels", func(r chi.Router) {
 				r.Get("/", h.ListLabels)

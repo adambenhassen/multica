@@ -120,6 +120,9 @@ type AgentResponse struct {
 	// ServiceTier is the runtime-native Codex execution tier persisted for
 	// this agent (empty = inherit local Codex configuration).
 	ServiceTier string `json:"service_tier"`
+	// AccountID is the workspace account whose env this agent's tasks run
+	// with; null = runtime default. Values never ride on this resource.
+	AccountID *string `json:"account_id"`
 	// ComposioToolkitAllowlist is the subset of Composio toolkit slugs this
 	// agent is allowed to mount as MCP at task dispatch — for ANY run that
 	// passes the agent's invocation permission, using the agent OWNER's
@@ -233,6 +236,7 @@ func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 		Model:                    a.Model.String,
 		ThinkingLevel:            a.ThinkingLevel.String,
 		ServiceTier:              a.ServiceTier.String,
+		AccountID:                uuidToPtr(a.AccountID),
 		ComposioToolkitAllowlist: composioAllowlist,
 		OwnerID:                  uuidToPtr(a.OwnerID),
 		Skills:                   []AgentSkillSummary{},
@@ -1806,6 +1810,10 @@ type UpdateAgentRequest struct {
 	// null" (a *[]string can't, because a nil pointer is the same wire
 	// representation as both). MUL-3869.
 	ComposioToolkitAllowlist *[]string `json:"composio_toolkit_allowlist"`
+	// AccountID: omitted → no change; null or "" → runtime default; an id →
+	// use that workspace account, which must match the target runtime's
+	// provider.
+	AccountID *string `json:"account_id"`
 }
 
 // workspaceAlwaysRedactSecrets reports whether the workspace has opted
@@ -2410,6 +2418,11 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	setAccount, accountID, ok := h.resolveAgentAccountUpdate(w, r, existing, req, rawFields, targetRuntimeID, targetProvider)
+	if !ok {
+		return
+	}
+
 	// Only binding writes need this transaction. Hold the same runtime lock as
 	// revocation until the new binding commits; a preflight-only check is stale
 	// as soon as a public runtime becomes private.
@@ -2470,6 +2483,15 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("update agent failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
 		writeError(w, http.StatusInternalServerError, "failed to update agent")
 		return
+	}
+
+	if setAccount {
+		updated, err = updateQueries.SetAgentAccount(r.Context(), db.SetAgentAccountParams{ID: updated.ID, AccountID: accountID})
+		if err != nil {
+			slog.Warn("set agent account failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
+			writeError(w, http.StatusInternalServerError, "failed to update account")
+			return
+		}
 	}
 
 	if bindingTx != nil {

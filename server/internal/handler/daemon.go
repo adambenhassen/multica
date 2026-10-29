@@ -2954,6 +2954,24 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 			slog.Warn("failed to unmarshal agent custom_env", "agent_id", uuidToString(agent.ID), "error", err)
 		}
 	}
+	// The agent's account rides in custom_env so the daemon applies it with
+	// the same blocklist; the account value wins on a shared key. Resolved
+	// per claim, so switching accounts affects only tasks claimed afterwards.
+	_, accountEnv, accountErr := h.accountEnvForTask(r, agent, runtime.Provider)
+	if accountErr != nil {
+		slog.Error("daemon claim: load agent account failed; requeueing claim",
+			"task_id", uuidToString(task.ID), "agent_id", uuidToString(agent.ID), "error", accountErr)
+		if _, requeueErr := h.TaskService.RequeueTaskAfterClaimFailure(r.Context(), *task); requeueErr != nil {
+			slog.Error("daemon claim: requeue after account load failure failed; stale reclaim will recover it",
+				"task_id", uuidToString(task.ID), "error", requeueErr)
+		}
+		return resp, deliveredCommentIDs, issueSnapshot, agentSkillCount, builtinSkillCount, &claimBuildFailure{
+			outcome: "error_load_agent_account",
+			status:  http.StatusInternalServerError,
+			message: "failed to load agent account",
+		}
+	}
+	customEnv = layerAccountEnv(customEnv, accountEnv)
 	var customArgs []string
 	if agent.CustomArgs != nil {
 		if err := json.Unmarshal(agent.CustomArgs, &customArgs); err != nil {
