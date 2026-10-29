@@ -83,11 +83,18 @@ describe("ProviderQuotaPanel", () => {
     renderWithI18n(<ProviderQuotaPanel />);
     for (const text of ["Claude · personal", "Claude · work"]) {
       const header = screen.getByText(text);
-      expect(header).toHaveClass("col-span-5");
+      expect(header).toHaveClass("col-span-full");
       expect(header).not.toHaveAttribute("tabindex");
     }
     expect(screen.queryByText("Claude")).not.toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Claude · work Session" })).toBeInTheDocument();
+  });
+
+  it("gives a single-account provider a header row too when another provider has several", () => {
+    quota.current = { accounts: [claude("account-1", 0, 100), claude("account-2", 24, 4), codex("account", 33)] };
+    renderWithI18n(<ProviderQuotaPanel />);
+    expect(screen.getByText("Codex")).toHaveClass("col-span-full");
+    expect(screen.getByRole("progressbar", { name: "Codex Weekly" })).toBeInTheDocument();
   });
 
   it("renders a header then a focusable dash row for a multi-account errored account", () => {
@@ -96,7 +103,7 @@ describe("ProviderQuotaPanel", () => {
     };
     renderWithI18n(<ProviderQuotaPanel />);
     const header = screen.getByText("Codex · old");
-    expect(header).toHaveClass("col-span-5");
+    expect(header).toHaveClass("col-span-full");
     expect(header).not.toHaveAttribute("tabindex");
     const dash = screen.getByText("—");
     expect(dash.closest('[tabindex="0"]')).toBeInTheDocument();
