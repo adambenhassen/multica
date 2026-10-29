@@ -14,7 +14,7 @@ import {
   WrapText,
 } from "lucide-react";
 import { api } from "@multica/core/api";
-import type { Agent } from "@multica/core/types";
+import type { Agent, AgentEnvAccountOverride } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { IconButton } from "@multica/ui/components/common/icon-button";
 import { TooltipHint } from "@multica/ui/components/common/tooltip-hint";
@@ -103,6 +103,9 @@ export function EnvTab({
   const [revealed, setRevealed] = useState<EnvEntry[] | null>(null);
   const [originalMap, setOriginalMap] = useState<Record<string, string>>({});
   const [revealing, setRevealing] = useState(false);
+  // Keys the agent's account also sets; the account value wins at run time.
+  const [accountOverride, setAccountOverride] =
+    useState<AgentEnvAccountOverride | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Bulk mode is a second editor over the same `revealed` state rather than a
@@ -136,6 +139,7 @@ export function EnvTab({
     try {
       const resp = await api.getAgentEnv(agent.id);
       const env = resp.custom_env ?? {};
+      setAccountOverride(resp.account_override ?? null);
       setOriginalMap(env);
       setRevealed(envMapToEntries(env));
     } catch (err) {
@@ -294,6 +298,9 @@ export function EnvTab({
       });
       const env = resp.custom_env ?? {};
       const savedEntries = envMapToEntries(env);
+      if (resp.account_override !== undefined) {
+        setAccountOverride(resp.account_override);
+      }
       setOriginalMap(env);
       setRevealed(savedEntries);
       // Keep the textarea in step with what the server accepted rather than
@@ -435,61 +442,70 @@ export function EnvTab({
       ) : revealed.length > 0 ? (
         <div className="space-y-2">
           {revealed.map((entry, index) => (
-            <div key={entry.id} className="flex items-center gap-2">
-              <Input
-                value={entry.key}
-                onChange={(e) => updateEnvEntry(index, "key", e.target.value)}
-                onPaste={(event) => handleEnvPaste(index, event)}
-                placeholder={t(($) => $.tab_body.env.key_placeholder)}
-                className="w-[40%] font-mono text-caption"
-              />
-              <div className="relative flex-1">
+            <div key={entry.id} className="space-y-1">
+              <div className="flex items-center gap-2">
                 <Input
-                  type={entry.visible ? "text" : "password"}
-                  value={entry.value}
-                  onChange={(e) =>
-                    updateEnvEntry(index, "value", e.target.value)
-                  }
-                  // Deliberately no paste interception here: a value is
-                  // arbitrary text, and `foo=bar` pasted as a value is a value,
-                  // not an assignment. Bulk edit is the entry point for files.
-                  placeholder={t(($) => $.tab_body.env.value_placeholder)}
-                  className="pr-8 font-mono text-caption"
+                  value={entry.key}
+                  onChange={(e) => updateEnvEntry(index, "key", e.target.value)}
+                  onPaste={(event) => handleEnvPaste(index, event)}
+                  placeholder={t(($) => $.tab_body.env.key_placeholder)}
+                  className="w-[40%] font-mono text-caption"
                 />
-                <TooltipHint
-                  label={
-                    entry.visible
-                      ? t(($) => $.tab_body.env.hide_value_aria)
-                      : t(($) => $.tab_body.env.show_value_aria)
-                  }
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggleEnvVisibility(index)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    aria-label={
+                <div className="relative flex-1">
+                  <Input
+                    type={entry.visible ? "text" : "password"}
+                    value={entry.value}
+                    onChange={(e) =>
+                      updateEnvEntry(index, "value", e.target.value)
+                    }
+                    // Deliberately no paste interception here: a value is
+                    // arbitrary text, and `foo=bar` pasted as a value is a value,
+                    // not an assignment. Bulk edit is the entry point for files.
+                    placeholder={t(($) => $.tab_body.env.value_placeholder)}
+                    className="pr-8 font-mono text-caption"
+                  />
+                  <TooltipHint
+                    label={
                       entry.visible
                         ? t(($) => $.tab_body.env.hide_value_aria)
                         : t(($) => $.tab_body.env.show_value_aria)
                     }
                   >
-                    {entry.visible ? (
-                      <EyeOff className="h-3.5 w-3.5" />
-                    ) : (
-                      <Eye className="h-3.5 w-3.5" />
-                    )}
-                  </button>
-                </TooltipHint>
+                    <button
+                      type="button"
+                      onClick={() => toggleEnvVisibility(index)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label={
+                        entry.visible
+                          ? t(($) => $.tab_body.env.hide_value_aria)
+                          : t(($) => $.tab_body.env.show_value_aria)
+                      }
+                    >
+                      {entry.visible ? (
+                        <EyeOff className="h-3.5 w-3.5" />
+                      ) : (
+                        <Eye className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </TooltipHint>
+                </div>
+                <IconButton
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => removeEnvEntry(index)}
+                  className="text-muted-foreground hover:text-destructive"
+                  label={t(($) => $.tab_body.env.remove_aria)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </IconButton>
               </div>
-              <IconButton
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => removeEnvEntry(index)}
-                className="text-muted-foreground hover:text-destructive"
-                label={t(($) => $.tab_body.env.remove_aria)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </IconButton>
+              {accountOverride?.keys.includes(entry.key.trim()) ? (
+                <p className="text-caption text-muted-foreground">
+                  {t(($) => $.tab_body.env.overridden_by_account, {
+                    name: accountOverride.account_name,
+                  })}
+                </p>
+              ) : null}
             </div>
           ))}
         </div>

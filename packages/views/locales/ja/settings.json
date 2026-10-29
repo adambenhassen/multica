@@ -411,7 +411,8 @@
       "code": "コード",
       "channels": "メッセージング",
       "apps": "接続済みアプリ",
-      "workflows": "ワークフロー"
+      "workflows": "ワークフロー",
+      "agent_accounts": "エージェントアカウント"
     },
     "groups": {
       "personal": "個人",
@@ -1442,5 +1443,38 @@
     "mcp": "管理者が追加してワークスペースで共有し、エージェントごとに割り当てます。",
     "apps": "自分のアカウントで Composio 経由で承認し、自分が所有するエージェントで有効にします。",
     "plugins": "インストールするとツール、定期フック、ストレージを追加でき、プラグインごとに権限を付与します。"
+  },
+  "agent_accounts": {
+    "description": "エージェントが実行時に使う名前付きの環境変数セットです（例: アカウントごとのログイントークン）。値は書き込み専用です。",
+    "add": "アカウントを追加",
+    "empty_title": "アカウントはまだありません",
+    "key_count_other": "変数 {{count}} 件",
+    "edit_aria": "{{name}} を編集",
+    "delete_aria": "{{name}} を削除",
+    "delete_title": "{{name}} を削除しますか？",
+    "delete_description": "このアカウントを使用中のエージェントは、先に別のアカウントへ切り替える必要があります。",
+    "delete_confirm": "削除",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "deleted_toast": "アカウントを削除しました",
+    "delete_failed_toast": "アカウントを削除できませんでした",
+    "create_title": "アカウントを追加",
+    "edit_title": "アカウントを編集",
+    "name_label": "名前",
+    "name_placeholder": "Claude A",
+    "provider_label": "プロバイダー",
+    "provider_placeholder": "プロバイダーを選択",
+    "env_label": "環境変数",
+    "add_variable": "追加",
+    "key_aria": "変数名",
+    "value_aria": "{{key}} の値",
+    "value_placeholder": "値",
+    "value_unchanged_placeholder": "変更なし",
+    "remove_variable_aria": "変数を削除",
+    "required_error": "名前とプロバイダーは必須です",
+    "duplicate_key_error": "キー「{{key}}」が重複しています",
+    "value_required_error": "「{{key}}」の値を入力してください",
+    "saved_toast": "アカウントを保存しました",
+    "save_failed_toast": "アカウントを保存できませんでした"
   }
 }

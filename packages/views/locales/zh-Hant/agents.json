@@ -192,7 +192,8 @@
     "edit_description_title": "編輯描述",
     "description_placeholder": "這個智慧體做什麼？",
     "save": "儲存",
-    "cancel": "取消"
+    "cancel": "取消",
+    "prop_account": "帳號"
   },
   "overview": {
     "agent_context": "智慧體",
@@ -240,7 +241,9 @@
     "service_tier_standard_description": "明確使用標準速度和標準用量",
     "service_tier_tooltip": "速度 · {{value}}",
     "service_tier_clear": "執行時預設",
-    "service_tier_clear_title": "清除速度覆蓋，交由本地 Codex 配置決定"
+    "service_tier_clear_title": "清除速度覆蓋，交由本地 Codex 配置決定",
+    "account_default": "執行時預設",
+    "account_tooltip": "帳號 · {{value}}"
   },
   "model_dropdown": {
     "label": "模型",
@@ -562,7 +565,8 @@
       "reveal_action": "解鎖並編輯",
       "revealing": "正在解鎖…",
       "reveal_failed_toast": "載入環境變數值失敗",
-      "empty_editable": "暫無環境變數。"
+      "empty_editable": "暫無環境變數。",
+      "overridden_by_account": "已被帳號 {{name}} 覆蓋"
     },
     "custom_args": {
       "intro": "新增智慧體啟動時傳入的 CLI 引數。",

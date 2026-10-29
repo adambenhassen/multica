@@ -413,7 +413,8 @@
       "code": "Code",
       "channels": "Messagerie",
       "apps": "Applications connectées",
-      "workflows": "Workflows"
+      "workflows": "Workflows",
+      "agent_accounts": "Comptes d'agent"
     },
     "groups": {
       "personal": "Personnel",
@@ -1454,5 +1455,39 @@
     "mcp": "Ajoutés par les administrateurs, partagés dans l'espace de travail puis attribués agent par agent.",
     "apps": "Autorisées avec votre propre compte via Composio et activées sur les agents qui vous appartiennent.",
     "plugins": "Paquets installés pouvant ajouter des outils, des hooks planifiés et du stockage, chacun avec ses propres autorisations."
+  },
+  "agent_accounts": {
+    "description": "Ensembles nommés de variables d'environnement qu'un agent peut utiliser, par exemple un jeton de connexion par compte. Les valeurs sont en écriture seule.",
+    "add": "Ajouter un compte",
+    "empty_title": "Aucun compte",
+    "key_count_one": "{{count}} variable",
+    "key_count_other": "{{count}} variables",
+    "edit_aria": "Modifier {{name}}",
+    "delete_aria": "Supprimer {{name}}",
+    "delete_title": "Supprimer {{name}} ?",
+    "delete_description": "Les agents qui utilisent encore ce compte doivent d'abord passer à un autre compte.",
+    "delete_confirm": "Supprimer",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "deleted_toast": "Compte supprimé",
+    "delete_failed_toast": "Échec de la suppression du compte",
+    "create_title": "Ajouter un compte",
+    "edit_title": "Modifier le compte",
+    "name_label": "Nom",
+    "name_placeholder": "Claude A",
+    "provider_label": "Fournisseur",
+    "provider_placeholder": "Choisir un fournisseur",
+    "env_label": "Variables d'environnement",
+    "add_variable": "Ajouter",
+    "key_aria": "Nom de la variable",
+    "value_aria": "Valeur de {{key}}",
+    "value_placeholder": "valeur",
+    "value_unchanged_placeholder": "Inchangée",
+    "remove_variable_aria": "Supprimer la variable",
+    "required_error": "Le nom et le fournisseur sont obligatoires",
+    "duplicate_key_error": "Clé « {{key}} » en double",
+    "value_required_error": "Saisissez une valeur pour « {{key}} »",
+    "saved_toast": "Compte enregistré",
+    "save_failed_toast": "Échec de l'enregistrement du compte"
   }
 }

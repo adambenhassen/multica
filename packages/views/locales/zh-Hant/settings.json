@@ -411,7 +411,8 @@
       "code": "程式碼",
       "channels": "訊息渠道",
       "apps": "已連線應用",
-      "workflows": "工作流"
+      "workflows": "工作流",
+      "agent_accounts": "智慧體帳號"
     },
     "groups": {
       "personal": "個人",
@@ -1442,5 +1443,38 @@
     "mcp": "由管理員新增、在工作區內共享，再按智慧體分配。",
     "apps": "用你自己的帳號透過 Composio 授權，在你擁有的智慧體上啟用。",
     "plugins": "安裝後可提供工具、定時 hook 和儲存，每個外掛單獨授權。"
+  },
+  "agent_accounts": {
+    "description": "智慧體執行時使用的具名環境變數集合，例如每個帳號一個登入權杖。值只寫不讀。",
+    "add": "新增帳號",
+    "empty_title": "還沒有帳號",
+    "key_count_other": "{{count}} 個變數",
+    "edit_aria": "編輯 {{name}}",
+    "delete_aria": "刪除 {{name}}",
+    "delete_title": "刪除 {{name}}？",
+    "delete_description": "仍在使用此帳號的智慧體需要先切換到其他帳號。",
+    "delete_confirm": "刪除",
+    "cancel": "取消",
+    "save": "儲存",
+    "deleted_toast": "帳號已刪除",
+    "delete_failed_toast": "刪除帳號失敗",
+    "create_title": "新增帳號",
+    "edit_title": "編輯帳號",
+    "name_label": "名稱",
+    "name_placeholder": "Claude A",
+    "provider_label": "提供方",
+    "provider_placeholder": "選擇提供方",
+    "env_label": "環境變數",
+    "add_variable": "新增",
+    "key_aria": "變數名稱",
+    "value_aria": "{{key}} 的值",
+    "value_placeholder": "值",
+    "value_unchanged_placeholder": "保持不變",
+    "remove_variable_aria": "刪除變數",
+    "required_error": "名稱和提供方為必填項",
+    "duplicate_key_error": "鍵「{{key}}」重複",
+    "value_required_error": "請填寫「{{key}}」的值",
+    "saved_toast": "帳號已儲存",
+    "save_failed_toast": "儲存帳號失敗"
   }
 }

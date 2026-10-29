@@ -43,6 +43,7 @@ import {
   type ModelCatalog,
 } from "./inspector/model-change-cleanup";
 import { RuntimePicker } from "./inspector/runtime-picker";
+import { AccountSettingField } from "./inspector/account-picker";
 import { ThinkingSettingField } from "./inspector/thinking-prop-row";
 import { ServiceTierSettingField } from "./inspector/service-tier-setting-field";
 
@@ -368,6 +369,14 @@ export function AgentDetailInspector({
               </SettingsRow>
               {qoderRuntime ? null : (
                 <>
+                  <AccountSettingField
+                    label={t(($) => $.inspector.prop_account)}
+                    wsId={agent.workspace_id}
+                    provider={runtime?.provider ?? ""}
+                    value={agent.account_id ?? null}
+                    canEdit={canEdit}
+                    onChange={(accountId) => update({ account_id: accountId })}
+                  />
                   <SettingsRow
                     label={t(($) => $.inspector.prop_model)}
                     size="select-wide"

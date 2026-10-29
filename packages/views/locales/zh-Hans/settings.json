@@ -411,7 +411,8 @@
       "code": "代码",
       "channels": "消息渠道",
       "apps": "已连接应用",
-      "workflows": "工作流"
+      "workflows": "工作流",
+      "agent_accounts": "智能体账号"
     },
     "groups": {
       "personal": "个人",
@@ -1442,5 +1443,38 @@
     "mcp": "由管理员添加、在工作区内共享，再按智能体分配。",
     "apps": "用你自己的账号通过 Composio 授权，在你拥有的智能体上启用。",
     "plugins": "安装后可提供工具、定时 hook 和存储，每个插件单独授权。"
+  },
+  "agent_accounts": {
+    "description": "智能体运行时使用的具名环境变量集合，例如每个账号一个登录令牌。值只写不读。",
+    "add": "添加账号",
+    "empty_title": "还没有账号",
+    "key_count_other": "{{count}} 个变量",
+    "edit_aria": "编辑 {{name}}",
+    "delete_aria": "删除 {{name}}",
+    "delete_title": "删除 {{name}}？",
+    "delete_description": "仍在使用此账号的智能体需要先切换到其他账号。",
+    "delete_confirm": "删除",
+    "cancel": "取消",
+    "save": "保存",
+    "deleted_toast": "账号已删除",
+    "delete_failed_toast": "删除账号失败",
+    "create_title": "添加账号",
+    "edit_title": "编辑账号",
+    "name_label": "名称",
+    "name_placeholder": "Claude A",
+    "provider_label": "提供方",
+    "provider_placeholder": "选择提供方",
+    "env_label": "环境变量",
+    "add_variable": "添加",
+    "key_aria": "变量名",
+    "value_aria": "{{key}} 的值",
+    "value_placeholder": "值",
+    "value_unchanged_placeholder": "保持不变",
+    "remove_variable_aria": "删除变量",
+    "required_error": "名称和提供方为必填项",
+    "duplicate_key_error": "键“{{key}}”重复",
+    "value_required_error": "请填写“{{key}}”的值",
+    "saved_toast": "账号已保存",
+    "save_failed_toast": "保存账号失败"
   }
 }

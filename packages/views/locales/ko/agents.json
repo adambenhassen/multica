@@ -192,7 +192,8 @@
     "edit_description_title": "설명 수정",
     "description_placeholder": "이 에이전트는 무엇을 하나요?",
     "save": "저장",
-    "cancel": "취소"
+    "cancel": "취소",
+    "prop_account": "계정"
   },
   "overview": {
     "agent_context": "에이전트",
@@ -240,7 +241,9 @@
     "service_tier_standard_description": "기본 속도 및 표준 사용량",
     "service_tier_tooltip": "속도 · {{value}}",
     "service_tier_clear": "런타임 기본값",
-    "service_tier_clear_title": "속도 재정의를 지우고 로컬 Codex 설정에 맡깁니다"
+    "service_tier_clear_title": "속도 재정의를 지우고 로컬 Codex 설정에 맡깁니다",
+    "account_default": "런타임 기본값",
+    "account_tooltip": "계정 · {{value}}"
   },
   "model_dropdown": {
     "label": "모델",
@@ -413,7 +416,8 @@
       "reveal_action": "공개하고 수정",
       "revealing": "공개하는 중...",
       "reveal_failed_toast": "환경 변수 값을 불러오지 못했습니다",
-      "empty_editable": "설정된 환경 변수가 없습니다."
+      "empty_editable": "설정된 환경 변수가 없습니다.",
+      "overridden_by_account": "계정 {{name}}의 값으로 덮어씀"
     },
     "custom_args": {
       "intro": "에이전트를 시작할 때 전달할 CLI 인자를 추가하세요.",

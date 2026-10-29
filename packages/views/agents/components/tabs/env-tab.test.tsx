@@ -64,6 +64,25 @@ describe("EnvTab", () => {
     updateAgentEnv.mockResolvedValue({ custom_env: {} });
   });
 
+  it("marks custom env keys the agent's account overrides", async () => {
+    const user = userEvent.setup();
+    getAgentEnv.mockResolvedValue({
+      custom_env: { CLAUDE_CODE_OAUTH_TOKEN: "placeholder", OTHER: "x" },
+      account_override: {
+        account_id: "account-1",
+        account_name: "Claude A",
+        keys: ["CLAUDE_CODE_OAUTH_TOKEN"],
+      },
+    });
+    renderTab();
+
+    await user.click(screen.getByRole("button", { name: /reveal & edit/i }));
+
+    expect(
+      screen.getAllByText("Overridden by account Claude A"),
+    ).toHaveLength(1);
+  });
+
   it("turns pasted environment-file assignments into separate rows", async () => {
     const user = userEvent.setup();
     renderTab();

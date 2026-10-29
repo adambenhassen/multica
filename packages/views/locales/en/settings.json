@@ -413,7 +413,8 @@
       "code": "Code",
       "channels": "Messaging",
       "apps": "Connected apps",
-      "workflows": "Workflows"
+      "workflows": "Workflows",
+      "agent_accounts": "Agent accounts"
     },
     "groups": {
       "personal": "Personal",
@@ -1454,5 +1455,39 @@
     "mcp": "Added by admins and shared across the workspace, then assigned per agent.",
     "apps": "Authorized with your own account through Composio and enabled on agents you own.",
     "plugins": "Installed packages that can add tools, scheduled hooks, and storage, each with its own permissions."
+  },
+  "agent_accounts": {
+    "description": "Named sets of environment variables an agent can run with, such as one login token per account. Values are write-only.",
+    "add": "Add account",
+    "empty_title": "No accounts yet",
+    "key_count_one": "{{count}} variable",
+    "key_count_other": "{{count}} variables",
+    "edit_aria": "Edit {{name}}",
+    "delete_aria": "Delete {{name}}",
+    "delete_title": "Delete {{name}}?",
+    "delete_description": "Agents still using this account must switch to another account first.",
+    "delete_confirm": "Delete",
+    "cancel": "Cancel",
+    "save": "Save",
+    "deleted_toast": "Account deleted",
+    "delete_failed_toast": "Failed to delete account",
+    "create_title": "Add account",
+    "edit_title": "Edit account",
+    "name_label": "Name",
+    "name_placeholder": "Claude A",
+    "provider_label": "Provider",
+    "provider_placeholder": "Select a provider",
+    "env_label": "Environment variables",
+    "add_variable": "Add",
+    "key_aria": "Variable name",
+    "value_aria": "Value for {{key}}",
+    "value_placeholder": "value",
+    "value_unchanged_placeholder": "Unchanged",
+    "remove_variable_aria": "Remove variable",
+    "required_error": "Name and provider are required",
+    "duplicate_key_error": "Duplicate key \"{{key}}\"",
+    "value_required_error": "Enter a value for \"{{key}}\"",
+    "saved_toast": "Account saved",
+    "save_failed_toast": "Failed to save account"
   }
 }

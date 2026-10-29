@@ -184,7 +184,8 @@
     "edit_description_title": "説明を編集",
     "description_placeholder": "このエージェントは何をしますか？",
     "save": "保存",
-    "cancel": "キャンセル"
+    "cancel": "キャンセル",
+    "prop_account": "アカウント"
   },
   "overview": {
     "agent_context": "エージェント",
@@ -232,7 +233,9 @@
     "service_tier_standard_description": "通常速度と標準使用量",
     "service_tier_tooltip": "速度 · {{value}}",
     "service_tier_clear": "ランタイムのデフォルト",
-    "service_tier_clear_title": "速度の上書きをクリアし、ローカルの Codex 設定に任せます"
+    "service_tier_clear_title": "速度の上書きをクリアし、ローカルの Codex 設定に任せます",
+    "account_default": "ランタイムのデフォルト",
+    "account_tooltip": "アカウント · {{value}}"
   },
   "model_dropdown": {
     "label": "モデル",
@@ -405,7 +408,8 @@
       "reveal_action": "表示して編集",
       "revealing": "表示中...",
       "reveal_failed_toast": "環境変数の値を読み込めませんでした",
-      "empty_editable": "環境変数は設定されていません。"
+      "empty_editable": "環境変数は設定されていません。",
+      "overridden_by_account": "アカウント {{name}} の値で上書きされます"
     },
     "custom_args": {
       "intro": "エージェントの起動時に渡す CLI 引数を追加します。",

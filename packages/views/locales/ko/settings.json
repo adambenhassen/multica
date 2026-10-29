@@ -411,7 +411,8 @@
       "code": "코드",
       "channels": "메신저",
       "apps": "연결된 앱",
-      "workflows": "워크플로"
+      "workflows": "워크플로",
+      "agent_accounts": "에이전트 계정"
     },
     "groups": {
       "personal": "개인",
@@ -1442,5 +1443,38 @@
     "mcp": "관리자가 추가해 워크스페이스에서 공유하고, 에이전트별로 할당합니다.",
     "apps": "내 계정으로 Composio를 통해 승인하고, 내가 소유한 에이전트에서 사용합니다.",
     "plugins": "설치하면 도구, 예약 훅, 저장소를 추가할 수 있으며 플러그인마다 권한을 부여합니다."
+  },
+  "agent_accounts": {
+    "description": "에이전트가 실행 시 사용하는 이름 있는 환경 변수 묶음입니다(예: 계정별 로그인 토큰). 값은 쓰기 전용입니다.",
+    "add": "계정 추가",
+    "empty_title": "아직 계정이 없습니다",
+    "key_count_other": "변수 {{count}}개",
+    "edit_aria": "{{name}} 편집",
+    "delete_aria": "{{name}} 삭제",
+    "delete_title": "{{name}}을(를) 삭제할까요?",
+    "delete_description": "이 계정을 사용하는 에이전트는 먼저 다른 계정으로 전환해야 합니다.",
+    "delete_confirm": "삭제",
+    "cancel": "취소",
+    "save": "저장",
+    "deleted_toast": "계정을 삭제했습니다",
+    "delete_failed_toast": "계정을 삭제하지 못했습니다",
+    "create_title": "계정 추가",
+    "edit_title": "계정 편집",
+    "name_label": "이름",
+    "name_placeholder": "Claude A",
+    "provider_label": "제공자",
+    "provider_placeholder": "제공자 선택",
+    "env_label": "환경 변수",
+    "add_variable": "추가",
+    "key_aria": "변수 이름",
+    "value_aria": "{{key}} 값",
+    "value_placeholder": "값",
+    "value_unchanged_placeholder": "변경 없음",
+    "remove_variable_aria": "변수 삭제",
+    "required_error": "이름과 제공자는 필수입니다",
+    "duplicate_key_error": "키 \"{{key}}\"이(가) 중복됩니다",
+    "value_required_error": "\"{{key}}\"의 값을 입력하세요",
+    "saved_toast": "계정을 저장했습니다",
+    "save_failed_toast": "계정을 저장하지 못했습니다"
   }
 }

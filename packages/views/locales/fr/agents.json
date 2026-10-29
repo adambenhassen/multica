@@ -201,7 +201,8 @@
     "edit_description_title": "Modifier la description",
     "description_placeholder": "Que fait cet agent ?",
     "save": "Enregistrer",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "prop_account": "Compte"
   },
   "overview": {
     "agent_context": "Agent",
@@ -250,7 +251,9 @@
     "service_tier_standard_description": "Vitesse et consommation standard",
     "service_tier_tooltip": "Vitesse · {{value}}",
     "service_tier_clear": "Valeur par défaut du runtime",
-    "service_tier_clear_title": "Effacer la surcharge de vitesse et laisser la configuration locale de Codex décider"
+    "service_tier_clear_title": "Effacer la surcharge de vitesse et laisser la configuration locale de Codex décider",
+    "account_default": "Valeur par défaut du runtime",
+    "account_tooltip": "Compte · {{value}}"
   },
   "model_dropdown": {
     "label": "Modèle",
@@ -579,7 +582,8 @@
       "reveal_action": "Afficher et modifier",
       "revealing": "Affichage…",
       "reveal_failed_toast": "Échec du chargement des valeurs d'environnement",
-      "empty_editable": "Aucune variable d’environnement configurée."
+      "empty_editable": "Aucune variable d’environnement configurée.",
+      "overridden_by_account": "Remplacée par le compte {{name}}"
     },
     "custom_args": {
       "intro": "Ajoutez des arguments CLI transmis au démarrage de cet agent.",

@@ -7,6 +7,7 @@ import {
   Blocks,
   CreditCard,
   FolderGit2,
+  IdCard,
   Keyboard,
   KeyRound,
   Laptop,
@@ -56,6 +57,7 @@ import { QuickActionsTab } from "./quick-actions-tab";
 import { KeyboardShortcutsTab } from "./keyboard-shortcuts-tab";
 import { PluginsTab } from "./plugins-tab";
 import { McpTab } from "./mcp-tab";
+import { AgentAccountsTab } from "./agent-accounts-tab";
 import { BillingTab } from "./billing-tab";
 import { SETTINGS_ANCHOR_ATTR } from "./settings-layout";
 import { searchSettings } from "./settings-search";
@@ -248,6 +250,13 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
             entry("mcp", t(($) => $.page.tabs.mcp), Server, <McpTab />, {
               adminOnly: true,
             }),
+            entry(
+              "agent-accounts",
+              t(($) => $.page.tabs.agent_accounts),
+              IdCard,
+              <AgentAccountsTab />,
+              { adminOnly: true },
+            ),
             ...(pluginsEnabled
               ? [
                   entry("plugins", t(($) => $.page.tabs.plugins), Blocks, <PluginsTab />, {
