@@ -13,6 +13,7 @@ const ACCOUNT: AgentAccount = {
   provider: "claude",
   env_key_count: 1,
   env_keys: ["CLAUDE_CODE_OAUTH_TOKEN"],
+  overrides_runtime_default: false,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
 };
@@ -59,6 +60,16 @@ describe("AgentAccountsTab", () => {
     cleanup();
     vi.clearAllMocks();
     mocks.role = "owner";
+  });
+
+  it("turns the runtime default override on for an account", async () => {
+    const user = userEvent.setup();
+    mocks.update.mockResolvedValue({ ...ACCOUNT, overrides_runtime_default: true });
+    renderWithI18n(<AgentAccountsTab />);
+
+    await user.click(screen.getByRole("switch", { name: "Override runtime default" }));
+
+    expect(mocks.update).toHaveBeenCalledWith({ id: "account-1", overrides_runtime_default: true });
   });
 
   it("keeps untouched stored values and sends only retyped ones", async () => {

@@ -30,6 +30,13 @@ vi.mock("./model-picker", () => ({
     </button>
   ),
 }));
+vi.mock("./account-picker", () => ({
+  AccountSettingField: ({ provider, value, canEdit, onChange }: { provider: string; value: string | null; canEdit: boolean; onChange: (v: string | null) => void }) => (
+    <button type="button" data-testid={`account-picker-${provider}`} disabled={!canEdit} onClick={() => onChange(value ? null : "acc-codex-b")}>
+      {`account ${value ?? "default"}`}
+    </button>
+  ),
+}));
 vi.mock("./thinking-prop-row", () => ({
   ThinkingSettingField: ({ value, canEdit, onChange }: { value: string; canEdit: boolean; onChange: (v: string) => void }) => (
     <button type="button" data-testid="effort-picker" disabled={!canEdit} onClick={() => onChange("high")}>
@@ -47,8 +54,8 @@ vi.mock("@multica/core/runtimes", async (importOriginal) => ({
   }),
 }));
 
-const CODEX: AgentModelFallback = { position: 1, runtime_id: "rt-codex", model: "gpt-5.6-terra", thinking_level: "xhigh" };
-const LOCAL: AgentModelFallback = { position: 2, runtime_id: "rt-local", model: "local-qwen", thinking_level: "" };
+const CODEX: AgentModelFallback = { position: 1, runtime_id: "rt-codex", model: "gpt-5.6-terra", thinking_level: "xhigh", account_id: null };
+const LOCAL: AgentModelFallback = { position: 2, runtime_id: "rt-local", model: "local-qwen", thinking_level: "", account_id: null };
 const agent = { id: "agent-1", runtime_id: "rt-claude" } as unknown as Agent;
 const runtimes = [
   { id: "rt-claude", name: "Claude", provider: "claude", status: "online" },
@@ -75,6 +82,33 @@ afterEach(() => {
 });
 
 describe("FallbacksSection", () => {
+  it("saves an entry's account and keeps it when the list changes", async () => {
+    renderSection([CODEX, LOCAL]);
+    fireEvent.click(await screen.findByTestId("account-picker-codex"));
+    await waitFor(() =>
+      expect(api.replaceAgentFallbacks).toHaveBeenCalledWith("agent-1", {
+        fallbacks: [
+          { runtime_id: "rt-codex", model: "gpt-5.6-terra", thinking_level: "xhigh", account_id: "acc-codex-b" },
+          { runtime_id: "rt-local", model: "local-qwen", thinking_level: "" },
+        ],
+      }),
+    );
+  });
+
+  it("moves an entry that has an account without dropping it", async () => {
+    renderSection([{ ...CODEX, account_id: "acc-codex-b" }, LOCAL]);
+    const [firstMoveDown] = await screen.findAllByRole("button", { name: "Move down" });
+    fireEvent.click(firstMoveDown!);
+    await waitFor(() =>
+      expect(api.replaceAgentFallbacks).toHaveBeenCalledWith("agent-1", {
+        fallbacks: [
+          { runtime_id: "rt-local", model: "local-qwen", thinking_level: "" },
+          { runtime_id: "rt-codex", model: "gpt-5.6-terra", thinking_level: "xhigh", account_id: "acc-codex-b" },
+        ],
+      }),
+    );
+  });
+
   it("lists saved fallbacks in order", async () => {
     renderSection([CODEX, LOCAL]);
     expect(await screen.findByText("Fallback 1")).toBeInTheDocument();

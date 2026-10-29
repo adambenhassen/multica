@@ -71,9 +71,12 @@ export function AccountPicker({
   const selected = value
     ? accounts.find((account) => account.id === value)
     : undefined;
-  const triggerLabel = value
-    ? (selected?.name ?? value)
+  // "Runtime default" means the provider's override account when one is set.
+  const override = options.find((account) => account.overrides_runtime_default);
+  const defaultLabel = override
+    ? t(($) => $.pickers.account_default_override, { name: override.name })
     : t(($) => $.pickers.account_default);
+  const triggerLabel = value ? (selected?.name ?? value) : defaultLabel;
   const triggerTitle = t(($) => $.pickers.account_tooltip, {
     value: triggerLabel,
   });
@@ -123,9 +126,7 @@ export function AccountPicker({
       }
     >
       <PickerItem selected={!value} onClick={() => void select(null)}>
-        <span className="truncate text-label font-medium">
-          {t(($) => $.pickers.account_default)}
-        </span>
+        <span className="truncate text-label font-medium">{defaultLabel}</span>
       </PickerItem>
       {options.map((account) => (
         <PickerItem

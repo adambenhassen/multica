@@ -243,6 +243,7 @@
     "service_tier_clear": "런타임 기본값",
     "service_tier_clear_title": "속도 재정의를 지우고 로컬 Codex 설정에 맡깁니다",
     "account_default": "런타임 기본값",
+    "account_default_override": "런타임 기본값 · {{name}}",
     "account_tooltip": "계정 · {{value}}"
   },
   "model_dropdown": {

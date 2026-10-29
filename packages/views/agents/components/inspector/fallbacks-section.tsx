@@ -16,12 +16,22 @@ import {
 } from "../../../settings/components/settings-layout";
 import { useT } from "../../../i18n";
 import { ModelPicker } from "./model-picker";
+import { AccountSettingField } from "./account-picker";
 import { RuntimePicker } from "./runtime-picker";
 import { ThinkingSettingField } from "./thinking-prop-row";
 
 const MAX_FALLBACKS = 4;
 
-type Entry = Pick<AgentModelFallback, "runtime_id" | "model" | "thinking_level">;
+type Entry = Pick<AgentModelFallback, "runtime_id" | "model" | "thinking_level"> & {
+  /** Present only when the entry runs on a workspace account. */
+  account_id?: string;
+};
+
+// Drops the key for "Runtime default" so saved payloads stay minimal.
+function withAccount(entry: Entry, accountId: string | null): Entry {
+  const { account_id: _previous, ...rest } = entry;
+  return accountId ? { ...rest, account_id: accountId } : rest;
+}
 
 /**
  * Ordered fallback (runtime, model) pairs for an agent. Every edit saves the
@@ -54,11 +64,9 @@ export function FallbacksSection({
   // Every save sends the whole list: hold further edits until it settles so a
   // second save is never computed from the pre-save list.
   const interactive = editable && !replace.isPending;
-  const entries: Entry[] = (query.data ?? []).map(({ runtime_id, model, thinking_level }) => ({
-    runtime_id,
-    model,
-    thinking_level,
-  }));
+  const entries: Entry[] = (query.data ?? []).map(({ runtime_id, model, thinking_level, account_id }) =>
+    withAccount({ runtime_id, model, thinking_level }, account_id),
+  );
 
   const save = async (next: Entry[]): Promise<boolean> => {
     try {
@@ -109,7 +117,7 @@ export function FallbacksSection({
         </div>
       ) : null}
       {entries.map((entry, index) => (
-        <SettingsCard key={`${entry.runtime_id}:${entry.model}`}>
+        <SettingsCard key={`${entry.runtime_id}:${entry.model}:${entry.account_id ?? ""}`}>
           <SettingsRow label={t(($) => $.fallbacks.entry, { n: index + 1 })} size="select-wide">
             <div className="flex justify-end gap-1">
               <Button
@@ -153,6 +161,16 @@ export function FallbacksSection({
               onChange={() => {}}
             />
           </SettingsRow>
+          <AccountSettingField
+            label={t(($) => $.inspector.prop_account)}
+            wsId={wsId}
+            provider={runtimeFor(entry.runtime_id)?.provider ?? ""}
+            value={entry.account_id ?? null}
+            canEdit={interactive}
+            onChange={(accountId) =>
+              void save(entries.map((e, i) => (i === index ? withAccount(e, accountId) : e)))
+            }
+          />
           <SettingsRow label={t(($) => $.inspector.prop_model)} size="select-wide">
             <ModelPicker
               variant="field"
@@ -203,6 +221,17 @@ export function FallbacksSection({
               onChange={(runtime_id) => setDraft({ runtime_id, model: "", thinking_level: "" })}
             />
           </SettingsRow>
+          {/* Before the model: picking the model saves the entry, and the same
+              runtime and model as the agent's own is only valid on another
+              account. */}
+          <AccountSettingField
+            label={t(($) => $.inspector.prop_account)}
+            wsId={wsId}
+            provider={runtimeFor(draft.runtime_id)?.provider ?? ""}
+            value={draft.account_id ?? null}
+            canEdit={interactive}
+            onChange={(accountId) => setDraft(withAccount(draft, accountId))}
+          />
           <SettingsRow label={t(($) => $.inspector.prop_model)} size="select-wide">
             <ModelPicker
               variant="field"

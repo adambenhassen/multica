@@ -15,6 +15,7 @@ function account(id: string, name: string, provider: string): AgentAccount {
     provider,
     env_key_count: 1,
     env_keys: [],
+    overrides_runtime_default: false,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
   };
@@ -49,6 +50,26 @@ describe("AccountPicker", () => {
 
     await user.click(screen.getByText("Runtime default"));
     expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it("names the provider's override account on Runtime default", async () => {
+    const user = userEvent.setup();
+    const accounts = [
+      ...ACCOUNTS,
+      { ...account("acc-codex-b", "Codex Override", "codex"), overrides_runtime_default: true },
+    ];
+    const { unmount } = renderWithI18n(
+      <AccountPicker accounts={accounts} provider="codex" value={null} canEdit onChange={vi.fn()} />,
+    );
+    await user.click(screen.getByRole("button", { name: /Runtime default · Codex Override/ }));
+    expect(screen.getAllByText("Runtime default · Codex Override").length).toBeGreaterThan(0);
+    unmount();
+
+    // Another provider's override does not apply.
+    renderWithI18n(
+      <AccountPicker accounts={accounts} provider="claude" value={null} canEdit={false} onChange={vi.fn()} />,
+    );
+    expect(screen.getByText("Runtime default")).toBeInTheDocument();
   });
 
   it("selects an account by id", async () => {

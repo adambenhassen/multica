@@ -36,6 +36,8 @@ import {
 } from "@multica/ui/components/ui/dialog";
 import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
+import { Switch } from "@multica/ui/components/ui/switch";
+import { TooltipHint } from "@multica/ui/components/common/tooltip-hint";
 import {
   Select,
   SelectContent,
@@ -72,6 +74,19 @@ export function AgentAccountsTab() {
   const accountsQuery = useQuery(agentAccountListOptions(wsId));
   const accounts = accountsQuery.data ?? [];
   const deleteAccount = useDeleteAgentAccount(wsId);
+  const updateAccount = useUpdateAgentAccount(wsId);
+
+  const setOverride = async (account: AgentAccount, on: boolean) => {
+    try {
+      await updateAccount.mutateAsync({ id: account.id, overrides_runtime_default: on });
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : t(($) => $.agent_accounts.override_failed_toast),
+      );
+    }
+  };
 
   const [editor, setEditor] = useState<{ account: AgentAccount | null } | null>(
     null,
@@ -140,10 +155,22 @@ export function AgentAccountsTab() {
                       {t(($) => $.agent_accounts.key_count, {
                         count: account.env_key_count,
                       })}
+                      {account.overrides_runtime_default
+                        ? ` · ${t(($) => $.agent_accounts.override_on)}`
+                        : null}
                     </p>
                   </div>
                   {canManage ? (
                     <>
+                      <TooltipHint label={t(($) => $.agent_accounts.override_label)}>
+                        <Switch
+                          size="sm"
+                          checked={account.overrides_runtime_default}
+                          disabled={updateAccount.isPending}
+                          onCheckedChange={(on) => void setOverride(account, on)}
+                          aria-label={t(($) => $.agent_accounts.override_label)}
+                        />
+                      </TooltipHint>
                       <IconButton
                         variant="ghost"
                         size="icon-sm"

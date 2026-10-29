@@ -253,6 +253,7 @@
     "service_tier_clear": "Valeur par défaut du runtime",
     "service_tier_clear_title": "Effacer la surcharge de vitesse et laisser la configuration locale de Codex décider",
     "account_default": "Valeur par défaut du runtime",
+    "account_default_override": "Valeur par défaut du runtime · {{name}}",
     "account_tooltip": "Compte · {{value}}"
   },
   "model_dropdown": {

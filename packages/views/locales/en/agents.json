@@ -253,6 +253,7 @@
     "service_tier_clear": "Runtime default",
     "service_tier_clear_title": "Clear the speed override and let the local Codex configuration decide",
     "account_default": "Runtime default",
+    "account_default_override": "Runtime default · {{name}}",
     "account_tooltip": "Account · {{value}}"
   },
   "model_dropdown": {
