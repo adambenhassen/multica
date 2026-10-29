@@ -30,7 +30,7 @@ export function ProviderQuotaPanel() {
     <div
       role="group"
       aria-label={t(($) => $.quota.label)}
-      className="max-h-40 overflow-y-auto px-2 pt-0.5 pb-1"
+      className="max-h-56 overflow-y-auto px-2 pt-0.5 pb-1"
     >
       <div className="grid grid-cols-[minmax(0.75rem,auto)_auto_minmax(2rem,1fr)_auto_auto] gap-x-2 gap-y-0.5 text-caption text-muted-foreground">
         {sortQuotaAccounts(accounts).map((account) => (
