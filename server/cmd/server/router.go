@@ -476,6 +476,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		ServerVersion:                  normalizeServerVersion(version),
 		AgentTimerAgentIDs:             parseAgentTimerAgentIDs(os.Getenv("MULTICA_AGENT_TIMER_AGENT_IDS")),
 		GitExtraCACerts:                gitca.Load(slog.Default()),
+		ProviderQuotaURL:               os.Getenv("QUOTA_SIDECAR_URL"),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
 	invitationRateLimits := handler.DefaultInvitationRateLimits()
@@ -1688,6 +1689,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		// no workspace in the path to gate on.
 		// --- User-scoped routes (no workspace context required) ---
 		r.Get("/api/me", h.GetMe)
+		r.Get("/api/provider-quota", h.GetProviderQuota)
 		r.Patch("/api/me", h.UpdateMe)
 		r.Patch("/api/me/onboarding", h.PatchOnboarding)
 		r.Post("/api/me/onboarding/complete", h.CompleteOnboarding)

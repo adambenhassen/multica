@@ -36,6 +36,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/middleware"
+	"github.com/multica-ai/multica/server/internal/providerquota"
 	"github.com/multica-ai/multica/server/internal/realtime"
 	"github.com/multica-ai/multica/server/internal/seatcapacity"
 	"github.com/multica-ai/multica/server/internal/service"
@@ -171,6 +172,9 @@ type Config struct {
 	// handed to daemons with the workspace repos so their git can reach a
 	// repository host the backend already trusts. Empty when none are set.
 	GitExtraCACerts []byte
+	// ProviderQuotaURL is the multica-quota sidecar base URL
+	// (QUOTA_SIDECAR_URL). Empty disables the sidebar quota panel.
+	ProviderQuotaURL string
 }
 
 type cloudRuntimeProxy interface {
@@ -306,6 +310,9 @@ type Handler struct {
 	// UI consults IsConfigured() to decide whether to surface install
 	// entry points.
 	LarkAPIClient lark.APIClient
+	// ProviderQuota serves the sidecar's Claude/Codex subscription usage.
+	// Nil when ProviderQuotaURL is unset; a nil client serves an empty list.
+	ProviderQuota *providerquota.Client
 	// Composio integration (MUL-3720). Nil when COMPOSIO_API_KEY is unset;
 	// the composio HTTP handlers return 403 in that case. Wired in
 	// cmd/server/router.go after handler.New.
@@ -534,8 +541,9 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 			BaseURL: cfg.CloudURL,
 			Timeout: cfg.CloudTimeout,
 		}),
-		LLM: llmClient,
-		cfg: cfg,
+		LLM:           llmClient,
+		ProviderQuota: providerquota.New(cfg.ProviderQuotaURL),
+		cfg:           cfg,
 	}
 	h.WebhookDeliveryWorker = NewWebhookDeliveryWorker(h)
 	// The default passthrough scheduler reports sweeper-race recoveries so the
