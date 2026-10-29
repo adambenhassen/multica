@@ -55,6 +55,8 @@ import type {
   InboxItem,
   InboxWorkspaceUnread,
   Label,
+  AgentAccount,
+  ListAgentAccountsResponse,
   MemberWithUser,
   IssueProperty,
   ListPropertiesResponse,
@@ -494,6 +496,37 @@ export const ListLabelsResponseSchema = z.object({
 export const EMPTY_LIST_LABELS_RESPONSE: ListLabelsResponse = {
   labels: [],
   total: 0,
+};
+
+// Agent accounts carry key names and counts only; values never cross the API.
+export const AgentAccountSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  name: z.string(),
+  provider: z.string(),
+  env_key_count: z.number().optional().default(0),
+  env_keys: z.array(z.string()).nullish().transform((v) => v ?? []),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).loose();
+
+export const EMPTY_AGENT_ACCOUNT: AgentAccount = {
+  id: "",
+  workspace_id: "",
+  name: "",
+  provider: "",
+  env_key_count: 0,
+  env_keys: [],
+  created_at: "",
+  updated_at: "",
+};
+
+export const ListAgentAccountsResponseSchema = z.object({
+  accounts: z.array(AgentAccountSchema).nullish().transform((v) => v ?? []),
+}).loose();
+
+export const EMPTY_LIST_AGENT_ACCOUNTS_RESPONSE: ListAgentAccountsResponse = {
+  accounts: [],
 };
 
 // Issue status catalog (MUL-6243). `category` is parsed as a plain string

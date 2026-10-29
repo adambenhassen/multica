@@ -42,6 +42,9 @@ import type {
   UpdateAgentRequest,
   AgentEnvResponse,
   UpdateAgentEnvRequest,
+  AgentAccount,
+  CreateAgentAccountRequest,
+  UpdateAgentAccountRequest,
   AgentTask,
   AgentActivityBucket,
   AgentRunCount,
@@ -429,6 +432,10 @@ import {
   EMPTY_NOTIFICATION_PREFERENCE_RESPONSE,
   LabelSchema,
   ListLabelsResponseSchema,
+  AgentAccountSchema,
+  ListAgentAccountsResponseSchema,
+  EMPTY_AGENT_ACCOUNT,
+  EMPTY_LIST_AGENT_ACCOUNTS_RESPONSE,
   ListIssueStatusesResponseSchema,
   IssueStatusEntrySchema,
   ListIssueWorkflowsResponseSchema,
@@ -4380,6 +4387,40 @@ export class ApiClient {
 
   async deleteLabel(id: string): Promise<void> {
     await this.fetch(`/api/labels/${id}`, { method: "DELETE" });
+  }
+
+  // Agent accounts: workspace-level env sets an agent can select. Any member
+  // may list; only owner/admin may write. Values are write-only — `env` on
+  // update uses the same "****" keep-existing sentinel as agent env.
+  async listAgentAccounts(): Promise<AgentAccount[]> {
+    const raw = await this.fetch<unknown>(`/api/accounts`);
+    return parseWithFallback(raw, ListAgentAccountsResponseSchema, EMPTY_LIST_AGENT_ACCOUNTS_RESPONSE, {
+      endpoint: "GET /api/accounts",
+    }).accounts;
+  }
+
+  async createAgentAccount(data: CreateAgentAccountRequest): Promise<AgentAccount> {
+    const raw = await this.fetch<unknown>(`/api/accounts`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, AgentAccountSchema, EMPTY_AGENT_ACCOUNT, {
+      endpoint: "POST /api/accounts",
+    });
+  }
+
+  async updateAgentAccount(id: string, data: UpdateAgentAccountRequest): Promise<AgentAccount> {
+    const raw = await this.fetch<unknown>(`/api/accounts/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, AgentAccountSchema, EMPTY_AGENT_ACCOUNT, {
+      endpoint: "PUT /api/accounts/{id}",
+    });
+  }
+
+  async deleteAgentAccount(id: string): Promise<void> {
+    await this.fetch(`/api/accounts/${id}`, { method: "DELETE" });
   }
 
   // Workspace workflows (MUL-7420). Any workspace member may read and create

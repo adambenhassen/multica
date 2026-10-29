@@ -799,6 +799,55 @@ describe("ApiClient label response schemas", () => {
   });
 });
 
+describe("ApiClient agent account response schemas", () => {
+  const respond = (body: unknown) =>
+    vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+  it("falls back safely for malformed account responses", async () => {
+    vi.stubGlobal("fetch", respond({ accounts: "not-an-array", id: 42 }));
+    const client = new ApiClient("https://api.example.test");
+
+    await expect(client.listAgentAccounts()).resolves.toEqual([]);
+    await expect(
+      client.createAgentAccount({ name: "Claude A", provider: "claude", env: { KEY: "placeholder" } }),
+    ).resolves.toMatchObject({ id: "", env_keys: [] });
+    await expect(
+      client.updateAgentAccount("account-1", { name: "Claude B" }),
+    ).resolves.toMatchObject({ id: "", env_keys: [] });
+  });
+
+  it("defaults optional key metadata a member-scoped response omits", async () => {
+    vi.stubGlobal(
+      "fetch",
+      respond({
+        accounts: [
+          {
+            id: "account-1",
+            workspace_id: "ws-1",
+            name: "Claude A",
+            provider: "claude",
+            env_keys: null,
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+      }),
+    );
+    const client = new ApiClient("https://api.example.test");
+
+    await expect(client.listAgentAccounts()).resolves.toEqual([
+      expect.objectContaining({ id: "account-1", env_key_count: 0, env_keys: [] }),
+    ]);
+  });
+});
+
 describe("ApiClient agent builder runtime switch", () => {
   it("PATCHes the session runtime endpoint and returns the runtime the server bound", async () => {
     const fetchMock = vi.fn().mockResolvedValue(

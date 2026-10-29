@@ -646,6 +646,8 @@ export interface Agent {
    * account defaults remain authoritative.
    */
   service_tier?: string;
+  /** Selected agent account; null/omitted = runtime default. */
+  account_id?: string | null;
   owner_id: string | null;
   skills: AgentSkillSummary[];
   /** Runtime-local skills this agent must not inherit. Older servers omit it. */
@@ -863,6 +865,8 @@ export interface UpdateAgentRequest {
    * clears it, and a non-empty value stores a runtime-catalog ID.
    */
   service_tier?: string;
+  /** Agent account whose env applies to the next task; `null` = runtime default. */
+  account_id?: string | null;
 }
 
 /**
@@ -874,6 +878,56 @@ export interface UpdateAgentRequest {
 export interface AgentEnvResponse {
   agent_id: string;
   custom_env: Record<string, string>;
+  /**
+   * custom_env keys the agent's account also sets. The account value wins at
+   * task start. Null or omitted when the agent has no account or nothing
+   * overlaps (older backends omit it).
+   */
+  account_override?: AgentEnvAccountOverride | null;
+}
+
+export interface AgentEnvAccountOverride {
+  account_id: string;
+  account_name: string;
+  keys: string[];
+}
+
+/**
+ * Workspace-level named env set (e.g. one OAuth token per account) that an
+ * agent can select. Values are write-only: responses carry key names (owner/
+ * admin only) and a count, never values.
+ */
+export interface AgentAccount {
+  id: string;
+  workspace_id: string;
+  name: string;
+  /** Runtime provider slug this account applies to (claude, codex, ...). */
+  provider: string;
+  env_key_count: number;
+  /** Key names; empty for callers who are not workspace owner/admin. */
+  env_keys: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListAgentAccountsResponse {
+  accounts: AgentAccount[];
+}
+
+export interface CreateAgentAccountRequest {
+  name: string;
+  provider: string;
+  env: Record<string, string>;
+}
+
+/**
+ * `env` replaces the map wholesale; a value of `"****"` keeps the stored
+ * value for that key, omitted keys are removed.
+ */
+export interface UpdateAgentAccountRequest {
+  name?: string;
+  provider?: string;
+  env?: Record<string, string>;
 }
 
 /**
