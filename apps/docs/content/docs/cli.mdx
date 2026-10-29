@@ -394,6 +394,7 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | | `tasks <id>` | View an agent's runs | |
 | | `avatar <id>` | Upload an avatar | |
 | | `env get/set <agent-id>` | Read and write custom environment variables (agent owner or workspace owner/admin; every read is recorded) | `set`: `--custom-env` / `--custom-env-file` / `--custom-env-stdin`; replaces the whole set, and keys whose value is `****` keep their existing value |
+| `account` | `list/create/update/delete` | Manage accounts: named env sets for one provider that agents can run with (writes need workspace owner/admin) | `--name`, `--provider`, `--env-file` / `--env-stdin` (update replaces the whole set; keys whose value is `****` keep their existing value); `delete` is refused while an agent uses the account. Select one with `agent update <id> --account <name\|id\|none>` |
 | | `skills list/set/add <agent-id>` | Manage attached skills | `--skill-ids` (`set` replaces the full list, `add` appends) |
 | | `mcp list/add/enable/disable/remove <agent-id>` | Assign workspace MCP servers to this agent | Take the server id from `workspace mcp list`. A library entry does nothing until it is added here; `disable` stops sending it without dropping the assignment |
 | `autopilot` | `list/get/create/update/delete` | Manage automations | `create`: `--title`, `--agent`, `--mode` (all required), `--description`, `--issue-title-template`, `--project`, `--subscriber` (repeatable) |

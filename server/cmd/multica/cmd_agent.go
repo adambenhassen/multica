@@ -256,6 +256,7 @@ func init() {
 	agentUpdateCmd.Flags().StringSlice("public-to-member", nil, "public_to: allow the given member user id(s) to invoke this agent. Repeatable.")
 	agentUpdateCmd.Flags().String("status", "", "New status")
 	agentUpdateCmd.Flags().Int32("max-concurrent-tasks", 0, "New max concurrent runs (1-50)")
+	agentUpdateCmd.Flags().String("account", "", "Account (name or id) whose env the agent's next tasks run with; 'none' for the runtime default. Must match the agent's runtime provider.")
 	agentUpdateCmd.Flags().String("output", "json", "Output format: table or json")
 
 	// agent archive
@@ -864,12 +865,15 @@ func runAgentUpdate(cmd *cobra.Command, args []string) error {
 		body["mcp_config"] = mc
 	}
 
-	if len(body) == 0 {
-		return fmt.Errorf("no fields to update; use --name, --description, --instructions, --conversation-starters, --runtime-id, --runtime-config, --model, --thinking-level, --service-tier, --custom-args, --mcp-config, --visibility, --status, or --max-concurrent-tasks (env vars now live behind `multica agent env set <id>`)")
-	}
-
 	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
+
+	if err := applyAccountFlag(ctx, cmd, client, body); err != nil {
+		return err
+	}
+	if len(body) == 0 {
+		return fmt.Errorf("no fields to update; use --name, --description, --instructions, --conversation-starters, --runtime-id, --runtime-config, --model, --thinking-level, --service-tier, --custom-args, --mcp-config, --visibility, --status, --max-concurrent-tasks, or --account (env vars now live behind `multica agent env set <id>`)")
+	}
 
 	var result map[string]any
 	if err := client.PutJSON(ctx, "/api/agents/"+args[0], body, &result); err != nil {
@@ -1406,12 +1410,16 @@ func runAgentEnvSet(cmd *cobra.Command, args []string) error {
 // underlying json error, because json.SyntaxError / UnmarshalTypeError can
 // surface short fragments of the input on some malformed inputs.
 func parseCustomEnv(raw string) (map[string]string, error) {
+	return parseEnvFlag("--custom-env", raw)
+}
+
+func parseEnvFlag(flag, raw string) (map[string]string, error) {
 	if strings.TrimSpace(raw) == "" {
-		return nil, fmt.Errorf("--custom-env: empty input; pass '{}' to clear")
+		return nil, fmt.Errorf("%s: empty input; pass '{}' to clear", flag)
 	}
 	var ce map[string]string
 	if err := json.Unmarshal([]byte(raw), &ce); err != nil {
-		return nil, fmt.Errorf("--custom-env must be a valid JSON object of string keys and string values")
+		return nil, fmt.Errorf("%s must be a valid JSON object of string keys and string values", flag)
 	}
 	if ce == nil {
 		ce = map[string]string{}
@@ -1482,13 +1490,21 @@ func parseConversationStarters(raw string) ([]agentConversationStarter, error) {
 // secret twice. Stdin and file inputs exist to keep secret material out of
 // shell history and 'ps' / /proc/<pid>/cmdline.
 func resolveCustomEnv(cmd *cobra.Command) (map[string]string, bool, error) {
-	inline := cmd.Flags().Changed("custom-env")
-	fromStdin, _ := cmd.Flags().GetBool("custom-env-stdin")
-	filePath, _ := cmd.Flags().GetString("custom-env-file")
+	return resolveEnvFlags(cmd, "custom-env")
+}
+
+// resolveEnvFlags reads the --<name>, --<name>-stdin, and --<name>-file
+// channels. A command may register only a subset; an unregistered channel
+// simply never reports as supplied.
+func resolveEnvFlags(cmd *cobra.Command, name string) (map[string]string, bool, error) {
+	flag := "--" + name
+	inline := cmd.Flags().Changed(name)
+	fromStdin, _ := cmd.Flags().GetBool(name + "-stdin")
+	filePath, _ := cmd.Flags().GetString(name + "-file")
 	// Note: an explicit --custom-env-file "" is honored as "the user asked
 	// for this channel with an empty path" and surfaces a real error below,
 	// rather than being silently swallowed.
-	fromFile := cmd.Flags().Changed("custom-env-file")
+	fromFile := cmd.Flags().Changed(name + "-file")
 
 	count := 0
 	if inline {
@@ -1504,39 +1520,39 @@ func resolveCustomEnv(cmd *cobra.Command) (map[string]string, bool, error) {
 	case count == 0:
 		return nil, false, nil
 	case count > 1:
-		return nil, false, fmt.Errorf("--custom-env, --custom-env-stdin, and --custom-env-file are mutually exclusive; pick one")
+		return nil, false, fmt.Errorf("%s, %s-stdin, and %s-file are mutually exclusive; pick one", flag, flag, flag)
 	}
 
 	var raw string
 	switch {
 	case inline:
-		raw, _ = cmd.Flags().GetString("custom-env")
+		raw, _ = cmd.Flags().GetString(name)
 	case fromStdin:
 		buf, err := io.ReadAll(cmd.InOrStdin())
 		if err != nil {
-			return nil, false, fmt.Errorf("read --custom-env-stdin: %w", err)
+			return nil, false, fmt.Errorf("read %s-stdin: %w", flag, err)
 		}
 		raw = string(buf)
 		if strings.TrimSpace(raw) == "" {
-			return nil, false, fmt.Errorf("--custom-env-stdin: empty input; pass '{}' to clear")
+			return nil, false, fmt.Errorf("%s-stdin: empty input; pass '{}' to clear", flag)
 		}
 	case fromFile:
 		if filePath == "" {
-			return nil, false, fmt.Errorf("--custom-env-file: path must not be empty")
+			return nil, false, fmt.Errorf("%s-file: path must not be empty", flag)
 		}
 		buf, err := os.ReadFile(filePath)
 		if err != nil {
 			// Filesystem errors may include the path but not the contents —
 			// safe to surface via %w.
-			return nil, false, fmt.Errorf("read --custom-env-file: %w", err)
+			return nil, false, fmt.Errorf("read %s-file: %w", flag, err)
 		}
 		raw = string(buf)
 		if strings.TrimSpace(raw) == "" {
-			return nil, false, fmt.Errorf("--custom-env-file %q: empty contents; pass '{}' to clear", filePath)
+			return nil, false, fmt.Errorf("%s-file %q: empty contents; pass '{}' to clear", flag, filePath)
 		}
 	}
 
-	ce, err := parseCustomEnv(raw)
+	ce, err := parseEnvFlag(flag, raw)
 	if err != nil {
 		return nil, false, err
 	}

@@ -265,6 +265,12 @@ Read-side facts (these are the wrong assumptions to avoid):
   /api/agents/{id}/env"). Plaintext env writes are handled by
   `PUT /api/agents/{id}/env` (`multica agent env set`), which carries the same
   gate and writes an audit row.
+- An agent can also run with a workspace **account**: a named env set for one
+  provider (`multica account list`). `multica agent update <id> --account
+  <name|id|none>` selects it; the account must match the agent's runtime
+  provider. At task start the account's env is layered over `custom_env`, and
+  the account wins on a shared key. Only workspace owners/admins create or edit
+  accounts (`multica account create|update --env-file|--env-stdin`).
 
 ### mcp_config
 
