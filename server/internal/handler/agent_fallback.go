@@ -41,6 +41,9 @@ type AgentFallbackResponse struct {
 	RuntimeID     string `json:"runtime_id"`
 	Model         string `json:"model"`
 	ThinkingLevel string `json:"thinking_level"`
+	// AccountID is the workspace account the fallback runs with; null = the
+	// runtime default (or the provider's runtime override account).
+	AccountID *string `json:"account_id"`
 }
 
 type replaceAgentFallbacksRequest struct {
@@ -48,6 +51,7 @@ type replaceAgentFallbacksRequest struct {
 		RuntimeID     string `json:"runtime_id"`
 		Model         string `json:"model"`
 		ThinkingLevel string `json:"thinking_level"`
+		AccountID     string `json:"account_id"`
 	} `json:"fallbacks"`
 }
 
@@ -59,6 +63,7 @@ func agentFallbacksToResponse(rows []db.AgentModelFallback) []AgentFallbackRespo
 			RuntimeID:     uuidToString(row.RuntimeID),
 			Model:         row.Model,
 			ThinkingLevel: row.ThinkingLevel.String,
+			AccountID:     uuidToPtr(row.AccountID),
 		}
 	}
 	return out
@@ -119,11 +124,14 @@ func (h *Handler) ReplaceAgentFallbacks(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// The same runtime and model may repeat on another account: a second
+	// subscription is the point of an account fallback.
 	type pair struct {
 		runtime pgtype.UUID
 		model   string
+		account pgtype.UUID
 	}
-	seen := map[pair]bool{{target.RuntimeID, strings.TrimSpace(target.Model.String)}: true}
+	seen := map[pair]bool{{target.RuntimeID, strings.TrimSpace(target.Model.String), target.AccountID}: true}
 	inserts := make([]db.InsertAgentFallbackParams, 0, len(req.Fallbacks))
 	for i, f := range req.Fallbacks {
 		n := i + 1
@@ -153,9 +161,28 @@ func (h *Handler) ReplaceAgentFallbacks(w http.ResponseWriter, r *http.Request) 
 			writeError(w, http.StatusForbidden, fmt.Sprintf("fallback %d: this runtime is private; only its owner's agents can use it", n))
 			return
 		}
-		key := pair{rt.ID, model}
+		var accountID pgtype.UUID
+		if f.AccountID != "" {
+			id, ok := parseUUIDOrBadRequest(w, f.AccountID, "account_id")
+			if !ok {
+				return
+			}
+			account, err := h.Queries.GetAgentAccountInWorkspace(r.Context(), db.GetAgentAccountInWorkspaceParams{
+				ID: id, WorkspaceID: target.WorkspaceID,
+			})
+			if err != nil {
+				writeError(w, http.StatusBadRequest, fmt.Sprintf("fallback %d: account not found", n))
+				return
+			}
+			if account.Provider != rt.Provider {
+				writeError(w, http.StatusBadRequest, fmt.Sprintf("fallback %d: account %q is for provider %q, but the runtime runs %q", n, account.Name, account.Provider, rt.Provider))
+				return
+			}
+			accountID = account.ID
+		}
+		key := pair{rt.ID, model, accountID}
 		if seen[key] {
-			writeError(w, http.StatusBadRequest, fmt.Sprintf("fallback %d duplicates the agent's runtime and model or another fallback", n))
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("fallback %d duplicates the agent's runtime, model and account or another fallback", n))
 			return
 		}
 		seen[key] = true
@@ -173,6 +200,7 @@ func (h *Handler) ReplaceAgentFallbacks(w http.ResponseWriter, r *http.Request) 
 			RuntimeID:     rt.ID,
 			Model:         model,
 			ThinkingLevel: pgtype.Text{String: level, Valid: level != ""},
+			AccountID:     accountID,
 		})
 	}
 

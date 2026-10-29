@@ -297,3 +297,116 @@ func TestClaim_LayersAccountEnvOverCustomEnvPerClaim(t *testing.T) {
 		t.Fatalf("claimed env after switch = %v; want %v", env, want)
 	}
 }
+
+func TestAgentAccount_RuntimeOverrideMovesBetweenAccounts(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	first := createAccountForTest(t, "Override First", "claude", map[string]string{"TOKEN": "placeholder-1"})
+	second := createAccountForTest(t, "Override Second", "claude", map[string]string{"TOKEN": "placeholder-2"})
+	codex := createAccountForTest(t, "Override Codex", "codex", map[string]string{"TOKEN": "placeholder-3"})
+
+	setOverride := func(id string, on bool) {
+		t.Helper()
+		req := withURLParam(newRequest(http.MethodPut, "/api/accounts/"+id, map[string]any{"overrides_runtime_default": on}), "id", id)
+		testutil.Call(t, testHandler.UpdateAgentAccount, req).Want(http.StatusOK)
+	}
+	overriding := func() map[string]bool {
+		t.Helper()
+		var list struct {
+			Accounts []AgentAccountResponse `json:"accounts"`
+		}
+		testutil.Call(t, testHandler.ListAgentAccounts, newRequest(http.MethodGet, "/api/accounts", nil)).Want(http.StatusOK).JSON(&list)
+		out := map[string]bool{}
+		for _, a := range list.Accounts {
+			out[a.ID] = a.OverridesRuntimeDefault
+		}
+		return out
+	}
+
+	setOverride(first, true)
+	setOverride(codex, true)
+	setOverride(second, true)
+	got := overriding()
+	if got[first] || !got[second] || !got[codex] {
+		t.Fatalf("override = %v; want it moved to %s, and the codex account untouched", got, second)
+	}
+	setOverride(second, false)
+	if got := overriding(); got[second] {
+		t.Fatalf("override still on after turning it off: %v", got)
+	}
+}
+
+func TestClaim_RuntimeOverrideAppliesOnlyToRuntimeDefaultAgents(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	runtimeID := createClaimReclaimRuntime(t, ctx, "Override claim runtime")
+	agentID, issueID := createClaimReclaimAgentAndIssue(t, ctx, runtimeID, "Override claim agent")
+	override := createAccountForTest(t, "Claim Override", "handler_test_runtime", map[string]string{"TOKEN": "placeholder-override"})
+	own := createAccountForTest(t, "Claim Own", "handler_test_runtime", map[string]string{"TOKEN": "placeholder-own"})
+	dbfx.Exec(t, `UPDATE agent_account SET overrides_runtime_default = true WHERE id = $1`, override)
+
+	first := createDispatchedClaimFixtureTask(t, ctx, agentID, runtimeID, issueID, "120 seconds", false)
+	if id, env := claimAgentEnvForTest(t, runtimeID); id != first || env["TOKEN"] != "placeholder-override" {
+		t.Fatalf("runtime-default agent: claimed %s env %v; want %s with the override token", id, env, first)
+	}
+
+	dbfx.Exec(t, `UPDATE agent_task_queue SET status = 'completed', completed_at = now() WHERE id = $1`, first)
+	dbfx.Exec(t, `UPDATE agent SET account_id = $1 WHERE id = $2`, own, agentID)
+	second := createDispatchedClaimFixtureTask(t, ctx, agentID, runtimeID, issueID, "120 seconds", false)
+	if id, env := claimAgentEnvForTest(t, runtimeID); id != second || env["TOKEN"] != "placeholder-own" {
+		t.Fatalf("agent with its own account: claimed %s env %v; want %s with its own token", id, env, second)
+	}
+}
+
+func TestClaim_FallbackRunUsesItsEntryAccount(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	runtimeID := createClaimReclaimRuntime(t, ctx, "Fallback account runtime")
+	agentID, issueID := createClaimReclaimAgentAndIssue(t, ctx, runtimeID, "Fallback account agent")
+	primary := createAccountForTest(t, "Fallback Primary", "handler_test_runtime", map[string]string{"TOKEN": "placeholder-primary"})
+	secondary := createAccountForTest(t, "Fallback Secondary", "handler_test_runtime", map[string]string{"TOKEN": "placeholder-secondary"})
+	dbfx.Exec(t, `UPDATE agent SET account_id = $1, model = 'model-x' WHERE id = $2`, primary, agentID)
+
+	// Same runtime and model on another account is a valid fallback.
+	var saved []AgentFallbackResponse
+	putFallbacks(t, agentID, map[string]any{"fallbacks": []map[string]any{
+		{"runtime_id": runtimeID, "model": "model-x", "account_id": secondary},
+	}}).Want(http.StatusOK).JSON(&saved)
+	if len(saved) != 1 || saved[0].AccountID == nil || *saved[0].AccountID != secondary {
+		t.Fatalf("saved = %+v; want one entry on the secondary account", saved)
+	}
+
+	task := createDispatchedClaimFixtureTask(t, ctx, agentID, runtimeID, issueID, "120 seconds", false)
+	dbfx.Exec(t, `UPDATE agent_task_queue SET fallback_position = 1, model = 'model-x' WHERE id = $1`, task)
+	if id, env := claimAgentEnvForTest(t, runtimeID); id != task || env["TOKEN"] != "placeholder-secondary" {
+		t.Fatalf("fallback run: claimed %s env %v; want %s with the entry's account", id, env, task)
+	}
+
+	// An entry naming the account blocks its deletion.
+	req := withURLParam(newRequest(http.MethodDelete, "/api/accounts/"+secondary, nil), "id", secondary)
+	w := testutil.Call(t, testHandler.DeleteAgentAccount, req).Want(http.StatusConflict)
+	if !strings.Contains(w.Body.String(), "Fallback account agent") {
+		t.Fatalf("delete conflict must name the agent: %s", w.Body.String())
+	}
+	t.Cleanup(func() { testPool.Exec(context.Background(), `DELETE FROM agent_model_fallback WHERE agent_id = $1`, agentID) })
+}
+
+func TestReplaceAgentFallbacks_RejectsAccountOfAnotherProvider(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	agentID := createHandlerTestAgent(t, "FallbackAccountProvider", []byte("[]"))
+	codexRuntime := dbfx.Runtime(t, "Fallback account codex", testutil.Cols{"provider": "codex", "visibility": "public"})
+	claudeAccount := createAccountForTest(t, "Wrong Provider", "claude", map[string]string{"TOKEN": "placeholder"})
+	w := putFallbacks(t, agentID, map[string]any{"fallbacks": []map[string]any{
+		{"runtime_id": codexRuntime, "model": "gpt-5.6-terra", "account_id": claudeAccount},
+	}}).Want(http.StatusBadRequest)
+	if !strings.Contains(w.Body.String(), "provider") {
+		t.Fatalf("error = %s; want a provider mismatch", w.Body.String())
+	}
+}

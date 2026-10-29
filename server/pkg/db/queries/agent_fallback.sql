@@ -7,9 +7,13 @@ ORDER BY position;
 DELETE FROM agent_model_fallback WHERE agent_id = $1;
 
 -- name: InsertAgentFallback :one
-INSERT INTO agent_model_fallback (workspace_id, agent_id, position, runtime_id, model, thinking_level)
-VALUES (@workspace_id, @agent_id, @position, @runtime_id, @model, sqlc.narg('thinking_level'))
+INSERT INTO agent_model_fallback (workspace_id, agent_id, position, runtime_id, model, thinking_level, account_id)
+VALUES (@workspace_id, @agent_id, @position, @runtime_id, @model, sqlc.narg('thinking_level'), sqlc.narg('account_id'))
 RETURNING *;
+
+-- name: GetAgentFallbackAtPosition :one
+SELECT * FROM agent_model_fallback
+WHERE agent_id = @agent_id AND position = @position::int;
 
 -- name: NextOnlineAgentFallback :one
 -- The first fallback after a failed run's position whose runtime is online and

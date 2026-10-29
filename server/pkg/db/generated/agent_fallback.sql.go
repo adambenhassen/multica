@@ -292,10 +292,38 @@ func (q *Queries) DeleteAgentFallbacks(ctx context.Context, agentID pgtype.UUID)
 	return err
 }
 
+const getAgentFallbackAtPosition = `-- name: GetAgentFallbackAtPosition :one
+SELECT id, workspace_id, agent_id, position, runtime_id, model, thinking_level, created_at, updated_at, account_id FROM agent_model_fallback
+WHERE agent_id = $1 AND position = $2::int
+`
+
+type GetAgentFallbackAtPositionParams struct {
+	AgentID  pgtype.UUID `json:"agent_id"`
+	Position int32       `json:"position"`
+}
+
+func (q *Queries) GetAgentFallbackAtPosition(ctx context.Context, arg GetAgentFallbackAtPositionParams) (AgentModelFallback, error) {
+	row := q.db.QueryRow(ctx, getAgentFallbackAtPosition, arg.AgentID, arg.Position)
+	var i AgentModelFallback
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.AgentID,
+		&i.Position,
+		&i.RuntimeID,
+		&i.Model,
+		&i.ThinkingLevel,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AccountID,
+	)
+	return i, err
+}
+
 const insertAgentFallback = `-- name: InsertAgentFallback :one
-INSERT INTO agent_model_fallback (workspace_id, agent_id, position, runtime_id, model, thinking_level)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, workspace_id, agent_id, position, runtime_id, model, thinking_level, created_at, updated_at
+INSERT INTO agent_model_fallback (workspace_id, agent_id, position, runtime_id, model, thinking_level, account_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, workspace_id, agent_id, position, runtime_id, model, thinking_level, created_at, updated_at, account_id
 `
 
 type InsertAgentFallbackParams struct {
@@ -305,6 +333,7 @@ type InsertAgentFallbackParams struct {
 	RuntimeID     pgtype.UUID `json:"runtime_id"`
 	Model         string      `json:"model"`
 	ThinkingLevel pgtype.Text `json:"thinking_level"`
+	AccountID     pgtype.UUID `json:"account_id"`
 }
 
 func (q *Queries) InsertAgentFallback(ctx context.Context, arg InsertAgentFallbackParams) (AgentModelFallback, error) {
@@ -315,6 +344,7 @@ func (q *Queries) InsertAgentFallback(ctx context.Context, arg InsertAgentFallba
 		arg.RuntimeID,
 		arg.Model,
 		arg.ThinkingLevel,
+		arg.AccountID,
 	)
 	var i AgentModelFallback
 	err := row.Scan(
@@ -327,12 +357,13 @@ func (q *Queries) InsertAgentFallback(ctx context.Context, arg InsertAgentFallba
 		&i.ThinkingLevel,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AccountID,
 	)
 	return i, err
 }
 
 const listAgentFallbacks = `-- name: ListAgentFallbacks :many
-SELECT id, workspace_id, agent_id, position, runtime_id, model, thinking_level, created_at, updated_at FROM agent_model_fallback
+SELECT id, workspace_id, agent_id, position, runtime_id, model, thinking_level, created_at, updated_at, account_id FROM agent_model_fallback
 WHERE agent_id = $1
 ORDER BY position
 `
@@ -356,6 +387,7 @@ func (q *Queries) ListAgentFallbacks(ctx context.Context, agentID pgtype.UUID) (
 			&i.ThinkingLevel,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AccountID,
 		); err != nil {
 			return nil, err
 		}
@@ -368,7 +400,7 @@ func (q *Queries) ListAgentFallbacks(ctx context.Context, agentID pgtype.UUID) (
 }
 
 const nextOnlineAgentFallback = `-- name: NextOnlineAgentFallback :one
-SELECT f.id, f.workspace_id, f.agent_id, f.position, f.runtime_id, f.model, f.thinking_level, f.created_at, f.updated_at FROM agent_model_fallback f
+SELECT f.id, f.workspace_id, f.agent_id, f.position, f.runtime_id, f.model, f.thinking_level, f.created_at, f.updated_at, f.account_id FROM agent_model_fallback f
 JOIN agent_runtime r ON r.id = f.runtime_id
 WHERE f.agent_id = $1
   AND f.position > $2::int
@@ -401,6 +433,7 @@ func (q *Queries) NextOnlineAgentFallback(ctx context.Context, arg NextOnlineAge
 		&i.ThinkingLevel,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AccountID,
 	)
 	return i, err
 }

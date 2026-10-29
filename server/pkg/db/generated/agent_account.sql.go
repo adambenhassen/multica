@@ -11,18 +11,38 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearRuntimeOverrideAccounts = `-- name: ClearRuntimeOverrideAccounts :exec
+UPDATE agent_account SET overrides_runtime_default = false, updated_at = now()
+WHERE workspace_id = $1 AND provider = $2
+  AND overrides_runtime_default AND id IS DISTINCT FROM $3
+`
+
+type ClearRuntimeOverrideAccountsParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Provider    string      `json:"provider"`
+	KeepID      pgtype.UUID `json:"keep_id"`
+}
+
+// Turns the override off on every other account of the provider, so setting
+// it on one account moves it there.
+func (q *Queries) ClearRuntimeOverrideAccounts(ctx context.Context, arg ClearRuntimeOverrideAccountsParams) error {
+	_, err := q.db.Exec(ctx, clearRuntimeOverrideAccounts, arg.WorkspaceID, arg.Provider, arg.KeepID)
+	return err
+}
+
 const createAgentAccount = `-- name: CreateAgentAccount :one
-INSERT INTO agent_account (workspace_id, name, provider, env, created_by)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, workspace_id, name, provider, env, created_by, created_at, updated_at
+INSERT INTO agent_account (workspace_id, name, provider, env, created_by, overrides_runtime_default)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, workspace_id, name, provider, env, created_by, created_at, updated_at, overrides_runtime_default
 `
 
 type CreateAgentAccountParams struct {
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
-	Name        string      `json:"name"`
-	Provider    string      `json:"provider"`
-	Env         []byte      `json:"env"`
-	CreatedBy   pgtype.UUID `json:"created_by"`
+	WorkspaceID             pgtype.UUID `json:"workspace_id"`
+	Name                    string      `json:"name"`
+	Provider                string      `json:"provider"`
+	Env                     []byte      `json:"env"`
+	CreatedBy               pgtype.UUID `json:"created_by"`
+	OverridesRuntimeDefault bool        `json:"overrides_runtime_default"`
 }
 
 func (q *Queries) CreateAgentAccount(ctx context.Context, arg CreateAgentAccountParams) (AgentAccount, error) {
@@ -32,6 +52,7 @@ func (q *Queries) CreateAgentAccount(ctx context.Context, arg CreateAgentAccount
 		arg.Provider,
 		arg.Env,
 		arg.CreatedBy,
+		arg.OverridesRuntimeDefault,
 	)
 	var i AgentAccount
 	err := row.Scan(
@@ -43,6 +64,7 @@ func (q *Queries) CreateAgentAccount(ctx context.Context, arg CreateAgentAccount
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OverridesRuntimeDefault,
 	)
 	return i, err
 }
@@ -63,7 +85,7 @@ func (q *Queries) DeleteAgentAccount(ctx context.Context, arg DeleteAgentAccount
 }
 
 const getAgentAccountByNameInWorkspace = `-- name: GetAgentAccountByNameInWorkspace :one
-SELECT id, workspace_id, name, provider, env, created_by, created_at, updated_at FROM agent_account
+SELECT id, workspace_id, name, provider, env, created_by, created_at, updated_at, overrides_runtime_default FROM agent_account
 WHERE name = $1 AND workspace_id = $2
 `
 
@@ -84,12 +106,13 @@ func (q *Queries) GetAgentAccountByNameInWorkspace(ctx context.Context, arg GetA
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OverridesRuntimeDefault,
 	)
 	return i, err
 }
 
 const getAgentAccountInWorkspace = `-- name: GetAgentAccountInWorkspace :one
-SELECT id, workspace_id, name, provider, env, created_by, created_at, updated_at FROM agent_account
+SELECT id, workspace_id, name, provider, env, created_by, created_at, updated_at, overrides_runtime_default FROM agent_account
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -110,12 +133,41 @@ func (q *Queries) GetAgentAccountInWorkspace(ctx context.Context, arg GetAgentAc
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OverridesRuntimeDefault,
+	)
+	return i, err
+}
+
+const getRuntimeOverrideAccount = `-- name: GetRuntimeOverrideAccount :one
+SELECT id, workspace_id, name, provider, env, created_by, created_at, updated_at, overrides_runtime_default FROM agent_account
+WHERE workspace_id = $1 AND provider = $2 AND overrides_runtime_default
+`
+
+type GetRuntimeOverrideAccountParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Provider    string      `json:"provider"`
+}
+
+// The account that replaces a provider's runtime default in a workspace.
+func (q *Queries) GetRuntimeOverrideAccount(ctx context.Context, arg GetRuntimeOverrideAccountParams) (AgentAccount, error) {
+	row := q.db.QueryRow(ctx, getRuntimeOverrideAccount, arg.WorkspaceID, arg.Provider)
+	var i AgentAccount
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Provider,
+		&i.Env,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OverridesRuntimeDefault,
 	)
 	return i, err
 }
 
 const listAgentAccounts = `-- name: ListAgentAccounts :many
-SELECT id, workspace_id, name, provider, env, created_by, created_at, updated_at FROM agent_account
+SELECT id, workspace_id, name, provider, env, created_by, created_at, updated_at, overrides_runtime_default FROM agent_account
 WHERE workspace_id = $1
 ORDER BY name
 `
@@ -138,6 +190,7 @@ func (q *Queries) ListAgentAccounts(ctx context.Context, workspaceID pgtype.UUID
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OverridesRuntimeDefault,
 		); err != nil {
 			return nil, err
 		}
@@ -150,9 +203,11 @@ func (q *Queries) ListAgentAccounts(ctx context.Context, workspaceID pgtype.UUID
 }
 
 const listAgentsUsingAccount = `-- name: ListAgentsUsingAccount :many
-SELECT id, name FROM agent
-WHERE workspace_id = $1 AND account_id = $2
-ORDER BY name
+SELECT a.id, a.name FROM agent a
+WHERE a.workspace_id = $1
+  AND (a.account_id = $2
+       OR a.id IN (SELECT f.agent_id FROM agent_model_fallback f WHERE f.account_id = $2))
+ORDER BY a.name
 `
 
 type ListAgentsUsingAccountParams struct {
@@ -166,7 +221,7 @@ type ListAgentsUsingAccountRow struct {
 }
 
 // Archived agents count too: restoring one must not bring back a dangling
-// account_id.
+// account_id. Fallback entries that name the account count as use.
 func (q *Queries) ListAgentsUsingAccount(ctx context.Context, arg ListAgentsUsingAccountParams) ([]ListAgentsUsingAccountRow, error) {
 	rows, err := q.db.Query(ctx, listAgentsUsingAccount, arg.WorkspaceID, arg.AccountID)
 	if err != nil {
@@ -242,17 +297,19 @@ UPDATE agent_account SET
     name = COALESCE($1, name),
     provider = COALESCE($2, provider),
     env = COALESCE($3, env),
+    overrides_runtime_default = COALESCE($4, overrides_runtime_default),
     updated_at = now()
-WHERE id = $4 AND workspace_id = $5
-RETURNING id, workspace_id, name, provider, env, created_by, created_at, updated_at
+WHERE id = $5 AND workspace_id = $6
+RETURNING id, workspace_id, name, provider, env, created_by, created_at, updated_at, overrides_runtime_default
 `
 
 type UpdateAgentAccountParams struct {
-	Name        pgtype.Text `json:"name"`
-	Provider    pgtype.Text `json:"provider"`
-	Env         []byte      `json:"env"`
-	ID          pgtype.UUID `json:"id"`
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Name                    pgtype.Text `json:"name"`
+	Provider                pgtype.Text `json:"provider"`
+	Env                     []byte      `json:"env"`
+	OverridesRuntimeDefault pgtype.Bool `json:"overrides_runtime_default"`
+	ID                      pgtype.UUID `json:"id"`
+	WorkspaceID             pgtype.UUID `json:"workspace_id"`
 }
 
 // env is replaced wholesale; the handler applies the **** sentinel merge
@@ -262,6 +319,7 @@ func (q *Queries) UpdateAgentAccount(ctx context.Context, arg UpdateAgentAccount
 		arg.Name,
 		arg.Provider,
 		arg.Env,
+		arg.OverridesRuntimeDefault,
 		arg.ID,
 		arg.WorkspaceID,
 	)
@@ -275,6 +333,7 @@ func (q *Queries) UpdateAgentAccount(ctx context.Context, arg UpdateAgentAccount
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OverridesRuntimeDefault,
 	)
 	return i, err
 }

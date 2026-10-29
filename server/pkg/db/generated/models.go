@@ -58,14 +58,15 @@ type Agent struct {
 }
 
 type AgentAccount struct {
-	ID          pgtype.UUID        `json:"id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	Name        string             `json:"name"`
-	Provider    string             `json:"provider"`
-	Env         []byte             `json:"env"`
-	CreatedBy   pgtype.UUID        `json:"created_by"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID                      pgtype.UUID        `json:"id"`
+	WorkspaceID             pgtype.UUID        `json:"workspace_id"`
+	Name                    string             `json:"name"`
+	Provider                string             `json:"provider"`
+	Env                     []byte             `json:"env"`
+	CreatedBy               pgtype.UUID        `json:"created_by"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+	OverridesRuntimeDefault bool               `json:"overrides_runtime_default"`
 }
 
 type AgentBuilderDraft struct {
@@ -102,6 +103,7 @@ type AgentModelFallback struct {
 	ThinkingLevel pgtype.Text        `json:"thinking_level"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	AccountID     pgtype.UUID        `json:"account_id"`
 }
 
 type AgentRuntime struct {

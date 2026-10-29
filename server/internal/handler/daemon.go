@@ -2954,10 +2954,11 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 			slog.Warn("failed to unmarshal agent custom_env", "agent_id", uuidToString(agent.ID), "error", err)
 		}
 	}
-	// The agent's account rides in custom_env so the daemon applies it with
-	// the same blocklist; the account value wins on a shared key. Resolved
-	// per claim, so switching accounts affects only tasks claimed afterwards.
-	_, accountEnv, accountErr := h.accountEnvForTask(r, agent, runtime.Provider)
+	// The run's account (fallback entry's or agent's, else the provider's
+	// runtime override) rides in custom_env so the daemon applies it with the
+	// same blocklist; the account value wins on a shared key. Resolved per
+	// claim, so switching accounts affects only tasks claimed afterwards.
+	accountEnv, accountErr := h.accountEnvForTask(r, agent, *task, runtime.Provider)
 	if accountErr != nil {
 		slog.Error("daemon claim: load agent account failed; requeueing claim",
 			"task_id", uuidToString(task.ID), "agent_id", uuidToString(agent.ID), "error", accountErr)

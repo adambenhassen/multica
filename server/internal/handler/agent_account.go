@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,9 +41,12 @@ type AgentAccountResponse struct {
 	EnvKeyCount int    `json:"env_key_count"`
 	// EnvKeys lists key names for workspace owners/admins only, so the
 	// editor can show which keys exist without ever loading values.
-	EnvKeys   []string `json:"env_keys"`
-	CreatedAt string   `json:"created_at"`
-	UpdatedAt string   `json:"updated_at"`
+	EnvKeys []string `json:"env_keys"`
+	// OverridesRuntimeDefault: agents on "Runtime default" of this provider
+	// run with this account. At most one per provider.
+	OverridesRuntimeDefault bool   `json:"overrides_runtime_default"`
+	CreatedAt               string `json:"created_at"`
+	UpdatedAt               string `json:"updated_at"`
 }
 
 type AccountEnvResponse struct {
@@ -51,15 +55,17 @@ type AccountEnvResponse struct {
 }
 
 type CreateAgentAccountRequest struct {
-	Name     string            `json:"name"`
-	Provider string            `json:"provider"`
-	Env      map[string]string `json:"env"`
+	Name                    string            `json:"name"`
+	Provider                string            `json:"provider"`
+	Env                     map[string]string `json:"env"`
+	OverridesRuntimeDefault bool              `json:"overrides_runtime_default"`
 }
 
 type UpdateAgentAccountRequest struct {
-	Name     *string           `json:"name"`
-	Provider *string           `json:"provider"`
-	Env      map[string]string `json:"env"`
+	Name                    *string           `json:"name"`
+	Provider                *string           `json:"provider"`
+	Env                     map[string]string `json:"env"`
+	OverridesRuntimeDefault *bool             `json:"overrides_runtime_default"`
 }
 
 type accountAgentRef struct {
@@ -70,14 +76,15 @@ type accountAgentRef struct {
 func accountToResponse(a db.AgentAccount, includeKeys bool) AgentAccountResponse {
 	keys := sortedKeys(unmarshalAccountEnv(a))
 	resp := AgentAccountResponse{
-		ID:          uuidToString(a.ID),
-		WorkspaceID: uuidToString(a.WorkspaceID),
-		Name:        a.Name,
-		Provider:    a.Provider,
-		EnvKeyCount: len(keys),
-		EnvKeys:     []string{},
-		CreatedAt:   timestampToString(a.CreatedAt),
-		UpdatedAt:   timestampToString(a.UpdatedAt),
+		ID:                      uuidToString(a.ID),
+		WorkspaceID:             uuidToString(a.WorkspaceID),
+		Name:                    a.Name,
+		Provider:                a.Provider,
+		EnvKeyCount:             len(keys),
+		EnvKeys:                 []string{},
+		CreatedAt:               timestampToString(a.CreatedAt),
+		OverridesRuntimeDefault: a.OverridesRuntimeDefault,
+		UpdatedAt:               timestampToString(a.UpdatedAt),
 	}
 	if includeKeys {
 		resp.EnvKeys = keys
@@ -208,9 +215,12 @@ func (h *Handler) writeAccountInUse(w http.ResponseWriter, r *http.Request, acco
 	return true
 }
 
-func isAccountNameConflict(err error) bool {
+func accountUniqueViolation(err error) string {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "idx_agent_account_workspace_name"
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return pgErr.ConstraintName
+	}
+	return ""
 }
 
 func (h *Handler) ListAgentAccounts(w http.ResponseWriter, r *http.Request) {
@@ -273,12 +283,18 @@ func (h *Handler) CreateAgentAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.writeAccountEnvChange(w, r, member, func(qtx *db.Queries) (db.AgentAccount, error) {
+		if req.OverridesRuntimeDefault {
+			if err := moveRuntimeOverride(r.Context(), qtx, wsUUID, provider, pgtype.UUID{}); err != nil {
+				return db.AgentAccount{}, err
+			}
+		}
 		return qtx.CreateAgentAccount(r.Context(), db.CreateAgentAccountParams{
-			WorkspaceID: wsUUID,
-			Name:        name,
-			Provider:    provider,
-			Env:         envBytes,
-			CreatedBy:   member.UserID,
+			WorkspaceID:             wsUUID,
+			Name:                    name,
+			Provider:                provider,
+			Env:                     envBytes,
+			CreatedBy:               member.UserID,
+			OverridesRuntimeDefault: req.OverridesRuntimeDefault,
 		})
 	}, &audit, http.StatusCreated)
 }
@@ -334,9 +350,36 @@ func (h *Handler) UpdateAgentAccount(w http.ResponseWriter, r *http.Request) {
 		audit = &envDiff
 	}
 
+	if req.OverridesRuntimeDefault != nil {
+		params.OverridesRuntimeDefault = pgtype.Bool{Bool: *req.OverridesRuntimeDefault, Valid: true}
+	}
+	overrides := existing.OverridesRuntimeDefault
+	if req.OverridesRuntimeDefault != nil {
+		overrides = *req.OverridesRuntimeDefault
+	}
+	provider := existing.Provider
+	if params.Provider.Valid {
+		provider = params.Provider.String
+	}
+
 	h.writeAccountEnvChange(w, r, member, func(qtx *db.Queries) (db.AgentAccount, error) {
+		if overrides {
+			if err := moveRuntimeOverride(r.Context(), qtx, wsUUID, provider, existing.ID); err != nil {
+				return db.AgentAccount{}, err
+			}
+		}
 		return qtx.UpdateAgentAccount(r.Context(), params)
 	}, audit, http.StatusOK)
+}
+
+// moveRuntimeOverride clears the override on the provider's other accounts
+// before keepID (or a new account) takes it, inside the caller's transaction.
+func moveRuntimeOverride(ctx context.Context, qtx *db.Queries, workspaceID pgtype.UUID, provider string, keepID pgtype.UUID) error {
+	return qtx.ClearRuntimeOverrideAccounts(ctx, db.ClearRuntimeOverrideAccountsParams{
+		WorkspaceID: workspaceID,
+		Provider:    provider,
+		KeepID:      keepID,
+	})
 }
 
 // writeAccountEnvChange persists an account write and, when env changed,
@@ -353,8 +396,12 @@ func (h *Handler) writeAccountEnvChange(w http.ResponseWriter, r *http.Request, 
 
 	account, err := write(qtx)
 	if err != nil {
-		if isAccountNameConflict(err) {
+		switch accountUniqueViolation(err) {
+		case "idx_agent_account_workspace_name":
 			writeError(w, http.StatusConflict, "an account with this name already exists in this workspace")
+			return
+		case "idx_agent_account_runtime_override":
+			writeError(w, http.StatusConflict, "another account of this provider took the runtime override at the same time; retry")
 			return
 		}
 		slog.Warn("save agent account failed", append(logger.RequestAttrs(r), "error", err)...)
@@ -446,27 +493,56 @@ func (h *Handler) GetAgentAccountEnv(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, AccountEnvResponse{AccountID: uuidToString(account.ID), Env: env})
 }
 
-// accountEnvForTask returns the env an agent's account contributes to a task
-// on a runtime of the given provider. nil when the agent has no account, the
-// account is gone, or the task runs on another provider (a fallback run).
-func (h *Handler) accountEnvForTask(r *http.Request, agent db.Agent, provider string) (db.AgentAccount, map[string]string, error) {
-	if !agent.AccountID.Valid {
-		return db.AgentAccount{}, nil, nil
-	}
-	account, err := h.Queries.GetAgentAccountInWorkspace(r.Context(), db.GetAgentAccountInWorkspaceParams{
-		ID:          agent.AccountID,
-		WorkspaceID: agent.WorkspaceID,
-	})
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return db.AgentAccount{}, nil, nil
+// effectiveAccount resolves the account a run uses on a runtime of provider:
+// the run's own selection (a fallback run's entry, else the agent's account)
+// when it exists and matches the provider, otherwise the provider's runtime
+// override account, otherwise none (ok=false). fallbackPosition is 0 for a
+// primary run.
+func (h *Handler) effectiveAccount(ctx context.Context, agent db.Agent, fallbackPosition int32, provider string) (db.AgentAccount, bool, error) {
+	selected := agent.AccountID
+	if fallbackPosition > 0 {
+		entry, err := h.Queries.GetAgentFallbackAtPosition(ctx, db.GetAgentFallbackAtPositionParams{
+			AgentID:  agent.ID,
+			Position: fallbackPosition,
+		})
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return db.AgentAccount{}, false, err
 		}
-		return db.AgentAccount{}, nil, err
+		selected = entry.AccountID
 	}
-	if account.Provider != provider {
-		return account, nil, nil
+	if selected.Valid {
+		account, err := h.Queries.GetAgentAccountInWorkspace(ctx, db.GetAgentAccountInWorkspaceParams{
+			ID:          selected,
+			WorkspaceID: agent.WorkspaceID,
+		})
+		if err == nil && account.Provider == provider {
+			return account, true, nil
+		}
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return db.AgentAccount{}, false, err
+		}
 	}
-	return account, unmarshalAccountEnv(account), nil
+	account, err := h.Queries.GetRuntimeOverrideAccount(ctx, db.GetRuntimeOverrideAccountParams{
+		WorkspaceID: agent.WorkspaceID,
+		Provider:    provider,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.AgentAccount{}, false, nil
+	}
+	if err != nil {
+		return db.AgentAccount{}, false, err
+	}
+	return account, true, nil
+}
+
+// accountEnvForTask returns the env the task's effective account contributes,
+// nil when it has none.
+func (h *Handler) accountEnvForTask(r *http.Request, agent db.Agent, task db.AgentTaskQueue, provider string) (map[string]string, error) {
+	account, ok, err := h.effectiveAccount(r.Context(), agent, task.FallbackPosition.Int32, provider)
+	if err != nil || !ok {
+		return nil, err
+	}
+	return unmarshalAccountEnv(account), nil
 }
 
 // layerAccountEnv merges account env over custom_env: on a shared key the
@@ -558,17 +634,15 @@ func (h *Handler) resolveAgentAccountUpdate(w http.ResponseWriter, r *http.Reque
 // agentEnvAccountOverride is display-only, so a failed account lookup
 // degrades to no hint instead of failing the env request.
 func (h *Handler) agentEnvAccountOverride(r *http.Request, agent db.Agent, customEnv map[string]string) *AgentEnvAccountOverride {
-	if !agent.AccountID.Valid {
+	provider, ok := h.resolveAgentProvider(r, agent.WorkspaceID, agent.RuntimeID)
+	if !ok {
 		return nil
 	}
-	account, err := h.Queries.GetAgentAccountInWorkspace(r.Context(), db.GetAgentAccountInWorkspaceParams{
-		ID:          agent.AccountID,
-		WorkspaceID: agent.WorkspaceID,
-	})
+	account, ok, err := h.effectiveAccount(r.Context(), agent, 0, provider)
 	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			slog.Warn("load agent account for env override failed", append(logger.RequestAttrs(r), "error", err)...)
-		}
+		slog.Warn("load agent account for env override failed", append(logger.RequestAttrs(r), "error", err)...)
+	}
+	if !ok {
 		return nil
 	}
 	return &AgentEnvAccountOverride{

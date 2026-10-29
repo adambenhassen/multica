@@ -173,6 +173,7 @@ var concurrentIndexCleanups = map[string]string{
 	"586_agent_model_fallback_agent_position_idx":               "idx_agent_model_fallback_agent_position",
 	"589_skill_invocation_workspace_idx":                        "idx_skill_invocation_workspace_skill",
 	"596_agent_account_workspace_name_idx":                      "idx_agent_account_workspace_name",
+	"598_agent_account_runtime_override_idx":                    "idx_agent_account_runtime_override",
 	"510_wakeup_id":                                             "issue_wakeup_id_idx",
 	"511_wakeup_issue":                                          "issue_wakeup_issue_idx",
 	"512_wakeup_due":                                            "issue_wakeup_due_idx",
