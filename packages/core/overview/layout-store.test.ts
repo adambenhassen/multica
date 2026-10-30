@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { useOverviewLayoutStore } from "./layout-store";
 
 describe("useOverviewLayoutStore", () => {
-  beforeEach(() => useOverviewLayoutStore.setState({ showComments: false, showOther: false, latestOnly: false }));
+  beforeEach(() =>
+    useOverviewLayoutStore.setState({ showComments: false, showOther: false, latestOnly: false, showWaiting: false }),
+  );
 
   it("toggles each display choice on its own", () => {
     const s = useOverviewLayoutStore.getState();
@@ -13,6 +15,16 @@ describe("useOverviewLayoutStore", () => {
     useOverviewLayoutStore.getState().toggleOther();
     useOverviewLayoutStore.getState().toggleComments();
     expect(useOverviewLayoutStore.getState()).toMatchObject({ showComments: false, showOther: true, latestOnly: true });
+  });
+
+  it("toggles waiting reasons on every tab, off by default", () => {
+    useOverviewLayoutStore.getState().toggleWaiting();
+    expect(useOverviewLayoutStore.getState().showWaiting).toBe(true);
+    const merge = useOverviewLayoutStore.persist.getOptions().merge!;
+    const current = useOverviewLayoutStore.getState();
+    expect(merge(undefined, current)).toMatchObject({ showWaiting: false });
+    expect(merge({ showWaiting: "yes" }, current)).toMatchObject({ showWaiting: false });
+    expect(merge({ showWaiting: true }, current)).toMatchObject({ showWaiting: true });
   });
 
   it("defaults to hiding earlier moves", () => {

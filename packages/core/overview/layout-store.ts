@@ -12,9 +12,12 @@ export interface OverviewLayoutState {
   showOther: boolean;
   /** Keep only each issue's latest status change. */
   latestOnly: boolean;
+  /** Show what each issue waits on in every tab, not only Waiting. */
+  showWaiting: boolean;
   toggleComments: () => void;
   toggleOther: () => void;
   toggleLatestOnly: () => void;
+  toggleWaiting: () => void;
 }
 
 const stateStorage = defaultStorage as unknown as StateStorage;
@@ -27,16 +30,19 @@ export const useOverviewLayoutStore = create<OverviewLayoutState>()(
       showComments: false,
       showOther: false,
       latestOnly: true,
+      showWaiting: false,
       toggleComments: () => set((state) => ({ showComments: !state.showComments })),
       toggleOther: () => set((state) => ({ showOther: !state.showOther })),
       toggleLatestOnly: () => set((state) => ({ latestOnly: !state.latestOnly })),
+      toggleWaiting: () => set((state) => ({ showWaiting: !state.showWaiting })),
     }),
     {
       name: "multica_dashboard_layout",
       storage: createJSONStorage(() => stateStorage),
       // Older builds saved other keys here (hidden sections, project labels);
-      // keep only what this build reads. Only a saved true turns comments or
-      // other changes on, and only a saved false turns latest-only off.
+      // keep only what this build reads. Only a saved true turns comments,
+      // other changes or waiting reasons on, and only a saved false turns
+      // latest-only off.
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Record<string, unknown>;
         return {
@@ -44,6 +50,7 @@ export const useOverviewLayoutStore = create<OverviewLayoutState>()(
           showComments: saved.showComments === true,
           showOther: saved.showOther === true,
           latestOnly: saved.latestOnly !== false,
+          showWaiting: saved.showWaiting === true,
         };
       },
     },
