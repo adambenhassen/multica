@@ -312,24 +312,31 @@ WHERE a.workspace_id = $1
   AND NOT (a.action = ANY($2::text[]))
   AND (cardinality($3::text[]) = 0 OR a.action = ANY($3::text[]))
   AND (cardinality($4::text[]) = 0 OR a.details->>'to' = ANY($4::text[]))
-  AND (cardinality($5::uuid[]) = 0 OR a.issue_id = ANY($5::uuid[]))
-  AND ($6::uuid IS NULL OR i.project_id = $6::uuid)
-  AND ($7::timestamptz IS NULL
-       OR (a.created_at, a.id) < ($7::timestamptz, $8::uuid))
+  AND (NOT $5::bool OR i.status = ANY($4::text[]))
+  AND (NOT $6::bool OR a.action <> 'task_failed' OR NOT EXISTS (
+        SELECT 1 FROM agent_task_queue t
+        WHERE t.issue_id = a.issue_id AND t.agent_id = a.actor_id AND a.actor_type = 'agent'
+          AND t.status = 'completed' AND t.completed_at > a.created_at))
+  AND (cardinality($7::uuid[]) = 0 OR a.issue_id = ANY($7::uuid[]))
+  AND ($8::uuid IS NULL OR i.project_id = $8::uuid)
+  AND ($9::timestamptz IS NULL
+       OR (a.created_at, a.id) < ($9::timestamptz, $10::uuid))
 ORDER BY a.created_at DESC, a.id DESC
-LIMIT $9
+LIMIT $11
 `
 
 type ListRecentWorkspaceActivitiesParams struct {
-	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
-	ExcludedActions []string           `json:"excluded_actions"`
-	OnlyActions     []string           `json:"only_actions"`
-	ToStatuses      []string           `json:"to_statuses"`
-	IssueIds        []pgtype.UUID      `json:"issue_ids"`
-	ProjectID       pgtype.UUID        `json:"project_id"`
-	BeforeAt        pgtype.Timestamptz `json:"before_at"`
-	BeforeID        pgtype.UUID        `json:"before_id"`
-	RowLimit        int32              `json:"row_limit"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	ExcludedActions   []string           `json:"excluded_actions"`
+	OnlyActions       []string           `json:"only_actions"`
+	ToStatuses        []string           `json:"to_statuses"`
+	CurrentStatusOnly bool               `json:"current_status_only"`
+	HideRecovered     bool               `json:"hide_recovered"`
+	IssueIds          []pgtype.UUID      `json:"issue_ids"`
+	ProjectID         pgtype.UUID        `json:"project_id"`
+	BeforeAt          pgtype.Timestamptz `json:"before_at"`
+	BeforeID          pgtype.UUID        `json:"before_id"`
+	RowLimit          int32              `json:"row_limit"`
 }
 
 type ListRecentWorkspaceActivitiesRow struct {
@@ -353,14 +360,19 @@ type ListRecentWorkspaceActivitiesRow struct {
 // `issue_id IS NOT NULL` predicate lets idx_activity_log_workspace_recent
 // (migration 581) serve the ORDER BY without a sort step. @to_statuses keeps
 // only rows whose details `to` is one of the keys (status changes into them);
-// @issue_ids, when not empty, keeps those issues' rows; @project_id, one
-// project's.
+// @current_status_only also requires the issue to be in one of them now, so a
+// status tab lists the issues still there. @issue_ids, when not empty, keeps
+// those issues' rows; @project_id, one project's. @hide_recovered drops a
+// failed run once the same agent completed a later run on the issue; another
+// agent's run (a reviewer, the gate) does not redo the failed work.
 func (q *Queries) ListRecentWorkspaceActivities(ctx context.Context, arg ListRecentWorkspaceActivitiesParams) ([]ListRecentWorkspaceActivitiesRow, error) {
 	rows, err := q.db.Query(ctx, listRecentWorkspaceActivities,
 		arg.WorkspaceID,
 		arg.ExcludedActions,
 		arg.OnlyActions,
 		arg.ToStatuses,
+		arg.CurrentStatusOnly,
+		arg.HideRecovered,
 		arg.IssueIds,
 		arg.ProjectID,
 		arg.BeforeAt,

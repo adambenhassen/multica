@@ -74,8 +74,11 @@ LIMIT 1;
 -- `issue_id IS NOT NULL` predicate lets idx_activity_log_workspace_recent
 -- (migration 581) serve the ORDER BY without a sort step. @to_statuses keeps
 -- only rows whose details `to` is one of the keys (status changes into them);
--- @issue_ids, when not empty, keeps those issues' rows; @project_id, one
--- project's.
+-- @current_status_only also requires the issue to be in one of them now, so a
+-- status tab lists the issues still there. @issue_ids, when not empty, keeps
+-- those issues' rows; @project_id, one project's. @hide_recovered drops a
+-- failed run once the same agent completed a later run on the issue; another
+-- agent's run (a reviewer, the gate) does not redo the failed work.
 SELECT a.id, a.workspace_id, a.issue_id, a.actor_type, a.actor_id, a.action, a.details, a.created_at,
        i.number AS issue_number, i.title AS issue_title, i.status AS issue_status,
        i.project_id AS issue_project_id
@@ -86,6 +89,11 @@ WHERE a.workspace_id = @workspace_id
   AND NOT (a.action = ANY(@excluded_actions::text[]))
   AND (cardinality(@only_actions::text[]) = 0 OR a.action = ANY(@only_actions::text[]))
   AND (cardinality(@to_statuses::text[]) = 0 OR a.details->>'to' = ANY(@to_statuses::text[]))
+  AND (NOT @current_status_only::bool OR i.status = ANY(@to_statuses::text[]))
+  AND (NOT @hide_recovered::bool OR a.action <> 'task_failed' OR NOT EXISTS (
+        SELECT 1 FROM agent_task_queue t
+        WHERE t.issue_id = a.issue_id AND t.agent_id = a.actor_id AND a.actor_type = 'agent'
+          AND t.status = 'completed' AND t.completed_at > a.created_at))
   AND (cardinality(@issue_ids::uuid[]) = 0 OR a.issue_id = ANY(@issue_ids::uuid[]))
   AND (sqlc.narg('project_id')::uuid IS NULL OR i.project_id = sqlc.narg('project_id')::uuid)
   AND (sqlc.narg('before_at')::timestamptz IS NULL

@@ -369,3 +369,66 @@ func TestListRecentlyCompletedIssuesPagesByOffset(t *testing.T) {
 		t.Fatalf("second page = %+v", second)
 	}
 }
+
+func TestListWorkspaceActivityCurrentStatusAndRecoveredFailures(t *testing.T) {
+	ws := dbfx.Workspace(t, "Feed now", "feed-now-"+uuid.NewString(), testutil.Cols{"issue_prefix": "NOW"})
+	dbfx.Member(t, ws, testUserID, "owner")
+	stillBlocked := dbfx.Issue(t, "Still blocked", testutil.Cols{"workspace_id": ws, "status": "blocked"})
+	unblocked := dbfx.Issue(t, "Unblocked", testutil.Cols{"workspace_id": ws, "status": "in_progress"})
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
+	insert := func(issue, action, details string, at time.Time) string {
+		return dbfx.Insert(t, "activity_log", testutil.Cols{
+			"workspace_id": ws, "issue_id": issue, "actor_type": "member", "actor_id": testUserID,
+			"action": action, "details": details, "created_at": at,
+		})
+	}
+	read := func(query string) []string {
+		var out WorkspaceActivityResponse
+		testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity"+query, ws, testUserID)).
+			Want(http.StatusOK).JSON(&out)
+		got := make([]string, len(out.Entries))
+		for i, e := range out.Entries {
+			got[i] = e.ID
+		}
+		return got
+	}
+
+	wasBlocked := insert(unblocked, "status_changed", `{"from":"todo","to":"blocked"}`, base)
+	insert(unblocked, "status_changed", `{"from":"blocked","to":"in_progress"}`, base.Add(time.Minute))
+	isBlocked := insert(stillBlocked, "status_changed", `{"from":"todo","to":"blocked"}`, base.Add(2*time.Minute))
+	if got := read("?kind=status&to=blocked"); !slices.Equal(got, []string{isBlocked, wasBlocked}) {
+		t.Fatalf("to=blocked = %v, want every move into blocked", got)
+	}
+	if got := read("?kind=status&to=blocked&current=1"); !slices.Equal(got, []string{isBlocked}) {
+		t.Fatalf("to=blocked&current=1 = %v, want only the issue still blocked", got)
+	}
+	for _, query := range []string{"?kind=status&current=1", "?kind=status&to=blocked&current=yes"} {
+		testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity"+query, ws, testUserID)).
+			Want(http.StatusBadRequest)
+	}
+
+	// A failure the same agent later made good leaves the Failures tab. One
+	// whose agent only completed a run before it, or whose later success was
+	// another agent's (a reviewer, the gate), stays.
+	agent := dbfx.Agent(t, "feed-now-agent", testRuntimeID, testutil.Cols{"workspace_id": ws})
+	reviewer := dbfx.Agent(t, "feed-now-reviewer", testRuntimeID, testutil.Cols{"workspace_id": ws})
+	run := func(by, issue string, completedAt time.Time) {
+		dbfx.Task(t, by, testutil.Cols{
+			"issue_id": issue, "runtime_id": testRuntimeID, "status": "completed", "completed_at": completedAt,
+		})
+	}
+	failed := func(issue string, at time.Time) string {
+		return dbfx.Insert(t, "activity_log", testutil.Cols{
+			"workspace_id": ws, "issue_id": issue, "actor_type": "agent", "actor_id": agent,
+			"action": "task_failed", "details": `{}`, "created_at": at,
+		})
+	}
+	recovered := failed(unblocked, base.Add(3*time.Minute))
+	run(agent, unblocked, base.Add(4*time.Minute))
+	stuck := failed(stillBlocked, base.Add(5*time.Minute))
+	run(agent, stillBlocked, base.Add(time.Minute))
+	run(reviewer, stillBlocked, base.Add(6*time.Minute))
+	if got := read("?kind=failures"); !slices.Equal(got, []string{stuck}) {
+		t.Fatalf("kind=failures = %v, want only %s (not the recovered %s)", got, stuck, recovered)
+	}
+}

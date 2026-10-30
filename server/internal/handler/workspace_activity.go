@@ -151,6 +151,21 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
+	// `current=1` keeps only the issues still in one of `to`, so a status tab
+	// lists where issues are now, not every move ever made into it.
+	currentOnly := false
+	switch r.URL.Query().Get("current") {
+	case "", "0":
+	case "1":
+		if len(toStatuses) == 0 {
+			writeError(w, http.StatusBadRequest, "current requires to")
+			return
+		}
+		currentOnly = true
+	default:
+		writeError(w, http.StatusBadRequest, "current must be 0 or 1")
+		return
+	}
 	// Non-nil on purpose: pgx sends a nil slice as NULL, and
 	// cardinality(NULL) = 0 is not true, which would filter out every row.
 	onlyActions := []string{}
@@ -200,11 +215,14 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 			ExcludedActions: excludedActions,
 			OnlyActions:     onlyActions,
 			ToStatuses:      toStatuses,
-			IssueIds:        issueIDs,
-			ProjectID:       projectID,
-			BeforeAt:        beforeAt,
-			BeforeID:        beforeID,
-			RowLimit:        int32(limit),
+			// A failed run the same agent later made good is no longer stuck.
+			CurrentStatusOnly: currentOnly,
+			HideRecovered:     kind == "failures",
+			IssueIds:          issueIDs,
+			ProjectID:         projectID,
+			BeforeAt:          beforeAt,
+			BeforeID:          beforeID,
+			RowLimit:          int32(limit),
 		})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to list activity")
