@@ -129,7 +129,7 @@ describe("latestStatusChangePerIssue", () => {
 describe("waitingIssues", () => {
   const task = (issue_id: string, status: AgentTask["status"], created_at = "2026-10-30T06:00:00Z") => ({ issue_id, status, created_at });
   const pr = { provider: "gitea", repo_owner: "acme", repo_name: "widget", number: 7, html_url: "" };
-  const ci = (issue_id: string, state: "pending" | "failed", issue_status = "in_review"): IssueCIEntry => ({
+  const ci = (issue_id: string, state: IssueCIEntry["state"], issue_status = "in_review"): IssueCIEntry => ({
     issue_id, issue_status, state, since: "2026-10-30T05:00:00Z", pull_request: pr,
   });
   const open = () => false;
@@ -145,20 +145,24 @@ describe("waitingIssues", () => {
   });
 
   it("reports pending CI, and failed CI only when no run is active or queued", () => {
-    const got = waitingIssues([task("c", "deferred")], [ci("b", "pending"), ci("c", "failed"), ci("d", "failed")], [], open);
-    expect(got.get("b")).toMatchObject({ kind: "ci_pending", pullRequest: pr });
+    const got = waitingIssues([task("c", "deferred")], [ci("b", "running"), ci("c", "failed"), ci("d", "failed")], [], open);
+    expect(got.get("b")).toMatchObject({ kind: "ci_running", pullRequest: pr });
     expect(got.has("c")).toBe(false);
     expect(got.get("d")).toMatchObject({ kind: "ci_failed", since: "2026-10-30T05:00:00Z" });
   });
 
+  it("tells queued CI from running CI", () => {
+    expect(waitingIssues([], [ci("a", "queued")], [], open).get("a")).toMatchObject({ kind: "ci_queued", pullRequest: pr });
+  });
+
   it("prefers a queued run over CI", () => {
-    expect(waitingIssues([task("a", "queued")], [ci("a", "pending")], [], open).get("a")?.kind).toBe("run_queued");
+    expect(waitingIssues([task("a", "queued")], [ci("a", "running")], [], open).get("a")?.kind).toBe("run_queued");
   });
 
   it("leaves out issues an agent is running on", () => {
     const got = waitingIssues(
       [task("a", "running"), task("a", "queued"), task("b", "waiting_local_directory")],
-      [ci("a", "pending"), ci("b", "failed")],
+      [ci("a", "running"), ci("b", "failed")],
       [],
       open,
     );
@@ -166,7 +170,7 @@ describe("waitingIssues", () => {
   });
 
   it("leaves out CI on closed issues", () => {
-    const got = waitingIssues([], [ci("a", "pending", "done")], [], (status) => status === "done");
+    const got = waitingIssues([], [ci("a", "running", "done")], [], (status) => status === "done");
     expect(got.size).toBe(0);
   });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
-import { Activity, ArrowRight, Bell, Clock, Hourglass, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, TriangleAlert, UserRound } from "lucide-react";
+import { Activity, ArrowRight, Bell, CircleDashed, Clock, Hourglass, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, TriangleAlert, UserRound } from "lucide-react";
 import { useInfiniteQuery, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
@@ -599,10 +599,14 @@ function WaitingCell({ reason }: { reason: WaitingReason }) {
     const { repo_owner, repo_name, number } = reason.pullRequest;
     const pr = `${repo_owner}/${repo_name}#${number}`;
     const time = since(reason.since);
-    if (reason.kind === "ci_pending") {
+    if (reason.kind === "ci_queued") {
       icon = <Hourglass className="size-3.5 shrink-0 text-muted-foreground" />;
-      short = t(($) => $.waiting.ci_pending, { time });
-      long = t(($) => $.waiting.ci_pending_long, { pr, time });
+      short = t(($) => $.waiting.ci_queued, { time });
+      long = t(($) => $.waiting.ci_queued_long, { pr, time });
+    } else if (reason.kind === "ci_running") {
+      icon = <CircleDashed className="size-3.5 shrink-0 text-muted-foreground" />;
+      short = t(($) => $.waiting.ci_running, { time });
+      long = t(($) => $.waiting.ci_running_long, { pr, time });
     } else {
       icon = <TriangleAlert className="size-3.5 shrink-0 text-destructive" />;
       short = t(($) => $.waiting.ci_failed);

@@ -344,7 +344,7 @@ describe("OverviewPage", () => {
     apiRef.current.getIssueCI = () =>
       Promise.resolve({
         issues: [
-          { issue_id: "issue-2", issue_status: "in_review", state: "pending", since: ago(37), pull_request: pr },
+          { issue_id: "issue-2", issue_status: "in_review", state: "running", since: ago(37), pull_request: pr },
           // An agent is running on issue-3: it is active, not waiting.
           { issue_id: "issue-3", issue_status: "in_review", state: "failed", since: ago(5), pull_request: pr },
         ],
@@ -376,7 +376,7 @@ describe("OverviewPage", () => {
     // The waiting cell sits before the move, not before the title.
     const row = within(feed()).getByText("Fix the reconnect").closest("a")!;
     const cell = row.querySelector("[data-waiting]")!;
-    expect(cell.getAttribute("data-waiting")).toBe("ci_pending");
+    expect(cell.getAttribute("data-waiting")).toBe("ci_running");
     expect(cell.compareDocumentPosition(within(row).getByText("Fix the reconnect")) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
     expect(cell.compareDocumentPosition(within(row).getByLabelText("→")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
