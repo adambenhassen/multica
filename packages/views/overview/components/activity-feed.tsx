@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
-import { Activity, ArrowRight, Bell, CircleDashed, Clock, Hourglass, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, TriangleAlert, UserRound } from "lucide-react";
+import { Activity, ArrowRight, Bell, CircleDashed, Clock, GitMerge, Hourglass, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, TriangleAlert, UserRound } from "lucide-react";
 import { useInfiniteQuery, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
@@ -574,9 +574,10 @@ function WaitingCell({ reason }: { reason: WaitingReason }) {
         ? t(($) => $.waiting.hours, { hours: parts.hours, minutes: parts.minutes })
         : t(($) => $.waiting.minutes, { minutes: parts.minutes });
   };
+  // Empty when unknown (GitHub check runs carry no timestamps).
   const since = (iso: string | null) => {
     const at = iso ? Date.parse(iso) : NaN;
-    return Number.isNaN(at) ? "—" : span(now - at);
+    return Number.isNaN(at) ? "" : span(now - at);
   };
   let icon: ReactNode;
   let short: string;
@@ -601,12 +602,16 @@ function WaitingCell({ reason }: { reason: WaitingReason }) {
     const time = since(reason.since);
     if (reason.kind === "ci_queued") {
       icon = <Hourglass className="size-3.5 shrink-0 text-muted-foreground" />;
-      short = t(($) => $.waiting.ci_queued, { time });
-      long = t(($) => $.waiting.ci_queued_long, { pr, time });
+      short = time ? t(($) => $.waiting.ci_queued, { time }) : t(($) => $.waiting.ci_queued_untimed);
+      long = time ? t(($) => $.waiting.ci_queued_long, { pr, time }) : t(($) => $.waiting.ci_queued_long_untimed, { pr });
     } else if (reason.kind === "ci_running") {
       icon = <CircleDashed className="size-3.5 shrink-0 text-muted-foreground" />;
-      short = t(($) => $.waiting.ci_running, { time });
-      long = t(($) => $.waiting.ci_running_long, { pr, time });
+      short = time ? t(($) => $.waiting.ci_running, { time }) : t(($) => $.waiting.ci_running_untimed);
+      long = time ? t(($) => $.waiting.ci_running_long, { pr, time }) : t(($) => $.waiting.ci_running_long_untimed, { pr });
+    } else if (reason.kind === "ci_gate") {
+      icon = <GitMerge className="size-3.5 shrink-0 text-muted-foreground" />;
+      short = time ? t(($) => $.waiting.gate, { time }) : t(($) => $.waiting.gate_untimed);
+      long = time ? t(($) => $.waiting.gate_long, { pr, time }) : t(($) => $.waiting.gate_long_untimed, { pr });
     } else {
       icon = <TriangleAlert className="size-3.5 shrink-0 text-destructive" />;
       short = t(($) => $.waiting.ci_failed);

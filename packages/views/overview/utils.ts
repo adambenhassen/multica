@@ -124,8 +124,10 @@ export function statusChangeTargets(
 /** Why an issue nobody is running on is waiting, and since (or until) when. */
 export type WaitingReason =
   | { kind: "run_queued"; since: string }
-  | { kind: "ci_queued" | "ci_running" | "ci_failed"; since: string | null; pullRequest: IssueCIPullRequest }
+  | { kind: "ci_queued" | "ci_running" | "ci_failed" | "ci_gate"; since: string | null; pullRequest: IssueCIPullRequest }
   | { kind: "wakeup"; wakeup: WakeupPreview };
+
+const CI_KIND = { queued: "ci_queued", running: "ci_running", failed: "ci_failed", gate: "ci_gate" } as const;
 
 const RUNNING_TASK = new Set<AgentTask["status"]>(["running", "waiting_local_directory"]);
 const QUEUED_TASK = new Set<AgentTask["status"]>(["queued", "dispatched"]);
@@ -135,7 +137,8 @@ const PENDING_TASK = new Set<AgentTask["status"]>(["queued", "dispatched", "defe
 /**
  * The issues waiting on something while no agent runs on them: a run queued
  * but not started, CI queued or running on an open PR, failed CI that no run is
- * active or queued to fix, or an enabled wakeup. Each issue gets the first of
+ * active or queued to fix, finished CI the merge gate still holds, or an
+ * enabled wakeup. Each issue gets the first of
  * those, in that order. CI on an issue whose status `isClosed` is left out;
  * `wakeups` (earliest first per issue) already leaves closed issues out.
  */
@@ -166,7 +169,7 @@ export function waitingIssues(
     if (running.has(id) || out.has(id) || isClosed(entry.issue_status)) continue;
     if (entry.state === "failed" && pending.has(id)) continue;
     out.set(id, {
-      kind: entry.state === "queued" ? "ci_queued" : entry.state === "running" ? "ci_running" : "ci_failed",
+      kind: CI_KIND[entry.state],
       since: entry.since,
       pullRequest: entry.pull_request,
     });

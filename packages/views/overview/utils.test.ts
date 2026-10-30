@@ -151,8 +151,10 @@ describe("waitingIssues", () => {
     expect(got.get("d")).toMatchObject({ kind: "ci_failed", since: "2026-10-30T05:00:00Z" });
   });
 
-  it("tells queued CI from running CI", () => {
-    expect(waitingIssues([], [ci("a", "queued")], [], open).get("a")).toMatchObject({ kind: "ci_queued", pullRequest: pr });
+  it("tells queued CI from running CI and from the merge gate", () => {
+    const got = waitingIssues([], [ci("a", "queued"), ci("b", "gate")], [], open);
+    expect(got.get("a")).toMatchObject({ kind: "ci_queued", pullRequest: pr });
+    expect(got.get("b")).toMatchObject({ kind: "ci_gate", pullRequest: pr });
   });
 
   it("prefers a queued run over CI", () => {

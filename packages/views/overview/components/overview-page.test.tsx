@@ -345,11 +345,14 @@ describe("OverviewPage", () => {
       Promise.resolve({
         issues: [
           { issue_id: "issue-2", issue_status: "in_review", state: "running", since: ago(37), pull_request: pr },
+          // GitHub CI has no start time: the label carries no duration.
+          { issue_id: "issue-5", issue_status: "in_review", state: "queued", since: null, pull_request: { ...pr, provider: "github" } },
           // An agent is running on issue-3: it is active, not waiting.
           { issue_id: "issue-3", issue_status: "in_review", state: "failed", since: ago(5), pull_request: pr },
         ],
       });
     const DOCS = { id: "issue-4", identifier: "MUL-4", title: "Update the docs", status: "todo" };
+    const SPEC = { id: "issue-5", identifier: "MUL-5", title: "Write the spec", status: "in_review" };
     apiRef.current.listIssueWakeupSummaries = () =>
       Promise.resolve([
         {
@@ -359,11 +362,11 @@ describe("OverviewPage", () => {
         },
       ]);
     const calls = scriptFeed((p) =>
-      [move("a-1", SHIP), move("a-2", FIX), move("a-3", DOCS)].filter((e) => !p.issues?.length || p.issues.includes(e.issue.id)),
+      [move("a-1", SHIP), move("a-2", FIX), move("a-3", DOCS), move("a-4", SPEC)].filter((e) => !p.issues?.length || p.issues.includes(e.issue.id)),
     );
     renderPage();
 
-    const chip = await screen.findByRole("button", { name: "3 waiting" });
+    const chip = await screen.findByRole("button", { name: "4 waiting" });
     fireEvent.click(chip);
     expect(chip.getAttribute("aria-pressed")).toBe("true");
     expect(within(feed()).getByRole("button", { name: "Waiting", pressed: true })).toBeTruthy();
@@ -372,7 +375,10 @@ describe("OverviewPage", () => {
     const docs = within(feed()).getByText("Update the docs").closest("a")!;
     expect(docs.querySelector("[data-waiting]")!.getAttribute("data-waiting")).toBe("wakeup");
     expect(within(docs).getByText("Wakes in 2h 4m")).toBeTruthy();
-    expect(calls.at(-1)).toMatchObject({ issues: ["issue-1", "issue-2", "issue-4"] });
+    const spec = within(feed()).getByText("Write the spec").closest("a")!;
+    expect(within(spec).getByText("CI queued")).toBeTruthy();
+    expect(within(spec).getByText("CI queued on acme/widget#7")).toBeTruthy();
+    expect(calls.at(-1)).toMatchObject({ issues: ["issue-1", "issue-2", "issue-4", "issue-5"] });
     // The waiting cell sits before the move, not before the title.
     const row = within(feed()).getByText("Fix the reconnect").closest("a")!;
     const cell = row.querySelector("[data-waiting]")!;
@@ -391,7 +397,7 @@ describe("OverviewPage", () => {
     expect(await screen.findByRole("button", { name: "0 waiting" })).toBeTruthy();
     const before = calls.length;
     fireEvent.click(within(feed()).getByRole("button", { name: "Waiting" }));
-    expect(await within(feed()).findByText("Nothing is waiting on a run, CI or wakeup")).toBeTruthy();
+    expect(await within(feed()).findByText("Nothing is waiting on a run, CI, the merge gate or a wakeup")).toBeTruthy();
     expect(calls.length).toBe(before);
   });
 
