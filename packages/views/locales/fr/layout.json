@@ -81,6 +81,13 @@
     "reset_days": "{{days}} j",
     "reset_hours": "{{hours}} h {{minutes}} min",
     "reset_minutes": "{{minutes}} min",
-    "reset_soon": "<1 min"
+    "reset_soon": "<1 min",
+    "pace_line": "Rythme : {{pace}} · {{runway}}",
+    "pace_on_track": "Dans le rythme",
+    "pace_deficit": "{{percent}} % de déficit",
+    "pace_reserve": "{{percent}} % de réserve",
+    "runs_out_in": "Épuisé dans {{time}}",
+    "runs_out_now": "Épuisé maintenant",
+    "lasts_until_reset": "Tient jusqu'à la réinitialisation"
   }
 }

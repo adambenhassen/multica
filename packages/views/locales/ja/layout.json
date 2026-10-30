@@ -81,6 +81,13 @@
     "reset_days": "{{days}}日",
     "reset_hours": "{{hours}}時間{{minutes}}分",
     "reset_minutes": "{{minutes}}分",
-    "reset_soon": "1分未満"
+    "reset_soon": "1分未満",
+    "pace_line": "ペース: {{pace}} · {{runway}}",
+    "pace_on_track": "ペース通り",
+    "pace_deficit": "{{percent}}% 超過",
+    "pace_reserve": "{{percent}}% 余裕",
+    "runs_out_in": "{{time}}後に上限到達",
+    "runs_out_now": "上限に到達",
+    "lasts_until_reset": "リセットまで持ちます"
   }
 }

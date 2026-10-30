@@ -81,6 +81,13 @@
     "reset_days": "{{days}}일",
     "reset_hours": "{{hours}}시간 {{minutes}}분",
     "reset_minutes": "{{minutes}}분",
-    "reset_soon": "1분 미만"
+    "reset_soon": "1분 미만",
+    "pace_line": "페이스: {{pace}} · {{runway}}",
+    "pace_on_track": "페이스 유지",
+    "pace_deficit": "{{percent}}% 초과",
+    "pace_reserve": "{{percent}}% 여유",
+    "runs_out_in": "{{time}} 후 소진",
+    "runs_out_now": "지금 소진",
+    "lasts_until_reset": "재설정까지 유지"
   }
 }

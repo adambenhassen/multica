@@ -81,6 +81,13 @@
     "reset_days": "{{days}}天",
     "reset_hours": "{{hours}}小时{{minutes}}分",
     "reset_minutes": "{{minutes}}分",
-    "reset_soon": "<1分"
+    "reset_soon": "<1分",
+    "pace_line": "节奏：{{pace}} · {{runway}}",
+    "pace_on_track": "节奏正常",
+    "pace_deficit": "超出 {{percent}}%",
+    "pace_reserve": "余量 {{percent}}%",
+    "runs_out_in": "{{time}}后用尽",
+    "runs_out_now": "已用尽",
+    "lasts_until_reset": "可撑到重置"
   }
 }

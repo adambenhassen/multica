@@ -93,7 +93,7 @@ describe("ProviderQuotaPanel", () => {
   it("starts window rows at the kind label when header rows are shown", () => {
     quota.current = { accounts: [claude("work", 1, 1), claude("personal", 1, 1)] };
     renderWithI18n(<ProviderQuotaPanel />);
-    const row = screen.getByRole("progressbar", { name: "Claude · work Session" }).parentElement!;
+    const row = screen.getByRole("progressbar", { name: "Claude · work Session" }).closest('[tabindex="0"]')!;
     expect(row.firstElementChild).toHaveTextContent("Session");
   });
 
@@ -145,6 +145,25 @@ describe("ProviderQuotaPanel", () => {
     renderWithI18n(<ProviderQuotaPanel />);
     expect(screen.getByText("80%")).toBeInTheDocument();
     expect(screen.getByRole("progressbar").firstElementChild).toHaveClass("bg-warning");
+  });
+
+  it("marks pace on each bar and describes it for assistive tech", () => {
+    // Session: 2h50m of 5h elapsed (expected 56.7), 62% used. Weekly: 71h of 168h (expected 42.3), 18% used.
+    quota.current = { accounts: [claude("personal", 62, 18)] };
+    const { container } = renderWithI18n(<ProviderQuotaPanel />);
+
+    const [session, weekly] = screen.getAllByRole("progressbar");
+    expect(session).toHaveAttribute("aria-valuetext", "62% · Pace: 5% in deficit · Runs out in 1h 44m");
+    expect(weekly).toHaveAttribute("aria-valuetext", "18% · Pace: 24% in reserve · Lasts until reset");
+    const ticks = [...container.querySelectorAll("[data-pace-tick]")].map((el) => el.getAttribute("data-pace-tick"));
+    expect(ticks).toEqual(["deficit", "reserve"]);
+  });
+
+  it("draws no tick when on pace", () => {
+    quota.current = { accounts: [claude("personal", 57, 42)] };
+    const { container } = renderWithI18n(<ProviderQuotaPanel />);
+    expect(screen.getAllByRole("progressbar")[0]!.getAttribute("aria-valuetext")).toContain("Pace: On pace");
+    expect(container.querySelectorAll("[data-pace-tick]")).toHaveLength(0);
   });
 
   it("names each progressbar after its account", () => {

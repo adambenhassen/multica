@@ -5,7 +5,7 @@ import type { ProviderQuotaAccount, QuotaWindow } from "@multica/core/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@multica/ui/components/ui/tooltip";
 import { cn } from "@multica/ui/lib/utils";
 import { useLocale, useT } from "../i18n";
-import { quotaLevel, resetParts, sortQuotaAccounts } from "./provider-quota-format";
+import { quotaLevel, quotaPace, resetParts, sortQuotaAccounts, type ResetParts } from "./provider-quota-format";
 
 const PROVIDER_NAME = { claude: "Claude", codex: "Codex" } as const;
 
@@ -120,9 +120,9 @@ function WindowRow({
 }) {
   const { t } = useT("layout");
   const locale = useLocale();
+  const now = Date.now();
   const pct = Math.min(100, Math.max(0, Math.round(window.used_percent)));
-  const parts = resetParts(window.resets_at, Date.now());
-  const reset =
+  const durationText = (parts: ResetParts) =>
     parts === null
       ? ""
       : parts === "soon"
@@ -132,6 +132,26 @@ function WindowRow({
           : "hours" in parts
             ? t(($) => $.quota.reset_hours, { hours: parts.hours, minutes: parts.minutes })
             : t(($) => $.quota.reset_minutes, { minutes: parts.minutes });
+  const reset = durationText(resetParts(window.resets_at, now));
+  const pace = quotaPace(window, now);
+  const paceText = pace
+    ? t(($) => $.quota.pace_line, {
+        pace:
+          pace.stage === "on_track"
+            ? t(($) => $.quota.pace_on_track)
+            : pace.stage === "deficit"
+              ? t(($) => $.quota.pace_deficit, { percent: Math.round(pace.delta) })
+              : t(($) => $.quota.pace_reserve, { percent: Math.round(-pace.delta) }),
+        runway:
+          pace.runsOutInMs === null
+            ? t(($) => $.quota.lasts_until_reset)
+            : pace.runsOutInMs === 0
+              ? t(($) => $.quota.runs_out_now)
+              : t(($) => $.quota.runs_out_in, {
+                  time: durationText(resetParts(new Date(now + pace.runsOutInMs).toISOString(), now)),
+                }),
+      })
+    : "";
   const kindLabel =
     window.kind === "session"
       ? t(($) => $.quota.session)
@@ -143,15 +163,29 @@ function WindowRow({
     <>
       {nameCell}
       <span className="whitespace-nowrap">{kindLabel}</span>
-      <div
-        role="progressbar"
-        aria-label={`${name} ${kindLabel}`}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={pct}
-        className="h-1 w-full overflow-hidden rounded-full bg-foreground/10"
-      >
-        <div className={cn("h-full", BAR_CLASS[quotaLevel(pct)])} style={{ width: `${pct}%` }} />
+      <div className="relative">
+        <div
+          role="progressbar"
+          aria-label={`${name} ${kindLabel}`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={pct}
+          aria-valuetext={paceText ? `${pct}% · ${paceText}` : undefined}
+          className="h-1 w-full overflow-hidden rounded-full bg-foreground/10"
+        >
+          <div className={cn("h-full", BAR_CLASS[quotaLevel(pct)])} style={{ width: `${pct}%` }} />
+        </div>
+        {pace && pace.stage !== "on_track" ? (
+          <span
+            aria-hidden
+            data-pace-tick={pace.stage}
+            className={cn(
+              "absolute -inset-y-0.5 w-0.5 -translate-x-1/2 rounded-full ring-1 ring-sidebar",
+              pace.stage === "deficit" ? "bg-destructive" : "bg-success",
+            )}
+            style={{ left: `${pace.expected}%` }}
+          />
+        ) : null}
       </div>
       <span className="whitespace-nowrap text-right tabular-nums">{pct}%</span>
       <span className="hidden whitespace-nowrap text-right tabular-nums @min-[13rem]:block">{reset}</span>
@@ -162,10 +196,13 @@ function WindowRow({
   return (
     <Tooltip>
       <TooltipTrigger render={<div tabIndex={0} className={ROW_CLASS} />}>{row}</TooltipTrigger>
-      <TooltipContent>
-        {t(($) => $.quota.resets_at, {
-          time: new Date(window.resets_at).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }),
-        })}
+      <TooltipContent className="flex-col items-start gap-0.5">
+        <p>
+          {t(($) => $.quota.resets_at, {
+            time: new Date(window.resets_at).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }),
+          })}
+        </p>
+        {paceText ? <p>{paceText}</p> : null}
       </TooltipContent>
     </Tooltip>
   );

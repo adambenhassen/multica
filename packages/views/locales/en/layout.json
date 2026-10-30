@@ -81,6 +81,13 @@
     "reset_days": "{{days}}d",
     "reset_hours": "{{hours}}h {{minutes}}m",
     "reset_minutes": "{{minutes}}m",
-    "reset_soon": "<1m"
+    "reset_soon": "<1m",
+    "pace_line": "Pace: {{pace}} · {{runway}}",
+    "pace_on_track": "On pace",
+    "pace_deficit": "{{percent}}% in deficit",
+    "pace_reserve": "{{percent}}% in reserve",
+    "runs_out_in": "Runs out in {{time}}",
+    "runs_out_now": "Runs out now",
+    "lasts_until_reset": "Lasts until reset"
   }
 }
