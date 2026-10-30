@@ -7,7 +7,8 @@
     "on_all": "Afficher dans Tout",
     "comments": "Commentaires",
     "other": "Autres changements",
-    "latest_only": "Masquer les déplacements précédents d'une tâche"
+    "latest_only": "Masquer les déplacements précédents d'une tâche",
+    "waiting": "Afficher ce qu'attendent les tâches"
   },
   "working_now": "En cours : {{names}}",
   "activity": {
@@ -46,6 +47,17 @@
     "clear": "Retirer le filtre de tâche"
   },
   "waiting": {
+    "filter_label": "En attente de",
+    "groups": {
+      "all": "Toutes {{count}}",
+      "run_queued": "Exécution en file {{count}}",
+      "ci_queued": "CI en file {{count}}",
+      "ci_running": "CI en cours {{count}}",
+      "ci_failed": "CI échouée {{count}}",
+      "ci_gate": "Gate {{count}}",
+      "wakeup_due": "Réveil imminent {{count}}",
+      "wakeup": "Réveil {{count}}"
+    },
     "chip": "{{count}} en attente",
     "chip_unknown": "En attente : —",
     "run_queued": "En file {{time}}",

@@ -7,7 +7,8 @@
     "on_all": "Show on All",
     "comments": "Comments",
     "other": "Other changes",
-    "latest_only": "Hide earlier moves of an issue"
+    "latest_only": "Hide earlier moves of an issue",
+    "waiting": "Show what issues wait on"
   },
   "working_now": "Working now: {{names}}",
   "activity": {
@@ -46,6 +47,17 @@
     "clear": "Clear issue filter"
   },
   "waiting": {
+    "filter_label": "Waiting for",
+    "groups": {
+      "all": "All {{count}}",
+      "run_queued": "Run queued {{count}}",
+      "ci_queued": "CI queued {{count}}",
+      "ci_running": "CI running {{count}}",
+      "ci_failed": "CI failed {{count}}",
+      "ci_gate": "Gate {{count}}",
+      "wakeup_due": "Wakeup due {{count}}",
+      "wakeup": "Wakeup {{count}}"
+    },
     "chip": "{{count}} waiting",
     "chip_unknown": "Waiting: —",
     "run_queued": "Queued {{time}}",

@@ -7,7 +7,8 @@
     "on_all": "在“全部”中显示",
     "comments": "评论",
     "other": "其他变更",
-    "latest_only": "隐藏任务的较早状态变更"
+    "latest_only": "隐藏任务的较早状态变更",
+    "waiting": "显示任务在等待什么"
   },
   "working_now": "正在处理：{{names}}",
   "activity": {
@@ -46,6 +47,17 @@
     "clear": "清除任务筛选"
   },
   "waiting": {
+    "filter_label": "等待原因",
+    "groups": {
+      "all": "全部 {{count}}",
+      "run_queued": "运行排队 {{count}}",
+      "ci_queued": "CI 排队 {{count}}",
+      "ci_running": "CI 运行 {{count}}",
+      "ci_failed": "CI 失败 {{count}}",
+      "ci_gate": "门禁 {{count}}",
+      "wakeup_due": "即将唤醒 {{count}}",
+      "wakeup": "唤醒 {{count}}"
+    },
     "chip": "{{count}} 个等待中",
     "chip_unknown": "等待中：—",
     "run_queued": "排队 {{time}}",

@@ -6,6 +6,7 @@ import {
   coalesceFeed,
   commentExcerpt,
   durationParts,
+  waitingGroup,
   waitingIssues,
   groupFeedByDay,
   latestRowPerIssue,
@@ -204,5 +205,21 @@ describe("durationParts", () => {
     [-5 * MIN, { minutes: 0 }],
   ] as const)("%s ms is %j", (ms, want) => {
     expect(durationParts(ms)).toEqual(want);
+  });
+});
+
+describe("waitingGroup", () => {
+  const now = Date.parse("2026-10-30T12:00:00Z");
+  const pr = { provider: "gitea", repo_owner: "acme", repo_name: "widget", number: 7, html_url: "" };
+  const wake = (next_fire_at: string | null) => ({ kind: "wakeup", wakeup: { next_fire_at } as WakeupPreview }) as const;
+  it.each([
+    [{ kind: "run_queued", since: "2026-10-30T11:00:00Z" } as const, "run_queued"],
+    [{ kind: "ci_failed", since: null, pullRequest: pr } as const, "ci_failed"],
+    [{ kind: "ci_gate", since: null, pullRequest: pr } as const, "ci_gate"],
+    [wake("2026-10-30T11:59:00Z"), "wakeup_due"],
+    [wake("2026-10-30T12:30:00Z"), "wakeup"],
+    [wake(null), "wakeup"],
+  ])("%j is %s", (reason, want) => {
+    expect(waitingGroup(reason, now)).toBe(want);
   });
 });

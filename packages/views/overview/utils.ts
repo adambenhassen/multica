@@ -181,6 +181,25 @@ export function waitingIssues(
   return out;
 }
 
+/** What the Waiting tab can be narrowed to, in its filter's order. */
+export const WAITING_GROUPS = [
+  "run_queued",
+  "ci_queued",
+  "ci_running",
+  "ci_failed",
+  "ci_gate",
+  "wakeup_due",
+  "wakeup",
+] as const;
+export type WaitingGroup = (typeof WAITING_GROUPS)[number];
+
+/** A reason's filter group: a wakeup whose fire time has passed is due. */
+export function waitingGroup(reason: WaitingReason, now: number): WaitingGroup {
+  if (reason.kind !== "wakeup") return reason.kind;
+  const at = reason.wakeup.next_fire_at ? Date.parse(reason.wakeup.next_fire_at) : NaN;
+  return !Number.isNaN(at) && at <= now ? "wakeup_due" : "wakeup";
+}
+
 export type ElapsedParts = { days: number } | { hours: number; minutes: number } | { minutes: number };
 
 /** A span of time, in the largest units that read at a glance. */

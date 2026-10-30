@@ -7,7 +7,8 @@
     "on_all": "「すべて」に表示",
     "comments": "コメント",
     "other": "その他の変更",
-    "latest_only": "タスクの以前の移動を隠す"
+    "latest_only": "タスクの以前の移動を隠す",
+    "waiting": "待機理由を表示"
   },
   "working_now": "作業中: {{names}}",
   "activity": {
@@ -46,6 +47,17 @@
     "clear": "タスクの絞り込みを解除"
   },
   "waiting": {
+    "filter_label": "待機理由",
+    "groups": {
+      "all": "すべて {{count}}",
+      "run_queued": "実行キュー {{count}}",
+      "ci_queued": "CI待機 {{count}}",
+      "ci_running": "CI実行中 {{count}}",
+      "ci_failed": "CI失敗 {{count}}",
+      "ci_gate": "ゲート {{count}}",
+      "wakeup_due": "ウェイクアップ予定時刻 {{count}}",
+      "wakeup": "ウェイクアップ {{count}}"
+    },
     "chip": "{{count}} 件待機中",
     "chip_unknown": "待機中: —",
     "run_queued": "キュー {{time}}",

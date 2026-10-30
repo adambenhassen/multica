@@ -136,17 +136,19 @@ function ActivityList({
 
 /**
  * What the feed shows beyond status changes: comments and other issue changes
- * on the All tab, and whether each issue keeps only its latest move.
- * Remembered per device.
+ * on the All tab, whether each issue keeps only its latest move, and what each
+ * issue waits on in every tab. Remembered per device.
  */
 function DisplayMenu() {
   const { t } = useT("overview");
   const showComments = useOverviewLayoutStore((s) => s.showComments);
   const showOther = useOverviewLayoutStore((s) => s.showOther);
   const latestOnly = useOverviewLayoutStore((s) => s.latestOnly);
+  const showWaiting = useOverviewLayoutStore((s) => s.showWaiting);
   const toggleComments = useOverviewLayoutStore((s) => s.toggleComments);
   const toggleOther = useOverviewLayoutStore((s) => s.toggleOther);
   const toggleLatestOnly = useOverviewLayoutStore((s) => s.toggleLatestOnly);
+  const toggleWaiting = useOverviewLayoutStore((s) => s.toggleWaiting);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -165,6 +167,9 @@ function DisplayMenu() {
         <DropdownMenuGroup>
           <DropdownMenuCheckboxItem checked={latestOnly} onCheckedChange={toggleLatestOnly}>
             {t(($) => $.display.latest_only)}
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem checked={showWaiting} onCheckedChange={toggleWaiting}>
+            {t(($) => $.display.waiting)}
           </DropdownMenuCheckboxItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

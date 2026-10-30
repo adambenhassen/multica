@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Activity, ArrowRight, Bell, CircleDashed, Clock, GitMerge, Hourglass, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, TriangleAlert, UserRound } from "lucide-react";
 import { useInfiniteQuery, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -10,7 +10,7 @@ import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { agentTaskSnapshotOptions } from "@multica/core/agents";
 import { workspaceWakeupSummariesOptions } from "@multica/core/issues/wakeups";
-import { issueCIOptions, useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
+import { activeIssuesOptions, issueCIOptions, useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
 import type {
   WorkspaceActivityEntry,
   WorkspaceActivityIssueRef,
@@ -39,7 +39,10 @@ import {
   latestRowPerIssue,
   latestStatusChangePerIssue,
   statusChangeTargets,
+  WAITING_GROUPS,
+  waitingGroup,
   waitingIssues,
+  type WaitingGroup,
   type WaitingReason,
 } from "../utils";
 import { EmptyBox, ErrorBox, LIST_CLASS, LIST_SECTION_CLASS, ListSkeleton, SectionHeading } from "./section-parts";
@@ -136,6 +139,7 @@ export function StatusChangesFeed({
   const wsId = useWorkspaceId();
   const catalog = useIssueStatuses(wsId);
   const showComments = useOverviewLayoutStore((s) => s.showComments);
+  const showWaiting = useOverviewLayoutStore((s) => s.showWaiting);
   const showOther = useOverviewLayoutStore((s) => s.showOther);
   // Custom statuses come from the catalog, so a category tab waits for it.
   const targets = useMemo(
@@ -148,12 +152,38 @@ export function StatusChangesFeed({
     const ids = [...running.byIssue.keys()].sort();
     return focus.issue ? ids.filter((id) => id === focus.issue!.id) : ids;
   }, [running.byIssue, focus.issue]);
-  // Waiting is the All feed for the issues waiting on a queued run or CI.
+  // Waiting is the All feed for the issues waiting on a run, CI, the merge
+  // gate or a wakeup, narrowed by the reason filter above the list.
   const waiting = useWaitingIssues(wsId);
-  const waitingIds = useMemo(() => {
+  const [waitingFilter, setWaitingFilter] = useState<WaitingGroup | "all">("all");
+  const allWaitingIds = useMemo(() => {
     const ids = [...waiting.byIssue.keys()].sort();
     return focus.issue ? ids.filter((id) => id === focus.issue!.id) : ids;
   }, [waiting.byIssue, focus.issue]);
+  // The counts follow the header's project, as the feed rows do.
+  const { data: projectIssues } = useQuery({
+    ...activeIssuesOptions(wsId, allWaitingIds, focus.projectId),
+    enabled: tab === "waiting" && !waiting.pending && focus.projectId !== null,
+  });
+  const { waitingGroups, waitingCounts } = useMemo(() => {
+    const inProject = focus.projectId !== null && projectIssues ? new Set(projectIssues.map((i) => i.id)) : null;
+    const now = Date.now();
+    const groups = new Map<string, WaitingGroup>();
+    const counts: Partial<Record<WaitingGroup, number>> = {};
+    for (const id of allWaitingIds) {
+      if (inProject && !inProject.has(id)) continue;
+      const group = waitingGroup(waiting.byIssue.get(id)!, now);
+      groups.set(id, group);
+      counts[group] = (counts[group] ?? 0) + 1;
+    }
+    return { waitingGroups: groups, waitingCounts: counts };
+  }, [allWaitingIds, waiting.byIssue, focus.projectId, projectIssues]);
+  // A reason whose last issue stopped waiting falls back to every reason.
+  const reasonFilter = waitingFilter !== "all" && waitingCounts[waitingFilter] ? waitingFilter : "all";
+  const waitingIds = useMemo(
+    () => (reasonFilter === "all" ? allWaitingIds : allWaitingIds.filter((id) => waitingGroups.get(id) === reasonFilter)),
+    [reasonFilter, allWaitingIds, waitingGroups],
+  );
   const allLike = tab === "all" || tab === "active" || tab === "waiting";
   // Comments and other changes are not moves into a status, so only the All
   // (and Active) tab mixes them in.
@@ -211,6 +241,22 @@ export function StatusChangesFeed({
       >
         {t(($) => $.activity.heading)}
       </SectionHeading>
+      {tab === "waiting" && waitingGroups.size > 0 && (
+        <div className="mb-3 max-w-full overflow-x-auto">
+          <Segmented
+            label={t(($) => $.waiting.filter_label)}
+            value={reasonFilter}
+            onChange={setWaitingFilter}
+            options={[
+              { value: "all" as const, label: t(($) => $.waiting.groups.all, { count: waitingGroups.size }) },
+              ...WAITING_GROUPS.filter((group) => waitingCounts[group]).map((group) => ({
+                value: group,
+                label: t(($) => $.waiting.groups[group], { count: waitingCounts[group] }),
+              })),
+            ]}
+          />
+        </div>
+      )}
       {tab === "active" && !running.pending && activeIssues.length === 0 ? (
         <EmptyBox>{t(($) => $.status_changes.empty_active)}</EmptyBox>
       ) : tab === "waiting" && !waiting.pending && waitingIds.length === 0 ? (
@@ -228,7 +274,7 @@ export function StatusChangesFeed({
           }
           // Active and Waiting are about now: one row per issue, its latest.
           onePerIssueOf={tab === "active" ? activeIssues : tab === "waiting" ? waitingIds : undefined}
-          waiting={tab === "waiting" ? waiting.byIssue : undefined}
+          waiting={tab === "waiting" || showWaiting ? waiting.byIssue : undefined}
         />
       )}
     </section>
@@ -252,7 +298,10 @@ function FeedBody({
    * row, and there is no scroll paging.
    */
   onePerIssueOf?: readonly string[];
-  /** What each row's issue waits on, shown before its move on the Waiting tab. */
+  /**
+   * What each row's issue waits on, shown before its move: always on the
+   * Waiting tab, and on every tab when the Display menu asks for it.
+   */
   waiting?: ReadonlyMap<string, WaitingReason>;
 }) {
   const { t } = useT("overview");
@@ -318,6 +367,7 @@ function FeedBody({
                 entry={entry}
                 project={entry.issue.project_id ? projects.get(entry.issue.project_id) : undefined}
                 workingAgentIds={working.get(entry.issue.id)?.agentIds}
+                showWaiting={waiting !== undefined}
                 waitingReason={waiting?.get(entry.issue.id)}
                 // Filtered to one issue, every row is that issue: no tint, no filter button.
                 highlighted={!focus.issue && focus.hoveredIssueId === entry.issue.id}
@@ -361,6 +411,7 @@ const FeedRow = memo(function FeedRow({
   entry,
   project,
   workingAgentIds,
+  showWaiting,
   waitingReason,
   highlighted,
   onHoverIssue,
@@ -371,7 +422,9 @@ const FeedRow = memo(function FeedRow({
   project: RowProject | undefined;
   /** Agents with a task running on the issue right now. */
   workingAgentIds: string[] | undefined;
-  /** What the issue waits on; only the Waiting tab passes it. */
+  /** Whether the list has the waiting column. */
+  showWaiting: boolean;
+  /** What the issue waits on, when it does. */
   waitingReason?: WaitingReason;
   /** Another row of the same issue is hovered. */
   highlighted: boolean;
@@ -463,8 +516,7 @@ const FeedRow = memo(function FeedRow({
           {entry.issue.title}
         </span>
         {/* Fixed-width columns keep working agents and project labels aligned down the list. */}
-        {/* A waiting issue has no agent running, so its cell takes this column's room. */}
-        {!waitingReason && <WorkingAgents agentIds={workingAgentIds} />}
+        {!showWaiting && <WorkingAgents agentIds={workingAgentIds} />}
         <span
           className="hidden w-32 shrink-0 items-center gap-1 text-caption text-muted-foreground @lg:flex"
           title={project?.title}
@@ -476,7 +528,18 @@ const FeedRow = memo(function FeedRow({
             </>
           )}
         </span>
-        {waitingReason && <WaitingCell reason={waitingReason} />}
+        {/* With the waiting column, one column says what is happening on the issue
+            now: what it waits on, or the agents running on it. A waiting issue
+            has no agent running, so the two never compete for it. */}
+        {showWaiting &&
+          (waitingReason ? (
+            <WaitingCell reason={waitingReason} />
+          ) : (
+            <span className="flex w-4 shrink-0 @sm:w-32">
+              {/* Starts where the waiting icons do. */}
+              <WorkingAgents agentIds={workingAgentIds} alignStart />
+            </span>
+          ))}
         {/* The move and the actor each get a fixed column: icons only, or with
             their names once the list is wide (56rem) enough to spare them. */}
         <span className="hidden shrink-0 items-center gap-2 text-caption text-muted-foreground @sm:flex">
@@ -621,7 +684,7 @@ function WaitingCell({ reason }: { reason: WaitingReason }) {
   return (
     <span
       data-waiting={reason.kind}
-      className="flex shrink-0 items-center gap-1 text-caption text-muted-foreground @sm:w-32"
+      className="flex w-4 shrink-0 items-center gap-1 text-caption text-muted-foreground @sm:w-32"
       title={long}
     >
       <span aria-hidden="true" className="flex">{icon}</span>
@@ -632,7 +695,7 @@ function WaitingCell({ reason }: { reason: WaitingReason }) {
 }
 
 /** Up to three overlapping avatars of the agents working on the issue now. */
-function WorkingAgents({ agentIds }: { agentIds: string[] | undefined }) {
+function WorkingAgents({ agentIds, alignStart }: { agentIds: string[] | undefined; alignStart?: boolean }) {
   const { t } = useT("overview");
   const { getActorName } = useActorName();
   const names = (agentIds ?? []).map((id) => getActorName("agent", id)).join(", ");
@@ -640,7 +703,7 @@ function WorkingAgents({ agentIds }: { agentIds: string[] | undefined }) {
   const extra = (agentIds?.length ?? 0) - shown.length;
   return (
     <span
-      className="hidden w-14 shrink-0 items-center justify-end @lg:flex"
+      className={cn("hidden w-14 shrink-0 items-center @lg:flex", alignStart ? "justify-start" : "justify-end")}
       title={names ? t(($) => $.working_now, { names }) : undefined}
     >
       {shown.length > 0 && (

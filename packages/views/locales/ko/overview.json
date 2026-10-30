@@ -7,7 +7,8 @@
     "on_all": "전체에 표시",
     "comments": "댓글",
     "other": "기타 변경",
-    "latest_only": "태스크의 이전 이동 숨기기"
+    "latest_only": "태스크의 이전 이동 숨기기",
+    "waiting": "대기 이유 표시"
   },
   "working_now": "작업 중: {{names}}",
   "activity": {
@@ -46,6 +47,17 @@
     "clear": "태스크 필터 해제"
   },
   "waiting": {
+    "filter_label": "대기 이유",
+    "groups": {
+      "all": "전체 {{count}}",
+      "run_queued": "실행 대기 {{count}}",
+      "ci_queued": "CI 대기 {{count}}",
+      "ci_running": "CI 실행 {{count}}",
+      "ci_failed": "CI 실패 {{count}}",
+      "ci_gate": "게이트 {{count}}",
+      "wakeup_due": "깨우기 예정 {{count}}",
+      "wakeup": "깨우기 {{count}}"
+    },
     "chip": "{{count}}개 대기 중",
     "chip_unknown": "대기 중: —",
     "run_queued": "대기열 {{time}}",

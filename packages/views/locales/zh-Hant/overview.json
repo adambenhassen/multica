@@ -7,7 +7,8 @@
     "on_all": "在「全部」中顯示",
     "comments": "評論",
     "other": "其他變更",
-    "latest_only": "隱藏任務的較早狀態變更"
+    "latest_only": "隱藏任務的較早狀態變更",
+    "waiting": "顯示任務在等待什麼"
   },
   "working_now": "正在處理：{{names}}",
   "activity": {
@@ -46,6 +47,17 @@
     "clear": "清除任務篩選"
   },
   "waiting": {
+    "filter_label": "等待原因",
+    "groups": {
+      "all": "全部 {{count}}",
+      "run_queued": "執行排隊 {{count}}",
+      "ci_queued": "CI 排隊 {{count}}",
+      "ci_running": "CI 執行 {{count}}",
+      "ci_failed": "CI 失敗 {{count}}",
+      "ci_gate": "門禁 {{count}}",
+      "wakeup_due": "即將喚醒 {{count}}",
+      "wakeup": "喚醒 {{count}}"
+    },
     "chip": "{{count}} 個等待中",
     "chip_unknown": "等待中：—",
     "run_queued": "排隊 {{time}}",
