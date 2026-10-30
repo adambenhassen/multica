@@ -169,10 +169,11 @@ func (p forgejoProvider) ParseCIStatus(body []byte) (CIStatusEvent, error) {
 
 // normalizeForgejoState maps Forgejo/Gitea commit-status states onto the shared
 // passed/failed/pending vocabulary. "warning" is treated as a pass (it does not
-// block), mirroring how GitHub's neutral/skipped count as passed.
+// block), mirroring how GitHub's neutral/skipped count as passed. Gitea posts
+// "skipped" for a job whose `if:` is false; as pending it read as CI running forever.
 func normalizeForgejoState(s string) string {
 	switch s {
-	case "success", "warning":
+	case "success", "warning", "skipped":
 		return "passed"
 	case "failure", "error":
 		return "failed"

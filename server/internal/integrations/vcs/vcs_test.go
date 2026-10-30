@@ -133,6 +133,18 @@ func TestForgejoEventKindAndParse(t *testing.T) {
 	if st.State != "passed" {
 		t.Errorf("state = %q, want passed", st.State)
 	}
+
+	for state, want := range map[string]string{
+		"skipped": "passed", "warning": "passed", "failure": "failed", "error": "failed", "pending": "pending",
+	} {
+		st, err := p.ParseCIStatus([]byte(`{"sha":"abc","context":"ci","state":"` + state + `"}`))
+		if err != nil {
+			t.Fatalf("ParseCIStatus(%s): %v", state, err)
+		}
+		if st.State != want {
+			t.Errorf("%s: state = %q, want %q", state, st.State, want)
+		}
+	}
 }
 
 func TestGitlabParse(t *testing.T) {
