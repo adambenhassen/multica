@@ -31,7 +31,7 @@ describe("issue CI API", () => {
     expect(await read({ issues: [entry] })).toEqual({ issues: [entry] });
   });
 
-  it.each(["queued", "gate"])("keeps a %s entry", async (state) => {
+  it.each(["queued", "failing", "gate"])("keeps a %s entry", async (state) => {
     expect(await read({ issues: [{ ...entry, state }] })).toEqual({ issues: [{ ...entry, state }] });
   });
 

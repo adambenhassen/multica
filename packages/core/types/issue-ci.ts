@@ -1,7 +1,8 @@
 /** CI at an open pull request's head commit that has not passed: no check
- * started yet (`queued`), some started (`running`), or `failed`; or CI done
- * but the merge gate still holding the PR (`gate`). */
-export type IssueCIState = "queued" | "running" | "failed" | "gate";
+ * started yet (`queued`), some started (`running`), a check failed while
+ * others still run (`failing`), or every check done with a failure (`failed`);
+ * or CI done but the merge gate still holding the PR (`gate`). */
+export type IssueCIState = "queued" | "running" | "failing" | "failed" | "gate";
 
 export interface IssueCIPullRequest {
   /** `github`, `gitea`, `forgejo` or `gitlab`. */
