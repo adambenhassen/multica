@@ -151,6 +151,8 @@ multica issue rerun <issue-id>
 
 Cette forme ne vise pas une exécution passée précise : elle utilise l'agent actuellement assigné à la tâche et démarre avec une nouvelle session et un nouveau répertoire de travail.
 
+Ajoutez `--continue` pour reprendre plutôt la dernière session et le répertoire de travail de l'agent assigné, par exemple après une exécution interrompue par une limite d'utilisation. La commande échoue si une exécution attend déjà de démarrer.
+
 ## Fin d'exécution et fin de tâche
 
 `completed` signifie seulement que cette exécution précise s'est terminée normalement ; cela ne confirme pas que l'objectif de la tâche est atteint. Une fois l'exécution finie, vous pouvez toujours examiner le résultat, poursuivre la discussion, ajouter des exigences ou déclencher à nouveau l'agent. C'est le statut de la tâche qui indique si elle est terminée.

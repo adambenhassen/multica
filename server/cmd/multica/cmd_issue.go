@@ -713,6 +713,7 @@ func init() {
 
 	// issue rerun
 	issueRerunCmd.Flags().String("output", "json", "Output format: table or json")
+	issueRerunCmd.Flags().Bool("continue", false, "Resume the assignee's latest session and work dir instead of starting fresh; fails if a run is already waiting to start")
 	// issue cancel-task
 	issueCancelTaskCmd.Flags().String("output", "json", "Output format: table or json")
 	issueCancelTaskCmd.Flags().String("issue", "", "Issue ID/key to scope short run ID prefix resolution")
@@ -2955,8 +2956,12 @@ func runIssueRerun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolve issue: %w", err)
 	}
 
+	body := map[string]any{}
+	if cont, _ := cmd.Flags().GetBool("continue"); cont {
+		body["continue"] = true
+	}
 	var task map[string]any
-	if err := client.PostJSON(ctx, "/api/issues/"+issueRef.ID+"/rerun", map[string]any{}, &task); err != nil {
+	if err := client.PostJSON(ctx, "/api/issues/"+issueRef.ID+"/rerun", body, &task); err != nil {
 		return fmt.Errorf("rerun issue: %w", err)
 	}
 

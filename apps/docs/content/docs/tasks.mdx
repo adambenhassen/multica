@@ -151,6 +151,8 @@ multica issue rerun <issue-id>
 
 This form does not point at a specific past run, so it uses the issue's current agent assignee and starts with a fresh session and working directory.
 
+Add `--continue` to resume the assignee's latest session and working directory instead, for example after a run stopped on a usage limit. It fails if a run is already waiting to start.
+
 ## Run completion and issue completion
 
 `completed` only means this particular run ended normally; it does not confirm the issue's goal has been met. After a run ends you can still review the result, keep discussing, add requirements, or trigger the agent again. Whether the issue is done is shown by its status.
