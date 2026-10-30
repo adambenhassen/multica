@@ -3701,7 +3701,7 @@ export const EMPTY_PROVIDER_QUOTA: ProviderQuotaResponse = { accounts: [] };
 const IssueCIEntrySchema = z.object({
   issue_id: z.string(),
   issue_status: z.string().default("").catch(""),
-  state: z.enum(["queued", "running", "failed"]),
+  state: z.enum(["queued", "running", "failed", "gate"]),
   since: z.string().nullable().default(null).catch(null),
   pull_request: z.object({
     provider: z.string().default("").catch(""),

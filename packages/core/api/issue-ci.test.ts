@@ -31,8 +31,8 @@ describe("issue CI API", () => {
     expect(await read({ issues: [entry] })).toEqual({ issues: [entry] });
   });
 
-  it("keeps a queued entry", async () => {
-    expect(await read({ issues: [{ ...entry, state: "queued" }] })).toEqual({ issues: [{ ...entry, state: "queued" }] });
+  it.each(["queued", "gate"])("keeps a %s entry", async (state) => {
+    expect(await read({ issues: [{ ...entry, state }] })).toEqual({ issues: [{ ...entry, state }] });
   });
 
   it("drops entries with an unknown state or no issue id", async () => {
