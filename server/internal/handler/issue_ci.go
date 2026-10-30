@@ -17,8 +17,10 @@ type IssueCIPullRequest struct {
 }
 
 // IssueCIStateResponse is an issue whose open pull request has CI that has not
-// passed at its head commit: "queued" (no check started yet), "running", or
-// "failed"; or whose CI is done but the merge gate still holds it ("gate").
+// passed at its head commit: "queued" (no check started yet), "running",
+// "failing" (a check failed while others still run), or "failed" (every check
+// finished, at least one failed); or whose CI is done but the merge gate still
+// holds it ("gate").
 type IssueCIStateResponse struct {
 	IssueID     string             `json:"issue_id"`
 	IssueStatus string             `json:"issue_status"`
@@ -84,7 +86,7 @@ func (h *Handler) ListWorkspaceIssueCI(w http.ResponseWriter, r *http.Request) {
 		switch state {
 		case "":
 			continue
-		case "failed":
+		case "failed", "failing":
 			since = p.FailedAt
 		case "queued":
 			since = p.QueuedSince
@@ -109,11 +111,15 @@ func (h *Handler) ListWorkspaceIssueCI(w http.ResponseWriter, r *http.Request) {
 }
 
 // issueCIState is a PR's Waiting-tab state from its CI counts (merge gate
-// excluded) and pending merge-gate count: any failure is "failed"; unfinished
-// checks are "running" once one has started, else "queued"; finished CI still
-// held by the gate is "gate". Anything else gives "".
+// excluded) and pending merge-gate count: a failure is "failing" while other
+// checks are unfinished and "failed" once all are done (the CI router reports
+// a run only when it completes); unfinished checks are "running" once one has
+// started, else "queued"; finished CI still held by the gate is "gate".
+// Anything else gives "".
 func issueCIState(failed, started, queued, gate int64) string {
 	switch {
+	case failed > 0 && started+queued > 0:
+		return "failing"
 	case failed > 0:
 		return "failed"
 	case started > 0:
@@ -127,9 +133,9 @@ func issueCIState(failed, started, queued, gate int64) string {
 }
 
 // issueCIRank orders states for mergeIssueCIStates: a failed PR outranks a
-// running one, as in aggregateChecksConclusion, running outranks queued, and
-// any CI outranks the merge gate.
-var issueCIRank = map[string]int{"failed": 3, "running": 2, "queued": 1, "gate": 0}
+// running one, as in aggregateChecksConclusion, a finished failure outranks one
+// still running, running outranks queued, and any CI outranks the merge gate.
+var issueCIRank = map[string]int{"failed": 4, "failing": 3, "running": 2, "queued": 1, "gate": 0}
 
 // mergeIssueCIStates keeps one entry per issue: the highest-ranked state, then
 // the earliest since.

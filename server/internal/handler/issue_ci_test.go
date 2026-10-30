@@ -32,8 +32,12 @@ func TestMergeIssueCIStates(t *testing.T) {
 		cand("d", "running", 9, at(40)),
 		cand("e", "gate", 10, at(0)),
 		cand("e", "queued", 11, at(30)),
+		cand("f", "failing", 12, at(0)),
+		cand("f", "failed", 13, at(30)),
+		cand("g", "running", 14, at(0)),
+		cand("g", "failing", 15, at(30)),
 	})
-	want := map[string]int32{"a": 2, "b": 5, "c": 7, "d": 9, "e": 11}
+	want := map[string]int32{"a": 2, "b": 5, "c": 7, "d": 9, "e": 11, "f": 13, "g": 15}
 	if len(got) != len(want) {
 		t.Fatalf("got %d issues, want %d: %+v", len(got), len(want), got)
 	}
@@ -53,7 +57,9 @@ func TestIssueCIState(t *testing.T) {
 		want                          string
 	}{
 		{0, 0, 0, 0, ""},
-		{1, 1, 3, 1, "failed"},
+		{1, 0, 0, 1, "failed"},
+		{1, 1, 0, 0, "failing"},
+		{1, 0, 3, 0, "failing"},
 		{0, 1, 3, 1, "running"},
 		{0, 0, 3, 1, "queued"},
 		{0, 0, 0, 1, "gate"},
@@ -76,10 +82,11 @@ func TestListWorkspaceIssueCI_VCSStates(t *testing.T) {
 	running := newVCSIssue(t, "CI running")
 	queued := newVCSIssue(t, "CI queued")
 	gated := newVCSIssue(t, "Merge gate")
+	failingNow := newVCSIssue(t, "CI failing, still running")
 	green := newVCSIssue(t, "CI green")
 	closed := newVCSIssue(t, "PR closed")
 	t.Cleanup(func() {
-		for _, id := range []string{failing.ID, running.ID, queued.ID, gated.ID, green.ID, closed.ID} {
+		for _, id := range []string{failing.ID, running.ID, queued.ID, gated.ID, failingNow.ID, green.ID, closed.ID} {
 			cleanupVCS(ctx, id)
 		}
 	})
@@ -117,6 +124,10 @@ func TestListWorkspaceIssueCI_VCSStates(t *testing.T) {
 	described("sha-queued", "test", "pending", "Waiting to run", "25 minutes")
 	described("sha-queued", "deploy", "pending", "Blocked by required conditions", "30 minutes")
 	described("sha-queued", "merge-gate", "pending", "Waiting for review", "50 minutes")
+	// One check failed while another still runs: the run has not finished.
+	pr(failingNow.ID, 7, "open", "sha-failing")
+	status("sha-failing", "test: go", "failed", "4 minutes")
+	described("sha-failing", "test: e2e", "pending", "In progress", "8 minutes")
 	// CI passed; only the merge gate holds the PR.
 	pr(gated.ID, 6, "open", "sha-gated")
 	status("sha-gated", "test", "passed", "20 minutes")
@@ -138,8 +149,11 @@ func TestListWorkspaceIssueCI_VCSStates(t *testing.T) {
 	for _, e := range resp.Issues {
 		byIssue[e.IssueID] = e
 	}
-	if len(byIssue) != 4 {
-		t.Fatalf("got %d issues, want the failing, running, queued and gated ones: %+v", len(byIssue), resp.Issues)
+	if len(byIssue) != 5 {
+		t.Fatalf("got %d issues, want the failed, failing, running, queued and gated ones: %+v", len(byIssue), resp.Issues)
+	}
+	if e := byIssue[failingNow.ID]; e.State != "failing" {
+		t.Errorf("failing issue = %+v, want state failing", e)
 	}
 	if e := byIssue[failing.ID]; e.State != "failed" || e.PullRequest.Number != 1 || e.IssueStatus != "in_progress" {
 		t.Errorf("failing issue = %+v", e)
