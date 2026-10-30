@@ -25,12 +25,14 @@
   "status_changes": {
     "empty": "No status changes yet",
     "empty_active": "No agent is working on an issue right now",
+    "empty_waiting": "Nothing is waiting on a run, CI or wakeup",
     "empty_filtered": "No changes into this status",
     "empty_failures": "No failed runs",
     "filter_label": "Filter by new status",
     "filters": {
       "all": "All",
       "active": "Active",
+      "waiting": "Waiting",
       "in_progress": "In progress",
       "blocked": "Blocked",
       "done": "Done",
@@ -42,5 +44,21 @@
     "label": "Filtered to",
     "filter": "Show only this issue",
     "clear": "Clear issue filter"
+  },
+  "waiting": {
+    "chip": "{{count}} waiting",
+    "chip_unknown": "Waiting: —",
+    "run_queued": "Queued {{time}}",
+    "run_queued_long": "Run queued for {{time}}",
+    "ci_pending": "CI {{time}}",
+    "ci_pending_long": "CI running on {{pr}} for {{time}}",
+    "ci_failed": "CI failed",
+    "ci_failed_long": "CI failed on {{pr}}",
+    "wakeup_in": "Wakes in {{time}}",
+    "wakeup_event": "Waits for trigger",
+    "wakeup_due": "Wakeup due",
+    "minutes": "{{minutes}}m",
+    "hours": "{{hours}}h {{minutes}}m",
+    "days": "{{days}}d"
   }
 }

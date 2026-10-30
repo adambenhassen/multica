@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Activity, SlidersHorizontal, X } from "lucide-react";
+import { Activity, Hourglass, SlidersHorizontal, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@multica/ui/components/ui/button";
 import {
@@ -20,9 +20,9 @@ import { CollectionPageHeader, CollectionPageHeaderAction } from "../../layout/c
 import { PAGE_GUTTER } from "../../layout/page-header";
 import { ALL_PROJECTS } from "../../dashboard/components/dashboard-shared";
 import { ProjectFilter } from "../../dashboard/components/dashboard-filters";
-import { WorkspaceAgentWorkingChip } from "../../issues/components/workspace-agent-working-chip";
+import { WorkspaceAgentWorkingChip, chipAppearance } from "../../issues/components/workspace-agent-working-chip";
 import { useT } from "../../i18n";
-import { StatusChangesFeed, useRunningTasks, type FeedFocus, type FeedTab } from "./activity-feed";
+import { StatusChangesFeed, useRunningTasks, useWaitingIssues, type FeedFocus, type FeedTab } from "./activity-feed";
 import { cn } from "@multica/ui/lib/utils";
 
 export function OverviewPage() {
@@ -36,6 +36,7 @@ export function OverviewPage() {
     projectValue !== ALL_PROJECTS && projects.some((p) => p.id === projectValue) ? projectValue : null;
   const [tab, setTab] = useState<FeedTab>("all");
   const workingAgents = useWorkingAgents(wsId, projectId);
+  const waitingCount = useWaitingCount(wsId, projectId);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -49,6 +50,12 @@ export function OverviewPage() {
               value={tab === "active"}
               onToggle={() => setTab(tab === "active" ? "all" : "active")}
               agents={workingAgents}
+            />
+            {/* How many issues wait on a queued run or CI; opens the Waiting tab. */}
+            <WaitingChip
+              value={tab === "waiting"}
+              onToggle={() => setTab(tab === "waiting" ? "all" : "waiting")}
+              count={waitingCount}
             />
             <ProjectFilter projects={projects} projectValue={projectValue} onProjectChange={setProjectValue} />
             <DisplayMenu />
@@ -191,4 +198,40 @@ function useWorkingAgents(wsId: string, projectId: string | null): WorkingAgentS
     }
     return out.sort((a, b) => b.running_task_count - a.running_task_count);
   }, [running, projectId, projectIssues]);
+}
+
+/**
+ * How many issues wait on a queued run or CI, narrowed to the header's
+ * project like the working chip. `undefined` until known.
+ */
+function useWaitingCount(wsId: string, projectId: string | null): number | undefined {
+  const waiting = useWaitingIssues(wsId);
+  const ids = useMemo(() => [...waiting.byIssue.keys()].sort(), [waiting.byIssue]);
+  const { data: projectIssues } = useQuery({
+    ...activeIssuesOptions(wsId, ids, projectId),
+    enabled: !waiting.pending && projectId !== null,
+  });
+  if (waiting.pending) return undefined;
+  if (projectId === null) return ids.length;
+  return projectIssues?.length;
+}
+
+function WaitingChip({ value, onToggle, count }: { value: boolean; onToggle: () => void; count: number | undefined }) {
+  const { t } = useT("overview");
+  const appearance = chipAppearance(value, count === undefined ? "unknown" : count > 0 ? "some" : "none");
+  const label = count === undefined ? t(($) => $.waiting.chip_unknown) : t(($) => $.waiting.chip, { count });
+  return (
+    <Button
+      variant={appearance.variant}
+      size="sm"
+      className={appearance.className}
+      onClick={onToggle}
+      aria-pressed={value}
+      aria-label={label}
+    >
+      <Hourglass aria-hidden="true" />
+      <span className="tabular-nums md:hidden">{count === undefined ? "—" : count}</span>
+      <span className="hidden tabular-nums md:inline">{label}</span>
+    </Button>
+  );
 }

@@ -25,12 +25,14 @@
   "status_changes": {
     "empty": "暫無狀態變更",
     "empty_active": "目前沒有智慧體在處理任務",
+    "empty_waiting": "沒有任務在等待執行、CI 或喚醒",
     "empty_filtered": "沒有變更為此狀態的記錄",
     "empty_failures": "沒有失敗的執行",
     "filter_label": "按新狀態篩選",
     "filters": {
       "all": "全部",
       "active": "處理中",
+      "waiting": "等待中",
       "in_progress": "進行中",
       "blocked": "已阻塞",
       "done": "已完成",
@@ -42,5 +44,21 @@
     "label": "已篩選",
     "filter": "僅顯示此任務",
     "clear": "清除任務篩選"
+  },
+  "waiting": {
+    "chip": "{{count}} 個等待中",
+    "chip_unknown": "等待中：—",
+    "run_queued": "排隊 {{time}}",
+    "run_queued_long": "執行已排隊 {{time}}",
+    "ci_pending": "CI {{time}}",
+    "ci_pending_long": "{{pr}} 的 CI 已執行 {{time}}",
+    "ci_failed": "CI 失敗",
+    "ci_failed_long": "{{pr}} 的 CI 失敗",
+    "wakeup_in": "{{time}}後喚醒",
+    "wakeup_event": "等待觸發",
+    "wakeup_due": "即將喚醒",
+    "minutes": "{{minutes}}分",
+    "hours": "{{hours}}小時{{minutes}}分",
+    "days": "{{days}}天"
   }
 }

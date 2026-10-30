@@ -25,12 +25,14 @@
   "status_changes": {
     "empty": "ステータス変更はまだありません",
     "empty_active": "現在作業中のエージェントはいません",
+    "empty_waiting": "実行・CI・ウェイクアップを待っているものはありません",
     "empty_filtered": "このステータスへの変更はありません",
     "empty_failures": "失敗した実行はありません",
     "filter_label": "変更後のステータスで絞り込む",
     "filters": {
       "all": "すべて",
       "active": "稼働中",
+      "waiting": "待機中",
       "in_progress": "進行中",
       "blocked": "ブロック中",
       "done": "完了",
@@ -42,5 +44,21 @@
     "label": "絞り込み中",
     "filter": "このタスクのみ表示",
     "clear": "タスクの絞り込みを解除"
+  },
+  "waiting": {
+    "chip": "{{count}} 件待機中",
+    "chip_unknown": "待機中: —",
+    "run_queued": "キュー {{time}}",
+    "run_queued_long": "実行が{{time}}キューで待機中",
+    "ci_pending": "CI {{time}}",
+    "ci_pending_long": "{{pr}} のCIが{{time}}実行中",
+    "ci_failed": "CI失敗",
+    "ci_failed_long": "{{pr}} のCIが失敗",
+    "wakeup_in": "{{time}}後にウェイクアップ",
+    "wakeup_event": "トリガー待ち",
+    "wakeup_due": "ウェイクアップ予定時刻",
+    "minutes": "{{minutes}}分",
+    "hours": "{{hours}}時間{{minutes}}分",
+    "days": "{{days}}日"
   }
 }

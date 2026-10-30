@@ -25,12 +25,14 @@
   "status_changes": {
     "empty": "Aucun changement de statut",
     "empty_active": "Aucun agent ne travaille sur une tâche en ce moment",
+    "empty_waiting": "Rien n'attend une exécution, la CI ou un réveil",
     "empty_filtered": "Aucun passage à ce statut",
     "empty_failures": "Aucune exécution échouée",
     "filter_label": "Filtrer par nouveau statut",
     "filters": {
       "all": "Tous",
       "active": "Actives",
+      "waiting": "En attente",
       "in_progress": "En cours",
       "blocked": "Bloqué",
       "done": "Terminé",
@@ -42,5 +44,21 @@
     "label": "Filtré sur",
     "filter": "Afficher uniquement cette tâche",
     "clear": "Retirer le filtre de tâche"
+  },
+  "waiting": {
+    "chip": "{{count}} en attente",
+    "chip_unknown": "En attente : —",
+    "run_queued": "En file {{time}}",
+    "run_queued_long": "Exécution en file depuis {{time}}",
+    "ci_pending": "CI {{time}}",
+    "ci_pending_long": "CI en cours sur {{pr}} depuis {{time}}",
+    "ci_failed": "CI échouée",
+    "ci_failed_long": "CI échouée sur {{pr}}",
+    "wakeup_in": "Réveil dans {{time}}",
+    "wakeup_event": "Attend un déclencheur",
+    "wakeup_due": "Réveil imminent",
+    "minutes": "{{minutes}} min",
+    "hours": "{{hours}} h {{minutes}} min",
+    "days": "{{days}} j"
   }
 }

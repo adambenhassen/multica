@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
-import { Activity, ArrowRight, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, UserRound } from "lucide-react";
+import { Activity, ArrowRight, Bell, Clock, Hourglass, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, TriangleAlert, UserRound } from "lucide-react";
 import { useInfiniteQuery, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
@@ -9,7 +9,8 @@ import { useActorName } from "@multica/core/workspace/hooks";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { agentTaskSnapshotOptions } from "@multica/core/agents";
-import { useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
+import { workspaceWakeupSummariesOptions } from "@multica/core/issues/wakeups";
+import { issueCIOptions, useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
 import type {
   WorkspaceActivityEntry,
   WorkspaceActivityIssueRef,
@@ -26,16 +27,20 @@ import { ProjectIcon } from "../../projects/components/project-icon";
 import { formatActivity } from "../../issues/utils/format-activity";
 import { Segmented } from "../../dashboard/components/dashboard-shared";
 import { InfiniteScrollSentinel } from "../../issues/components/infinite-scroll-sentinel";
+import { useWakeupText } from "../../issues/components/wakeup-presentation";
 import { addDaysIso, todayIso } from "../../runtimes/utils";
 import { useLocale, useT, useTimeAgo } from "../../i18n";
 import {
   STATUS_CHANGE_FILTERS,
   coalesceFeed,
   commentExcerpt,
+  durationParts,
   groupFeedByDay,
   latestRowPerIssue,
   latestStatusChangePerIssue,
   statusChangeTargets,
+  waitingIssues,
+  type WaitingReason,
 } from "../utils";
 import { EmptyBox, ErrorBox, LIST_CLASS, LIST_SECTION_CLASS, ListSkeleton, SectionHeading } from "./section-parts";
 
@@ -54,9 +59,10 @@ export interface FeedFocus {
 
 /**
  * The feed's tabs: everything, the issues agents are working on now, the
- * status a change went into, or failed agent runs.
+ * issues waiting on a queued run or CI, the status a change went into, or
+ * failed agent runs.
  */
-const FEED_TABS = ["all", "active", ...STATUS_CHANGE_FILTERS.filter((f) => f !== "all"), "failures"] as const;
+const FEED_TABS = ["all", "active", "waiting", ...STATUS_CHANGE_FILTERS.filter((f) => f !== "all"), "failures"] as const;
 export type FeedTab = (typeof FEED_TABS)[number];
 
 /**
@@ -87,6 +93,29 @@ export function useRunningTasks(wsId: string) {
 }
 
 /**
+ * The issues waiting while no agent runs on them (see `waitingIssues`), from
+ * the live task snapshot, the open-PR CI states and the wakeup summaries.
+ * `pending` until all three have loaded; a failed CI or wakeup load counts as
+ * none.
+ */
+export function useWaitingIssues(wsId: string) {
+  const { data: snapshot, isPending: snapshotPending } = useQuery(agentTaskSnapshotOptions(wsId));
+  const { data: ci, isPending: ciPending } = useQuery(issueCIOptions(wsId));
+  const { data: wakeups, isPending: wakeupsPending } = useQuery(workspaceWakeupSummariesOptions(wsId));
+  const catalog = useIssueStatuses(wsId);
+  return useMemo(() => {
+    const isClosed = (status: string) => {
+      const category = catalog.categoryOf(status);
+      return category === "done" || category === "closed";
+    };
+    return {
+      pending: snapshotPending || ciPending || wakeupsPending,
+      byIssue: waitingIssues(snapshot ?? [], ci ?? [], wakeups ?? [], isClosed),
+    };
+  }, [snapshot, ci, wakeups, snapshotPending, ciPending, wakeupsPending, catalog]);
+}
+
+/**
  * Every status change across the workspace, newest first, each shown as the
  * move itself, with issue creations. The tabs narrow it by the status a change
  * went into, or switch to the issues agents are working on now or to failed
@@ -110,7 +139,7 @@ export function StatusChangesFeed({
   const showOther = useOverviewLayoutStore((s) => s.showOther);
   // Custom statuses come from the catalog, so a category tab waits for it.
   const targets = useMemo(
-    () => (tab === "failures" || tab === "active" ? [] : statusChangeTargets(tab, catalog)),
+    () => (tab === "failures" || tab === "active" || tab === "waiting" ? [] : statusChangeTargets(tab, catalog)),
     [tab, catalog],
   );
   // Active is the All feed for the issues agents are working on right now.
@@ -119,7 +148,13 @@ export function StatusChangesFeed({
     const ids = [...running.byIssue.keys()].sort();
     return focus.issue ? ids.filter((id) => id === focus.issue!.id) : ids;
   }, [running.byIssue, focus.issue]);
-  const allLike = tab === "all" || tab === "active";
+  // Waiting is the All feed for the issues waiting on a queued run or CI.
+  const waiting = useWaitingIssues(wsId);
+  const waitingIds = useMemo(() => {
+    const ids = [...waiting.byIssue.keys()].sort();
+    return focus.issue ? ids.filter((id) => id === focus.issue!.id) : ids;
+  }, [waiting.byIssue, focus.issue]);
+  const allLike = tab === "all" || tab === "active" || tab === "waiting";
   // Comments and other changes are not moves into a status, so only the All
   // (and Active) tab mixes them in.
   const kind: WorkspaceActivityKind =
@@ -138,16 +173,20 @@ export function StatusChangesFeed({
     ...workspaceActivityOptions(wsId, {
       kind,
       to: targets ?? [],
-      issues: tab === "active" ? activeIssues : focus.issue ? [focus.issue.id] : [],
+      issues: tab === "active" ? activeIssues : tab === "waiting" ? waitingIds : focus.issue ? [focus.issue.id] : [],
       project: focus.projectId,
     }),
     // With nobody working, Active has no issues to ask for: an empty filter
     // would mean every issue.
-    enabled: targets !== null && (tab !== "active" || (!running.pending && activeIssues.length > 0)),
+    enabled:
+      targets !== null &&
+      (tab !== "active" || (!running.pending && activeIssues.length > 0)) &&
+      (tab !== "waiting" || (!waiting.pending && waitingIds.length > 0)),
   });
   const tabLabels: Record<FeedTab, string> = {
     all: t(($) => $.status_changes.filters.all),
     active: t(($) => $.status_changes.filters.active),
+    waiting: t(($) => $.status_changes.filters.waiting),
     in_progress: t(($) => $.status_changes.filters.in_progress),
     blocked: t(($) => $.status_changes.filters.blocked),
     done: t(($) => $.status_changes.filters.done),
@@ -174,6 +213,8 @@ export function StatusChangesFeed({
       </SectionHeading>
       {tab === "active" && !running.pending && activeIssues.length === 0 ? (
         <EmptyBox>{t(($) => $.status_changes.empty_active)}</EmptyBox>
+      ) : tab === "waiting" && !waiting.pending && waitingIds.length === 0 ? (
+        <EmptyBox>{t(($) => $.status_changes.empty_waiting)}</EmptyBox>
       ) : (
         <FeedBody
           query={query}
@@ -185,8 +226,9 @@ export function StatusChangesFeed({
                 ? t(($) => $.status_changes.empty_failures)
                 : t(($) => $.status_changes.empty_filtered)
           }
-          // Active is about what is happening now: one row per issue, its latest.
-          onePerIssueOf={tab === "active" ? activeIssues : undefined}
+          // Active and Waiting are about now: one row per issue, its latest.
+          onePerIssueOf={tab === "active" ? activeIssues : tab === "waiting" ? waitingIds : undefined}
+          waiting={tab === "waiting" ? waiting.byIssue : undefined}
         />
       )}
     </section>
@@ -199,6 +241,7 @@ function FeedBody({
   focus,
   empty,
   onePerIssueOf,
+  waiting,
 }: {
   query: UseInfiniteQueryResult<WorkspaceActivityEntry[]>;
   focus: FeedFocus;
@@ -209,6 +252,8 @@ function FeedBody({
    * row, and there is no scroll paging.
    */
   onePerIssueOf?: readonly string[];
+  /** What each row's issue waits on, shown before its move on the Waiting tab. */
+  waiting?: ReadonlyMap<string, WaitingReason>;
 }) {
   const { t } = useT("overview");
   const locale = useLocale();
@@ -273,6 +318,7 @@ function FeedBody({
                 entry={entry}
                 project={entry.issue.project_id ? projects.get(entry.issue.project_id) : undefined}
                 workingAgentIds={working.get(entry.issue.id)?.agentIds}
+                waitingReason={waiting?.get(entry.issue.id)}
                 // Filtered to one issue, every row is that issue: no tint, no filter button.
                 highlighted={!focus.issue && focus.hoveredIssueId === entry.issue.id}
                 onHoverIssue={focus.onHoverIssue}
@@ -315,6 +361,7 @@ const FeedRow = memo(function FeedRow({
   entry,
   project,
   workingAgentIds,
+  waitingReason,
   highlighted,
   onHoverIssue,
   onFilterIssue,
@@ -324,6 +371,8 @@ const FeedRow = memo(function FeedRow({
   project: RowProject | undefined;
   /** Agents with a task running on the issue right now. */
   workingAgentIds: string[] | undefined;
+  /** What the issue waits on; only the Waiting tab passes it. */
+  waitingReason?: WaitingReason;
   /** Another row of the same issue is hovered. */
   highlighted: boolean;
   onHoverIssue: (issueId: string | null) => void;
@@ -414,7 +463,8 @@ const FeedRow = memo(function FeedRow({
           {entry.issue.title}
         </span>
         {/* Fixed-width columns keep working agents and project labels aligned down the list. */}
-        <WorkingAgents agentIds={workingAgentIds} />
+        {/* A waiting issue has no agent running, so its cell takes this column's room. */}
+        {!waitingReason && <WorkingAgents agentIds={workingAgentIds} />}
         <span
           className="hidden w-32 shrink-0 items-center gap-1 text-caption text-muted-foreground @lg:flex"
           title={project?.title}
@@ -426,6 +476,7 @@ const FeedRow = memo(function FeedRow({
             </>
           )}
         </span>
+        {waitingReason && <WaitingCell reason={waitingReason} />}
         {/* The move and the actor each get a fixed column: icons only, or with
             their names once the list is wide (56rem) enough to spare them. */}
         <span className="hidden shrink-0 items-center gap-2 text-caption text-muted-foreground @sm:flex">
@@ -505,6 +556,71 @@ const FeedRow = memo(function FeedRow({
     </div>
   );
 });
+
+/**
+ * What an issue waits on, before its move: an icon, and once the list has
+ * room (24rem) a short label with how long. The full sentence is the tooltip
+ * and the screen-reader text.
+ */
+function WaitingCell({ reason }: { reason: WaitingReason }) {
+  const { t } = useT("overview");
+  const wakeupText = useWakeupText();
+  const now = Date.now();
+  const span = (ms: number) => {
+    const parts = durationParts(ms);
+    return "days" in parts
+      ? t(($) => $.waiting.days, { days: parts.days })
+      : "hours" in parts
+        ? t(($) => $.waiting.hours, { hours: parts.hours, minutes: parts.minutes })
+        : t(($) => $.waiting.minutes, { minutes: parts.minutes });
+  };
+  const since = (iso: string | null) => {
+    const at = iso ? Date.parse(iso) : NaN;
+    return Number.isNaN(at) ? "—" : span(now - at);
+  };
+  let icon: ReactNode;
+  let short: string;
+  let long: string;
+  if (reason.kind === "wakeup") {
+    const at = reason.wakeup.next_fire_at ? Date.parse(reason.wakeup.next_fire_at) : NaN;
+    icon = <Bell className="size-3.5 shrink-0 text-muted-foreground" />;
+    short = Number.isNaN(at)
+      ? t(($) => $.waiting.wakeup_event)
+      : at > now
+        ? t(($) => $.waiting.wakeup_in, { time: span(at - now) })
+        : t(($) => $.waiting.wakeup_due);
+    long = wakeupText.headline(reason.wakeup);
+  } else if (reason.kind === "run_queued") {
+    const time = since(reason.since);
+    icon = <Clock className="size-3.5 shrink-0 text-muted-foreground" />;
+    short = t(($) => $.waiting.run_queued, { time });
+    long = t(($) => $.waiting.run_queued_long, { time });
+  } else {
+    const { repo_owner, repo_name, number } = reason.pullRequest;
+    const pr = `${repo_owner}/${repo_name}#${number}`;
+    const time = since(reason.since);
+    if (reason.kind === "ci_pending") {
+      icon = <Hourglass className="size-3.5 shrink-0 text-muted-foreground" />;
+      short = t(($) => $.waiting.ci_pending, { time });
+      long = t(($) => $.waiting.ci_pending_long, { pr, time });
+    } else {
+      icon = <TriangleAlert className="size-3.5 shrink-0 text-destructive" />;
+      short = t(($) => $.waiting.ci_failed);
+      long = t(($) => $.waiting.ci_failed_long, { pr });
+    }
+  }
+  return (
+    <span
+      data-waiting={reason.kind}
+      className="flex shrink-0 items-center gap-1 text-caption text-muted-foreground @sm:w-32"
+      title={long}
+    >
+      <span aria-hidden="true" className="flex">{icon}</span>
+      <span aria-hidden="true" className="hidden truncate tabular-nums @sm:inline">{short}</span>
+      <span className="sr-only">{long}</span>
+    </span>
+  );
+}
 
 /** Up to three overlapping avatars of the agents working on the issue now. */
 function WorkingAgents({ agentIds }: { agentIds: string[] | undefined }) {

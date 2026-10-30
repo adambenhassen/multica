@@ -1,4 +1,4 @@
-import type { WorkspaceActivityEntry } from "@multica/core/types";
+import type { AgentTask, IssueCIEntry, IssueCIPullRequest, WakeupPreview, WorkspaceActivityEntry } from "@multica/core/types";
 import { BUILT_IN_STATUS_ORDER } from "@multica/core/issues/config";
 import type { IssueStatusCatalog } from "@multica/core/issue-statuses";
 import { stripMentionMarkdown } from "../issues/utils/strip-mention-markdown";
@@ -119,4 +119,72 @@ export function statusChangeTargets(
   if (!keys) return null;
   const category = STATUS_CHANGE_CATEGORY[filter];
   return keys.filter((key) => key !== "blocked" && catalog.categoryOf(key) === category);
+}
+
+/** Why an issue nobody is running on is waiting, and since (or until) when. */
+export type WaitingReason =
+  | { kind: "run_queued"; since: string }
+  | { kind: "ci_pending" | "ci_failed"; since: string | null; pullRequest: IssueCIPullRequest }
+  | { kind: "wakeup"; wakeup: WakeupPreview };
+
+const RUNNING_TASK = new Set<AgentTask["status"]>(["running", "waiting_local_directory"]);
+const QUEUED_TASK = new Set<AgentTask["status"]>(["queued", "dispatched"]);
+// Someone will pick the issue up: a failed CI there is not left unattended.
+const PENDING_TASK = new Set<AgentTask["status"]>(["queued", "dispatched", "deferred"]);
+
+/**
+ * The issues waiting on something while no agent runs on them: a run queued
+ * but not started, CI still running on an open PR, failed CI that no run is
+ * active or queued to fix, or an enabled wakeup. Each issue gets the first of
+ * those, in that order. CI on an issue whose status `isClosed` is left out;
+ * `wakeups` (earliest first per issue) already leaves closed issues out.
+ */
+export function waitingIssues(
+  tasks: readonly Pick<AgentTask, "issue_id" | "status" | "created_at">[],
+  ci: readonly IssueCIEntry[],
+  wakeups: readonly WakeupPreview[],
+  isClosed: (status: string) => boolean,
+): Map<string, WaitingReason> {
+  const running = new Set<string>();
+  const pending = new Set<string>();
+  const queuedSince = new Map<string, string>();
+  for (const task of tasks) {
+    if (!task.issue_id) continue;
+    if (RUNNING_TASK.has(task.status)) running.add(task.issue_id);
+    if (PENDING_TASK.has(task.status)) pending.add(task.issue_id);
+    if (QUEUED_TASK.has(task.status)) {
+      const cur = queuedSince.get(task.issue_id);
+      if (!cur || task.created_at < cur) queuedSince.set(task.issue_id, task.created_at);
+    }
+  }
+  const out = new Map<string, WaitingReason>();
+  for (const [issueId, since] of queuedSince) {
+    if (!running.has(issueId)) out.set(issueId, { kind: "run_queued", since });
+  }
+  for (const entry of ci) {
+    const id = entry.issue_id;
+    if (running.has(id) || out.has(id) || isClosed(entry.issue_status)) continue;
+    if (entry.state === "failed" && pending.has(id)) continue;
+    out.set(id, {
+      kind: entry.state === "pending" ? "ci_pending" : "ci_failed",
+      since: entry.since,
+      pullRequest: entry.pull_request,
+    });
+  }
+  for (const wakeup of wakeups) {
+    if (running.has(wakeup.issue_id) || out.has(wakeup.issue_id)) continue;
+    out.set(wakeup.issue_id, { kind: "wakeup", wakeup });
+  }
+  return out;
+}
+
+export type ElapsedParts = { days: number } | { hours: number; minutes: number } | { minutes: number };
+
+/** A span of time, in the largest units that read at a glance. */
+export function durationParts(ms: number): ElapsedParts {
+  const totalMinutes = Math.max(0, Math.floor(ms / 60_000));
+  const hours = Math.floor(totalMinutes / 60);
+  if (hours >= 24) return { days: Math.floor(hours / 24) };
+  if (hours >= 1) return { hours, minutes: totalMinutes % 60 };
+  return { minutes: totalMinutes };
 }

@@ -333,6 +333,68 @@ describe("OverviewPage", () => {
     expect(calls.length).toBe(before);
   });
 
+  it("counts waiting issues in the header and shows what each waits on in the Waiting tab", async () => {
+    const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    apiRef.current.getAgentTaskSnapshot = () =>
+      Promise.resolve([
+        { id: "t-1", agent_id: "agent-1", issue_id: "issue-1", status: "queued", started_at: null, created_at: ago(10) },
+        { id: "t-2", agent_id: "agent-1", issue_id: "issue-3", status: "running", started_at: NOW, created_at: NOW },
+      ]);
+    const pr = { provider: "gitea", repo_owner: "acme", repo_name: "widget", number: 7, html_url: "" };
+    apiRef.current.getIssueCI = () =>
+      Promise.resolve({
+        issues: [
+          { issue_id: "issue-2", issue_status: "in_review", state: "pending", since: ago(37), pull_request: pr },
+          // An agent is running on issue-3: it is active, not waiting.
+          { issue_id: "issue-3", issue_status: "in_review", state: "failed", since: ago(5), pull_request: pr },
+        ],
+      });
+    const DOCS = { id: "issue-4", identifier: "MUL-4", title: "Update the docs", status: "todo" };
+    apiRef.current.listIssueWakeupSummaries = () =>
+      Promise.resolve([
+        {
+          id: "w-1", issue_id: "issue-4", agent_id: "agent-1", agent_name: "Builder", kind: "at", mode: "once",
+          event_types: [], interval_seconds: null, cron_expression: null, timezone: "UTC",
+          next_fire_at: new Date(Date.now() + 125 * 60_000).toISOString(), active_count: 1, event_count: 0,
+        },
+      ]);
+    const calls = scriptFeed((p) =>
+      [move("a-1", SHIP), move("a-2", FIX), move("a-3", DOCS)].filter((e) => !p.issues?.length || p.issues.includes(e.issue.id)),
+    );
+    renderPage();
+
+    const chip = await screen.findByRole("button", { name: "3 waiting" });
+    fireEvent.click(chip);
+    expect(chip.getAttribute("aria-pressed")).toBe("true");
+    expect(within(feed()).getByRole("button", { name: "Waiting", pressed: true })).toBeTruthy();
+    expect(await within(feed()).findByText("CI running on acme/widget#7 for 37m")).toBeTruthy();
+    expect(within(feed()).getByText("Run queued for 10m")).toBeTruthy();
+    const docs = within(feed()).getByText("Update the docs").closest("a")!;
+    expect(docs.querySelector("[data-waiting]")!.getAttribute("data-waiting")).toBe("wakeup");
+    expect(within(docs).getByText("Wakes in 2h 4m")).toBeTruthy();
+    expect(calls.at(-1)).toMatchObject({ issues: ["issue-1", "issue-2", "issue-4"] });
+    // The waiting cell sits before the move, not before the title.
+    const row = within(feed()).getByText("Fix the reconnect").closest("a")!;
+    const cell = row.querySelector("[data-waiting]")!;
+    expect(cell.getAttribute("data-waiting")).toBe("ci_pending");
+    expect(cell.compareDocumentPosition(within(row).getByText("Fix the reconnect")) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(cell.compareDocumentPosition(within(row).getByLabelText("→")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("says nothing is waiting without asking for every issue", async () => {
+    apiRef.current.getAgentTaskSnapshot = () => Promise.resolve([]);
+    apiRef.current.getIssueCI = () => Promise.resolve({ issues: [] });
+    apiRef.current.listIssueWakeupSummaries = () => Promise.resolve([]);
+    const calls = scriptFeed(() => [move("a-1", SHIP)]);
+    renderPage();
+    await within(feed()).findByText("Ship the dashboard");
+    expect(await screen.findByRole("button", { name: "0 waiting" })).toBeTruthy();
+    const before = calls.length;
+    fireEvent.click(within(feed()).getByRole("button", { name: "Waiting" }));
+    expect(await within(feed()).findByText("Nothing is waiting on a run, CI or wakeup")).toBeTruthy();
+    expect(calls.length).toBe(before);
+  });
+
   it("shows each event on one line and names what it hides on hover", async () => {
     scriptFeed(() => [move("a-1", SHIP)]);
     renderPage();

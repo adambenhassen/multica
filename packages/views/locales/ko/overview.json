@@ -25,12 +25,14 @@
   "status_changes": {
     "empty": "아직 상태 변경 없음",
     "empty_active": "지금 작업 중인 에이전트 없음",
+    "empty_waiting": "실행, CI, 깨우기를 기다리는 항목 없음",
     "empty_filtered": "이 상태로의 변경 없음",
     "empty_failures": "실패한 실행 없음",
     "filter_label": "변경된 상태로 필터",
     "filters": {
       "all": "전체",
       "active": "작업 중",
+      "waiting": "대기 중",
       "in_progress": "진행 중",
       "blocked": "막힘",
       "done": "완료",
@@ -42,5 +44,21 @@
     "label": "필터 적용됨",
     "filter": "이 태스크만 보기",
     "clear": "태스크 필터 해제"
+  },
+  "waiting": {
+    "chip": "{{count}}개 대기 중",
+    "chip_unknown": "대기 중: —",
+    "run_queued": "대기열 {{time}}",
+    "run_queued_long": "실행이 {{time}} 동안 대기열에 있음",
+    "ci_pending": "CI {{time}}",
+    "ci_pending_long": "{{pr}}의 CI가 {{time}} 동안 실행 중",
+    "ci_failed": "CI 실패",
+    "ci_failed_long": "{{pr}}의 CI 실패",
+    "wakeup_in": "{{time}} 후 깨우기",
+    "wakeup_event": "트리거 대기 중",
+    "wakeup_due": "깨우기 예정",
+    "minutes": "{{minutes}}분",
+    "hours": "{{hours}}시간 {{minutes}}분",
+    "days": "{{days}}일"
   }
 }
