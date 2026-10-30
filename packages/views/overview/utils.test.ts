@@ -159,6 +159,13 @@ describe("waitingIssues", () => {
     expect(got.get("b")).toMatchObject({ kind: "ci_gate", pullRequest: pr });
   });
 
+  it("tells failing CI (still running) from failed, and hides both when a run is lined up", () => {
+    const got = waitingIssues([task("c", "queued")], [ci("a", "failing"), ci("b", "failed"), ci("c", "failing")], [], open);
+    expect(got.get("a")).toMatchObject({ kind: "ci_failing" });
+    expect(got.get("b")).toMatchObject({ kind: "ci_failed" });
+    expect(got.get("c")?.kind).toBe("run_queued");
+  });
+
   it("prefers a queued run over CI", () => {
     expect(waitingIssues([task("a", "queued")], [ci("a", "running")], [], open).get("a")?.kind).toBe("run_queued");
   });

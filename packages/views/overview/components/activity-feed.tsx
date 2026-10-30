@@ -691,6 +691,10 @@ function WaitingCell({ reason }: { reason: WaitingReason }) {
       icon = <CircleDashed className="size-3.5 shrink-0 text-muted-foreground" />;
       short = time ? t(($) => $.waiting.ci_running, { time }) : t(($) => $.waiting.ci_running_untimed);
       long = time ? t(($) => $.waiting.ci_running_long, { pr, time }) : t(($) => $.waiting.ci_running_long_untimed, { pr });
+    } else if (reason.kind === "ci_failing") {
+      icon = <TriangleAlert className="size-3.5 shrink-0 text-warning" />;
+      short = t(($) => $.waiting.ci_failing);
+      long = t(($) => $.waiting.ci_failing_long, { pr });
     } else if (reason.kind === "ci_gate") {
       icon = <GitMerge className="size-3.5 shrink-0 text-muted-foreground" />;
       short = time ? t(($) => $.waiting.gate, { time }) : t(($) => $.waiting.gate_untimed);

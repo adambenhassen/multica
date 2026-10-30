@@ -135,10 +135,20 @@ export function statusChangeTargets(
 /** Why an issue nobody is running on is waiting, and since (or until) when. */
 export type WaitingReason =
   | { kind: "run_queued"; since: string }
-  | { kind: "ci_queued" | "ci_running" | "ci_failed" | "ci_gate"; since: string | null; pullRequest: IssueCIPullRequest }
+  | {
+      kind: "ci_queued" | "ci_running" | "ci_failing" | "ci_failed" | "ci_gate";
+      since: string | null;
+      pullRequest: IssueCIPullRequest;
+    }
   | { kind: "wakeup"; wakeup: WakeupPreview };
 
-const CI_KIND = { queued: "ci_queued", running: "ci_running", failed: "ci_failed", gate: "ci_gate" } as const;
+const CI_KIND = {
+  queued: "ci_queued",
+  running: "ci_running",
+  failing: "ci_failing",
+  failed: "ci_failed",
+  gate: "ci_gate",
+} as const;
 
 const RUNNING_TASK = new Set<AgentTask["status"]>(["running", "waiting_local_directory"]);
 const QUEUED_TASK = new Set<AgentTask["status"]>(["queued", "dispatched"]);
@@ -178,7 +188,8 @@ export function waitingIssues(
   for (const entry of ci) {
     const id = entry.issue_id;
     if (running.has(id) || out.has(id) || isClosed(entry.issue_status)) continue;
-    if (entry.state === "failed" && pending.has(id)) continue;
+    // Failed CI that a run is lined up to fix is not left unattended.
+    if ((entry.state === "failed" || entry.state === "failing") && pending.has(id)) continue;
     out.set(id, {
       kind: CI_KIND[entry.state],
       since: entry.since,
@@ -197,6 +208,7 @@ export const WAITING_GROUPS = [
   "run_queued",
   "ci_queued",
   "ci_running",
+  "ci_failing",
   "ci_failed",
   "ci_gate",
   "wakeup_due",
