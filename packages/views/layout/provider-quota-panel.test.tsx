@@ -90,6 +90,13 @@ describe("ProviderQuotaPanel", () => {
     expect(screen.getByRole("progressbar", { name: "Claude · work Session" })).toBeInTheDocument();
   });
 
+  it("starts window rows at the kind label when header rows are shown", () => {
+    quota.current = { accounts: [claude("work", 1, 1), claude("personal", 1, 1)] };
+    renderWithI18n(<ProviderQuotaPanel />);
+    const row = screen.getByRole("progressbar", { name: "Claude · work Session" }).parentElement!;
+    expect(row.firstElementChild).toHaveTextContent("Session");
+  });
+
   it("gives a single-account provider a header row too when another provider has several", () => {
     quota.current = { accounts: [claude("account-1", 0, 100), claude("account-2", 24, 4), codex("account", 33)] };
     renderWithI18n(<ProviderQuotaPanel />);

@@ -35,7 +35,14 @@ export function ProviderQuotaPanel() {
       aria-label={t(($) => $.quota.label)}
       className="@container max-h-56 overflow-y-auto px-2 pt-0.5 pb-1"
     >
-      <div className="grid grid-cols-[minmax(0.75rem,auto)_auto_minmax(1.5rem,1fr)_auto] gap-x-1.5 @min-[13rem]:grid-cols-[minmax(0.75rem,auto)_auto_minmax(1.5rem,1fr)_auto_auto] gap-y-0.5 text-caption text-muted-foreground">
+      <div
+        className={cn(
+          "grid gap-x-1.5 gap-y-0.5 text-caption text-muted-foreground",
+          headerRows
+            ? "grid-cols-[auto_minmax(1.5rem,1fr)_auto] @min-[13rem]:grid-cols-[auto_minmax(1.5rem,1fr)_auto_auto]"
+            : "grid-cols-[minmax(0.75rem,auto)_auto_minmax(1.5rem,1fr)_auto] @min-[13rem]:grid-cols-[minmax(0.75rem,auto)_auto_minmax(1.5rem,1fr)_auto_auto]",
+        )}
+      >
         {sortQuotaAccounts(accounts).map((account) => (
           <AccountRows
             key={account.id}
@@ -66,11 +73,13 @@ function AccountRows({
       {name}
     </span>
   ) : null;
-  const nameCell = (show: boolean) => (
-    <span title={show ? name : undefined} className="min-w-0 truncate text-foreground">
-      {show ? name : ""}
-    </span>
-  );
+  // With header rows there is no name column, so rows sit flush under their header.
+  const nameCell = (show: boolean) =>
+    headerRow ? null : (
+      <span title={show ? name : undefined} className="min-w-0 truncate text-foreground">
+        {show ? name : ""}
+      </span>
+    );
 
   if (account.error || account.windows.length === 0) {
     const message =
@@ -81,7 +90,7 @@ function AccountRows({
         <Tooltip>
           <TooltipTrigger render={<div tabIndex={0} className={ROW_CLASS} />}>
             {nameCell(!headerRow)}
-            <span className="col-[2/-1]">—</span>
+            <span className={headerRow ? "col-span-full" : "col-[2/-1]"}>—</span>
             <span className="sr-only">{message}</span>
           </TooltipTrigger>
           <TooltipContent>{message}</TooltipContent>
