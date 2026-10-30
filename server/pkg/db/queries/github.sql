@@ -213,7 +213,8 @@ checks AS (
                 ('success','neutral','skipped')
             THEN 1 ELSE 0 END)::bigint AS passed,
         SUM(CASE WHEN cr.status <> 'completed' OR cr.conclusion IS NULL
-            THEN 1 ELSE 0 END)::bigint AS running
+            THEN 1 ELSE 0 END)::bigint AS running,
+        SUM(CASE WHEN cr.status = 'queued' THEN 1 ELSE 0 END)::bigint AS queued
     FROM github_pull_request_check_run cr
     JOIN ws_prs wp ON wp.id = cr.pr_id
     WHERE cr.head_sha = wp.snapshot_head_sha AND wp.snapshot_head_sha <> ''
@@ -225,7 +226,8 @@ SELECT
     pr.head_sha, pr.snapshot_head_sha, pr.snapshot_fetched_at, pr.checks_rollup_state,
     COALESCE(c.passed, 0)::bigint  AS checks_passed,
     COALESCE(c.failed, 0)::bigint  AS checks_failed,
-    COALESCE(c.running, 0)::bigint AS checks_running
+    COALESCE(c.running, 0)::bigint AS checks_running,
+    COALESCE(c.queued, 0)::bigint  AS checks_queued
 FROM github_pull_request pr
 JOIN issue_pull_request ipr ON ipr.pull_request_id = pr.id
 JOIN issue i ON i.id = ipr.issue_id AND i.workspace_id = pr.workspace_id

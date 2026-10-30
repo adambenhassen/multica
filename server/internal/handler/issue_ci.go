@@ -17,7 +17,8 @@ type IssueCIPullRequest struct {
 }
 
 // IssueCIStateResponse is an issue whose open pull request has CI that has not
-// passed at its head commit: still running ("pending") or "failed".
+// passed at its head commit: "queued" (no check started yet), "running", or
+// "failed".
 type IssueCIStateResponse struct {
 	IssueID     string             `json:"issue_id"`
 	IssueStatus string             `json:"issue_status"`
@@ -57,8 +58,9 @@ func (h *Handler) ListWorkspaceIssueCI(w http.ResponseWriter, r *http.Request) {
 		if !currentGitHubSnapshotAvailable(snapshotEnabled, p.HeadSha, p.SnapshotHeadSha, p.SnapshotFetchedAt) {
 			continue
 		}
-		state := rollupToConclusion(p.ChecksRollupState, p.ChecksFailed, p.ChecksRunning, p.ChecksPassed)
-		if state == nil || *state == "passed" {
+		conclusion := rollupToConclusion(p.ChecksRollupState, p.ChecksFailed, p.ChecksRunning, p.ChecksPassed)
+		state := issueCIState(conclusion, p.ChecksRunning-p.ChecksQueued, p.ChecksQueued)
+		if state == "" {
 			continue
 		}
 		// Check runs carry no timestamps; the PR's last update is the closest
@@ -67,7 +69,7 @@ func (h *Handler) ListWorkspaceIssueCI(w http.ResponseWriter, r *http.Request) {
 			resp: IssueCIStateResponse{
 				IssueID:     uuidToString(p.IssueID),
 				IssueStatus: p.IssueStatus,
-				State:       *state,
+				State:       state,
 				PullRequest: IssueCIPullRequest{
 					Provider: "github", RepoOwner: p.RepoOwner, RepoName: p.RepoName,
 					Number: p.PrNumber, HTMLURL: p.HtmlUrl,
@@ -77,19 +79,22 @@ func (h *Handler) ListWorkspaceIssueCI(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	for _, p := range vcsRows {
-		state := aggregateChecksConclusion(p.ChecksFailed, p.ChecksPassed, p.ChecksPending, p.ChecksTotal)
-		if state == nil || *state == "passed" {
+		conclusion := aggregateChecksConclusion(p.ChecksFailed, p.ChecksPassed, p.ChecksPending, p.ChecksTotal)
+		state := issueCIState(conclusion, p.ChecksPending-p.ChecksQueued, p.ChecksQueued)
+		since := p.RunningSince
+		switch state {
+		case "":
 			continue
-		}
-		since := p.PendingSince
-		if *state == "failed" {
+		case "failed":
 			since = p.FailedAt
+		case "queued":
+			since = p.QueuedSince
 		}
 		candidates = append(candidates, issueCICandidate{
 			resp: IssueCIStateResponse{
 				IssueID:     uuidToString(p.IssueID),
 				IssueStatus: p.IssueStatus,
-				State:       *state,
+				State:       state,
 				PullRequest: IssueCIPullRequest{
 					Provider: p.Provider, RepoOwner: p.RepoOwner, RepoName: p.RepoName,
 					Number: p.PrNumber, HTMLURL: p.HtmlUrl,
@@ -102,8 +107,31 @@ func (h *Handler) ListWorkspaceIssueCI(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"issues": mergeIssueCIStates(candidates)})
 }
 
-// mergeIssueCIStates keeps one entry per issue. A failed PR outranks a pending
-// one, as in aggregateChecksConclusion; within a state the earliest wins.
+// issueCIState turns a PR's coarse checks conclusion into its Waiting-tab
+// state: a pending PR is "running" once any check has started, else "queued".
+// Passed or check-less PRs give "".
+func issueCIState(conclusion *string, started, queued int64) string {
+	if conclusion == nil {
+		return ""
+	}
+	switch *conclusion {
+	case "failed":
+		return "failed"
+	case "pending":
+		if started > 0 || queued == 0 {
+			return "running"
+		}
+		return "queued"
+	}
+	return ""
+}
+
+// issueCIRank orders states for mergeIssueCIStates: a failed PR outranks a
+// running one, as in aggregateChecksConclusion, and running outranks queued.
+var issueCIRank = map[string]int{"failed": 2, "running": 1, "queued": 0}
+
+// mergeIssueCIStates keeps one entry per issue: the highest-ranked state, then
+// the earliest since.
 func mergeIssueCIStates(in []issueCICandidate) []IssueCIStateResponse {
 	best := make(map[string]issueCICandidate, len(in))
 	for _, c := range in {
@@ -123,7 +151,7 @@ func mergeIssueCIStates(in []issueCICandidate) []IssueCIStateResponse {
 
 func issueCIOutranks(a, b issueCICandidate) bool {
 	if a.resp.State != b.resp.State {
-		return a.resp.State == "failed"
+		return issueCIRank[a.resp.State] > issueCIRank[b.resp.State]
 	}
 	if !a.since.Valid {
 		return false
