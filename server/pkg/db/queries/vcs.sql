@@ -142,36 +142,40 @@ ORDER BY pr.pr_created_at DESC;
 -- issue in the workspace, for the Activity page's Waiting tab. PRs with no
 -- status at their head are left out. A pending status is queued when its
 -- description is one of Gitea/Forgejo Actions' waiting texts, else running.
--- queued_since and running_since are when the oldest such status was last
--- written, failed_at the newest failure.
-WITH checks AS (
+-- The `merge-gate` context (the fork's merge gate) is counted apart, as in
+-- ListOpenPullRequestChecksByWorkspace. The *_since columns are when the
+-- oldest such status was last written, failed_at the newest failure.
+WITH statuses AS (
     SELECT
-        pr.id AS pr_id,
-        COUNT(*)::bigint AS total,
-        SUM(CASE WHEN cs.state = 'failed'  THEN 1 ELSE 0 END)::bigint AS failed,
-        SUM(CASE WHEN cs.state = 'passed'  THEN 1 ELSE 0 END)::bigint AS passed,
-        SUM(CASE WHEN cs.state = 'pending' THEN 1 ELSE 0 END)::bigint AS pending,
-        COUNT(*) FILTER (WHERE cs.state = 'pending'
-            AND cs.description IN ('Waiting to run', 'Blocked by required conditions'))::bigint AS queued,
-        MIN(cs.updated_at) FILTER (WHERE cs.state = 'pending'
-            AND cs.description IN ('Waiting to run', 'Blocked by required conditions'))::timestamptz AS queued_since,
-        MIN(cs.updated_at) FILTER (WHERE cs.state = 'pending'
-            AND cs.description IS DISTINCT FROM 'Waiting to run'
-            AND cs.description IS DISTINCT FROM 'Blocked by required conditions')::timestamptz AS running_since,
-        MAX(cs.updated_at) FILTER (WHERE cs.state = 'failed')::timestamptz AS failed_at
+        pr.id AS pr_id, cs.state, cs.updated_at,
+        cs.context = 'merge-gate' AS is_gate,
+        cs.description IN ('Waiting to run', 'Blocked by required conditions') AS is_waiting
     FROM vcs_pull_request pr
     JOIN vcs_commit_status cs
         ON cs.connection_id = pr.connection_id
        AND cs.sha = pr.head_sha
        AND pr.head_sha <> ''
     WHERE pr.workspace_id = sqlc.arg('workspace_id') AND pr.state IN ('open', 'draft')
-    GROUP BY pr.id
+),
+checks AS (
+    SELECT
+        pr_id,
+        COUNT(*) FILTER (WHERE NOT is_gate AND state = 'failed')::bigint AS failed,
+        COUNT(*) FILTER (WHERE NOT is_gate AND state = 'pending')::bigint AS pending,
+        COUNT(*) FILTER (WHERE NOT is_gate AND state = 'pending' AND is_waiting IS TRUE)::bigint AS queued,
+        COUNT(*) FILTER (WHERE is_gate AND state = 'pending')::bigint AS gate_pending,
+        MIN(updated_at) FILTER (WHERE NOT is_gate AND state = 'pending' AND is_waiting IS TRUE)::timestamptz AS queued_since,
+        MIN(updated_at) FILTER (WHERE NOT is_gate AND state = 'pending' AND is_waiting IS NOT TRUE)::timestamptz AS running_since,
+        MIN(updated_at) FILTER (WHERE is_gate AND state = 'pending')::timestamptz AS gate_since,
+        MAX(updated_at) FILTER (WHERE NOT is_gate AND state = 'failed')::timestamptz AS failed_at
+    FROM statuses
+    GROUP BY pr_id
 )
 SELECT
     ipr.issue_id, i.status AS issue_status,
     pr.provider, pr.repo_owner, pr.repo_name, pr.pr_number, pr.html_url,
-    c.total AS checks_total, c.passed AS checks_passed, c.failed AS checks_failed,
-    c.pending AS checks_pending, c.queued AS checks_queued, c.queued_since, c.running_since, c.failed_at
+    c.failed AS checks_failed, c.pending AS checks_pending, c.queued AS checks_queued,
+    c.gate_pending, c.queued_since, c.running_since, c.gate_since, c.failed_at
 FROM vcs_pull_request pr
 JOIN issue_vcs_pull_request ipr ON ipr.pull_request_id = pr.id
 JOIN issue i ON i.id = ipr.issue_id AND i.workspace_id = pr.workspace_id

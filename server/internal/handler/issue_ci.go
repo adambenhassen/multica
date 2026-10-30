@@ -18,7 +18,7 @@ type IssueCIPullRequest struct {
 
 // IssueCIStateResponse is an issue whose open pull request has CI that has not
 // passed at its head commit: "queued" (no check started yet), "running", or
-// "failed".
+// "failed"; or whose CI is done but the merge gate still holds it ("gate").
 type IssueCIStateResponse struct {
 	IssueID     string             `json:"issue_id"`
 	IssueStatus string             `json:"issue_status"`
@@ -58,13 +58,14 @@ func (h *Handler) ListWorkspaceIssueCI(w http.ResponseWriter, r *http.Request) {
 		if !currentGitHubSnapshotAvailable(snapshotEnabled, p.HeadSha, p.SnapshotHeadSha, p.SnapshotFetchedAt) {
 			continue
 		}
-		conclusion := rollupToConclusion(p.ChecksRollupState, p.ChecksFailed, p.ChecksRunning, p.ChecksPassed)
-		state := issueCIState(conclusion, p.ChecksRunning-p.ChecksQueued, p.ChecksQueued)
+		// Counted from the check runs, not the GraphQL rollup: the rollup folds
+		// in the merge gate, which would keep a finished PR pending.
+		state := issueCIState(p.ChecksFailed, p.ChecksRunning-p.ChecksQueued, p.ChecksQueued, p.GatePending)
 		if state == "" {
 			continue
 		}
-		// Check runs carry no timestamps; the PR's last update is the closest
-		// stand-in for when CI at the current head started or failed.
+		// Check runs carry no timestamps, and the PR's last update moves on
+		// every comment, so a GitHub state has no since.
 		candidates = append(candidates, issueCICandidate{
 			resp: IssueCIStateResponse{
 				IssueID:     uuidToString(p.IssueID),
@@ -75,12 +76,10 @@ func (h *Handler) ListWorkspaceIssueCI(w http.ResponseWriter, r *http.Request) {
 					Number: p.PrNumber, HTMLURL: p.HtmlUrl,
 				},
 			},
-			since: p.PrUpdatedAt,
 		})
 	}
 	for _, p := range vcsRows {
-		conclusion := aggregateChecksConclusion(p.ChecksFailed, p.ChecksPassed, p.ChecksPending, p.ChecksTotal)
-		state := issueCIState(conclusion, p.ChecksPending-p.ChecksQueued, p.ChecksQueued)
+		state := issueCIState(p.ChecksFailed, p.ChecksPending-p.ChecksQueued, p.ChecksQueued, p.GatePending)
 		since := p.RunningSince
 		switch state {
 		case "":
@@ -89,6 +88,8 @@ func (h *Handler) ListWorkspaceIssueCI(w http.ResponseWriter, r *http.Request) {
 			since = p.FailedAt
 		case "queued":
 			since = p.QueuedSince
+		case "gate":
+			since = p.GateSince
 		}
 		candidates = append(candidates, issueCICandidate{
 			resp: IssueCIStateResponse{
@@ -107,28 +108,28 @@ func (h *Handler) ListWorkspaceIssueCI(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"issues": mergeIssueCIStates(candidates)})
 }
 
-// issueCIState turns a PR's coarse checks conclusion into its Waiting-tab
-// state: a pending PR is "running" once any check has started, else "queued".
-// Passed or check-less PRs give "".
-func issueCIState(conclusion *string, started, queued int64) string {
-	if conclusion == nil {
-		return ""
-	}
-	switch *conclusion {
-	case "failed":
+// issueCIState is a PR's Waiting-tab state from its CI counts (merge gate
+// excluded) and pending merge-gate count: any failure is "failed"; unfinished
+// checks are "running" once one has started, else "queued"; finished CI still
+// held by the gate is "gate". Anything else gives "".
+func issueCIState(failed, started, queued, gate int64) string {
+	switch {
+	case failed > 0:
 		return "failed"
-	case "pending":
-		if started > 0 || queued == 0 {
-			return "running"
-		}
+	case started > 0:
+		return "running"
+	case queued > 0:
 		return "queued"
+	case gate > 0:
+		return "gate"
 	}
 	return ""
 }
 
 // issueCIRank orders states for mergeIssueCIStates: a failed PR outranks a
-// running one, as in aggregateChecksConclusion, and running outranks queued.
-var issueCIRank = map[string]int{"failed": 2, "running": 1, "queued": 0}
+// running one, as in aggregateChecksConclusion, running outranks queued, and
+// any CI outranks the merge gate.
+var issueCIRank = map[string]int{"failed": 3, "running": 2, "queued": 1, "gate": 0}
 
 // mergeIssueCIStates keeps one entry per issue: the highest-ranked state, then
 // the earliest since.

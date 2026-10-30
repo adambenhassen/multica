@@ -539,31 +539,33 @@ WITH ws_prs AS (
     FROM github_pull_request pr
     WHERE pr.workspace_id = $1 AND pr.state IN ('open', 'draft')
 ),
+runs AS (
+    SELECT
+        r.pr_id, r.status, r.conclusion,
+        (r.is_status_context AND r.name = 'merge-gate') AS is_gate
+    FROM github_pull_request_check_run r
+    JOIN ws_prs wp ON wp.id = r.pr_id
+    WHERE r.head_sha = wp.snapshot_head_sha AND wp.snapshot_head_sha <> ''
+),
 checks AS (
     SELECT
-        cr.pr_id,
-        SUM(CASE WHEN cr.status = 'completed' AND cr.conclusion IN
-                ('failure','cancelled','timed_out','action_required','startup_failure','stale','error')
-            THEN 1 ELSE 0 END)::bigint AS failed,
-        SUM(CASE WHEN cr.status = 'completed' AND cr.conclusion IN
-                ('success','neutral','skipped')
-            THEN 1 ELSE 0 END)::bigint AS passed,
-        SUM(CASE WHEN cr.status <> 'completed' OR cr.conclusion IS NULL
-            THEN 1 ELSE 0 END)::bigint AS running,
-        SUM(CASE WHEN cr.status = 'queued' THEN 1 ELSE 0 END)::bigint AS queued
-    FROM github_pull_request_check_run cr
-    JOIN ws_prs wp ON wp.id = cr.pr_id
-    WHERE cr.head_sha = wp.snapshot_head_sha AND wp.snapshot_head_sha <> ''
-    GROUP BY cr.pr_id
+        pr_id,
+        COUNT(*) FILTER (WHERE NOT is_gate AND status = 'completed' AND conclusion IN
+            ('failure','cancelled','timed_out','action_required','startup_failure','stale','error'))::bigint AS failed,
+        COUNT(*) FILTER (WHERE NOT is_gate AND (status <> 'completed' OR conclusion IS NULL))::bigint AS running,
+        COUNT(*) FILTER (WHERE NOT is_gate AND status = 'queued')::bigint AS queued,
+        COUNT(*) FILTER (WHERE is_gate AND (status <> 'completed' OR conclusion IS NULL))::bigint AS gate_pending
+    FROM runs
+    GROUP BY pr_id
 )
 SELECT
     ipr.issue_id, i.status AS issue_status,
-    pr.repo_owner, pr.repo_name, pr.pr_number, pr.html_url, pr.pr_updated_at,
-    pr.head_sha, pr.snapshot_head_sha, pr.snapshot_fetched_at, pr.checks_rollup_state,
-    COALESCE(c.passed, 0)::bigint  AS checks_passed,
-    COALESCE(c.failed, 0)::bigint  AS checks_failed,
-    COALESCE(c.running, 0)::bigint AS checks_running,
-    COALESCE(c.queued, 0)::bigint  AS checks_queued
+    pr.repo_owner, pr.repo_name, pr.pr_number, pr.html_url,
+    pr.head_sha, pr.snapshot_head_sha, pr.snapshot_fetched_at,
+    COALESCE(c.failed, 0)::bigint       AS checks_failed,
+    COALESCE(c.running, 0)::bigint      AS checks_running,
+    COALESCE(c.queued, 0)::bigint       AS checks_queued,
+    COALESCE(c.gate_pending, 0)::bigint AS gate_pending
 FROM github_pull_request pr
 JOIN issue_pull_request ipr ON ipr.pull_request_id = pr.id
 JOIN issue i ON i.id = ipr.issue_id AND i.workspace_id = pr.workspace_id
@@ -578,20 +580,20 @@ type ListOpenPullRequestChecksByWorkspaceRow struct {
 	RepoName          string             `json:"repo_name"`
 	PrNumber          int32              `json:"pr_number"`
 	HtmlUrl           string             `json:"html_url"`
-	PrUpdatedAt       pgtype.Timestamptz `json:"pr_updated_at"`
 	HeadSha           string             `json:"head_sha"`
 	SnapshotHeadSha   string             `json:"snapshot_head_sha"`
 	SnapshotFetchedAt pgtype.Timestamptz `json:"snapshot_fetched_at"`
-	ChecksRollupState pgtype.Text        `json:"checks_rollup_state"`
-	ChecksPassed      int64              `json:"checks_passed"`
 	ChecksFailed      int64              `json:"checks_failed"`
 	ChecksRunning     int64              `json:"checks_running"`
 	ChecksQueued      int64              `json:"checks_queued"`
+	GatePending       int64              `json:"gate_pending"`
 }
 
 // CI counts for every open or draft PR linked to an issue in the workspace,
-// for the Activity page's Waiting tab. Same check-run aggregation as
-// ListPullRequestsByIssue, scoped to the workspace instead of one issue.
+// for the Activity page's Waiting tab. Same check-run classification as
+// ListPullRequestsByIssue, scoped to the workspace. The `merge-gate` status
+// context is the fork's merge gate, held pending until the PR may merge; it is
+// counted apart (gate_pending) so it never reads as CI still running.
 func (q *Queries) ListOpenPullRequestChecksByWorkspace(ctx context.Context, workspaceID pgtype.UUID) ([]ListOpenPullRequestChecksByWorkspaceRow, error) {
 	rows, err := q.db.Query(ctx, listOpenPullRequestChecksByWorkspace, workspaceID)
 	if err != nil {
@@ -608,15 +610,13 @@ func (q *Queries) ListOpenPullRequestChecksByWorkspace(ctx context.Context, work
 			&i.RepoName,
 			&i.PrNumber,
 			&i.HtmlUrl,
-			&i.PrUpdatedAt,
 			&i.HeadSha,
 			&i.SnapshotHeadSha,
 			&i.SnapshotFetchedAt,
-			&i.ChecksRollupState,
-			&i.ChecksPassed,
 			&i.ChecksFailed,
 			&i.ChecksRunning,
 			&i.ChecksQueued,
+			&i.GatePending,
 		); err != nil {
 			return nil, err
 		}
