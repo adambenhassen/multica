@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { activeIssuesOptions, overviewKeys, workspaceActivityOptions } from "./queries";
+import { activeIssuesOptions, issueCIOptions, overviewKeys, workspaceActivityOptions } from "./queries";
 
 describe("overview query keys", () => {
   it("scopes the activity feed by workspace under the shared prefix", () => {
@@ -56,5 +56,13 @@ describe("overview query keys", () => {
       "i-1",
       "i-2",
     ]);
+  });
+});
+
+describe("issue CI query key", () => {
+  it("sits outside the feed prefix, so activity events do not refetch it", () => {
+    const key = issueCIOptions("ws-1").queryKey;
+    expect(key).toEqual(["overview", "ws-1", "issue-ci"]);
+    expect(key.slice(0, 3)).not.toEqual(overviewKeys.activityAll("ws-1"));
   });
 });

@@ -255,6 +255,7 @@ import type {
   AgentModelFallback,
   ReplaceAgentFallbacksRequest,
   ProviderQuotaResponse,
+  IssueCIResponse,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -483,6 +484,8 @@ import {
   SkillAgentUsageListSchema,
   ProviderQuotaResponseSchema,
   EMPTY_PROVIDER_QUOTA,
+  IssueCIResponseSchema,
+  EMPTY_ISSUE_CI,
   ProjectSkillListSchema,
   ProjectMcpServerListSchema,
   AgentProjectSkillListSchema,
@@ -3633,6 +3636,20 @@ export class ApiClient {
     }
     return parseWithFallback<ProviderQuotaResponse>(raw, ProviderQuotaResponseSchema, EMPTY_PROVIDER_QUOTA, {
       endpoint: "GET /api/provider-quota",
+    });
+  }
+
+  async getIssueCI(): Promise<IssueCIResponse> {
+    let raw: unknown;
+    try {
+      raw = await this.fetch<unknown>("/api/issue-ci");
+    } catch (err) {
+      // A 404 means the backend predates the route: no CI states, not an error.
+      if (err instanceof ApiError && err.status === 404) return EMPTY_ISSUE_CI;
+      throw err;
+    }
+    return parseWithFallback<IssueCIResponse>(raw, IssueCIResponseSchema, EMPTY_ISSUE_CI, {
+      endpoint: "GET /api/issue-ci",
     });
   }
 

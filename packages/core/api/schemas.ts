@@ -100,6 +100,8 @@ import type {
   ProviderQuotaAccount,
   ProviderQuotaResponse,
   QuotaWindow,
+  IssueCIEntry,
+  IssueCIResponse,
 } from "../types";
 import type { CloudRuntimeNode } from "../runtimes/cloud-runtime";
 import type { CreateFeedbackResponse } from "../feedback/types";
@@ -3693,6 +3695,33 @@ export const ProviderQuotaResponseSchema = z.object({
 }).loose();
 
 export const EMPTY_PROVIDER_QUOTA: ProviderQuotaResponse = { accounts: [] };
+
+// An entry with an unknown CI state or no issue id is dropped instead of
+// failing the list.
+const IssueCIEntrySchema = z.object({
+  issue_id: z.string(),
+  issue_status: z.string().default("").catch(""),
+  state: z.enum(["pending", "failed"]),
+  since: z.string().nullable().default(null).catch(null),
+  pull_request: z.object({
+    provider: z.string().default("").catch(""),
+    repo_owner: z.string().default("").catch(""),
+    repo_name: z.string().default("").catch(""),
+    number: z.number().default(0).catch(0),
+    html_url: z.string().default("").catch(""),
+  }).loose(),
+}).loose();
+
+export const IssueCIResponseSchema = z.object({
+  issues: z.array(z.unknown()).transform((issues) =>
+    issues.flatMap((entry) => {
+      const parsed = IssueCIEntrySchema.safeParse(entry);
+      return parsed.success ? [parsed.data as IssueCIEntry] : [];
+    }),
+  ),
+}).loose();
+
+export const EMPTY_ISSUE_CI: IssueCIResponse = { issues: [] };
 
 export const SkillImportExistingSkillSchema = z.object({
   id: z.string(),

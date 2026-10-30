@@ -381,3 +381,4 @@ export type { IssueWakeup, IssueWakeupInput, SystemWakeup, WorkspaceSystemWakeup
 
 export type { WorkspaceWakeup, WorkspaceWakeupPage, WorkspaceWakeupFilters, WakeupScope } from "./issue-wakeup";
 export type { QuotaProvider, QuotaWindowKind, QuotaWindow, ProviderQuotaAccount, ProviderQuotaResponse } from "./provider-quota";
+export type { IssueCIState, IssueCIPullRequest, IssueCIEntry, IssueCIResponse } from "./issue-ci";

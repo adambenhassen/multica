@@ -22,6 +22,8 @@ export const overviewKeys = {
   // Under the feed prefix, so the same activity events refresh it.
   activeIssues: (wsId: string, ids: readonly string[], project: string | null) =>
     [...overviewKeys.activityAll(wsId), "active-issues", project, ...ids] as const,
+  // Outside the feed prefix: pull request events refresh it, not activity.
+  issueCI: (wsId: string) => [...overviewKeys.all(wsId), "issue-ci"] as const,
 };
 
 // The feed endpoint caps a page at 50; the Dashboard list scrolls inside it.
@@ -77,5 +79,14 @@ export function activeIssuesOptions(wsId: string, ids: readonly string[], projec
             .then((res) => res.issues),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
+  });
+}
+
+/** Issues whose open pull request has CI pending or failed at its head commit. */
+export function issueCIOptions(wsId: string) {
+  return queryOptions({
+    queryKey: overviewKeys.issueCI(wsId),
+    queryFn: () => api.getIssueCI().then((res) => res.issues),
+    staleTime: 30 * 1000,
   });
 }
