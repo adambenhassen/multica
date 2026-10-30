@@ -84,7 +84,7 @@ function comment(id: string, issue: typeof SHIP, content: string) {
   return { type: "comment", id, actor_type: "agent", actor_id: "agent-1", created_at: NOW, content, issue };
 }
 
-type FeedCall = { kind?: string; to?: string[]; issues?: string[]; project?: string };
+type FeedCall = { kind?: string; to?: string[]; current?: boolean; issues?: string[]; project?: string };
 
 /** Scripts the feed endpoint and records every call's parameters. */
 function scriptFeed(entries: (params: FeedCall) => unknown[]) {
@@ -159,14 +159,39 @@ describe("OverviewPage", () => {
 
     await within(feed()).findByText("No status changes yet");
     fireEvent.click(within(feed()).getByRole("button", { name: "Blocked" }));
-    await within(feed()).findByText("No changes into this status");
-    expect(calls.at(-1)).toMatchObject({ kind: "status", to: ["blocked"] });
+    await within(feed()).findByText("No issues in this status");
+    expect(calls.at(-1)).toMatchObject({ kind: "status", to: ["blocked"], current: true });
 
     fireEvent.click(within(feed()).getByRole("button", { name: "In progress" }));
     await waitFor(() => expect(calls.at(-1)?.to).toEqual(["in_progress", "qa"]));
 
     fireEvent.click(within(feed()).getByRole("button", { name: "Done" }));
     await waitFor(() => expect(calls.at(-1)?.to).toEqual(["done"]));
+  });
+
+  it("lists only the issues still in a status tab's status, once each", async () => {
+    const STILL = { id: "issue-5", identifier: "MUL-5", title: "Still blocked", status: "blocked" };
+    const MOVED = { id: "issue-6", identifier: "MUL-6", title: "Unblocked since", status: "todo" };
+    const into = (id: string, issue: typeof STILL) => ({ ...move(id, issue), details: { from: "todo", to: "blocked" } });
+    scriptFeed((p) => (p.to?.includes("blocked") ? [into("b-3", STILL), into("b-2", MOVED), into("b-1", STILL)] : []));
+    renderPage();
+    await within(feed()).findByText("No status changes yet");
+
+    fireEvent.click(within(feed()).getByRole("button", { name: "Blocked" }));
+    expect(await within(feed()).findByText("Still blocked")).toBeTruthy();
+    expect(within(feed()).getAllByText("Still blocked")).toHaveLength(1);
+    expect(within(feed()).queryByText("Unblocked since")).toBeNull();
+  });
+
+  it("shows an issue's failed runs once, at its latest failure", async () => {
+    const failed = (id: string) => ({ ...move(id, FIX), action: "task_failed", details: {} });
+    scriptFeed((p) => (p.kind === "failures" ? [failed("f-2"), failed("f-1")] : [move("a-1", SHIP)]));
+    renderPage();
+    await within(feed()).findByText("Ship the dashboard");
+    fireEvent.click(within(feed()).getByRole("button", { name: "Failed runs" }));
+    expect(await within(feed()).findByText("Fix the reconnect")).toBeTruthy();
+    expect(within(feed()).getAllByText("Fix the reconnect")).toHaveLength(1);
+    expect(within(feed()).getByText("×2")).toBeTruthy();
   });
 
   it("shows failed agent runs on their own tab", async () => {
@@ -379,7 +404,7 @@ describe("OverviewPage", () => {
     expect(within(spec).getByText("CI queued")).toBeTruthy();
     expect(within(spec).getByText("CI queued on acme/widget#7")).toBeTruthy();
     expect(calls.at(-1)).toMatchObject({ issues: ["issue-1", "issue-2", "issue-4", "issue-5"] });
-    // The waiting cell sits before the move, not before the title.
+    // The waiting cell sits between the title and the move.
     const row = within(feed()).getByText("Fix the reconnect").closest("a")!;
     const cell = row.querySelector("[data-waiting]")!;
     expect(cell.getAttribute("data-waiting")).toBe("ci_running");

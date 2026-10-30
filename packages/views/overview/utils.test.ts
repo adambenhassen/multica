@@ -5,6 +5,7 @@ import type { AgentTask, IssueCIEntry, IssueStatusEntry, WakeupPreview, Workspac
 import {
   coalesceFeed,
   commentExcerpt,
+  currentStatusRows,
   durationParts,
   waitingGroup,
   waitingIssues,
@@ -221,5 +222,41 @@ describe("waitingGroup", () => {
     [wake(null), "wakeup"],
   ])("%j is %s", (reason, want) => {
     expect(waitingGroup(reason, now)).toBe(want);
+  });
+});
+
+describe("currentStatusRows", () => {
+  const move = (id: string, issueId: string, now: string, to: string, at: string): WorkspaceActivityEntry => ({
+    type: "activity",
+    id,
+    actor_type: "member",
+    actor_id: "u1",
+    created_at: at,
+    action: "status_changed",
+    details: { from: "todo", to },
+    issue: { id: issueId, identifier: issueId, title: issueId, status: now },
+  });
+
+  it("keeps one row per issue still in the tab's statuses, at its latest move in", () => {
+    // Newest first, as the feed comes.
+    const got = currentStatusRows(
+      [
+        move("m4", "a", "blocked", "blocked", "2026-10-30T12:00:00Z"),
+        move("m3", "b", "in_progress", "blocked", "2026-10-30T11:00:00Z"),
+        move("m2", "a", "blocked", "blocked", "2026-10-30T10:00:00Z"),
+        move("m1", "c", "blocked", "blocked", "2026-10-30T09:00:00Z"),
+      ],
+      ["blocked"],
+    );
+    // b was blocked, then moved on: it no longer belongs on Blocked.
+    expect(got.map((e) => e.id)).toEqual(["m4", "m1"]);
+  });
+
+  it("counts any status of the tab as current", () => {
+    const got = currentStatusRows(
+      [move("m2", "a", "in_review", "in_progress", "2026-10-30T12:00:00Z"), move("m1", "b", "done", "in_progress", "2026-10-30T11:00:00Z")],
+      ["in_progress", "in_review"],
+    );
+    expect(got.map((e) => e.id)).toEqual(["m2"]);
   });
 });

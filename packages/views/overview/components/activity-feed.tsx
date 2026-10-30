@@ -34,6 +34,7 @@ import {
   STATUS_CHANGE_FILTERS,
   coalesceFeed,
   commentExcerpt,
+  currentStatusRows,
   durationParts,
   groupFeedByDay,
   latestRowPerIssue,
@@ -199,10 +200,14 @@ export function StatusChangesFeed({
             : showOther
               ? "changes"
               : "status";
+  // A status tab lists where issues are now: the issues still in its
+  // statuses, each at its latest move in, not every move ever made into them.
+  const statusTab = !allLike && tab !== "failures";
   const query = useInfiniteQuery({
     ...workspaceActivityOptions(wsId, {
       kind,
       to: targets ?? [],
+      current: statusTab,
       issues: tab === "active" ? activeIssues : tab === "waiting" ? waitingIds : focus.issue ? [focus.issue.id] : [],
       project: focus.projectId,
     }),
@@ -274,6 +279,9 @@ export function StatusChangesFeed({
           }
           // Active and Waiting are about now: one row per issue, its latest.
           onePerIssueOf={tab === "active" ? activeIssues : tab === "waiting" ? waitingIds : undefined}
+          currentIn={statusTab ? (targets ?? []) : undefined}
+          // An issue whose runs keep failing shows once, at its latest failure.
+          latestPerIssue={tab === "failures"}
           waiting={tab === "waiting" || showWaiting ? waiting.byIssue : undefined}
         />
       )}
@@ -287,6 +295,8 @@ function FeedBody({
   focus,
   empty,
   onePerIssueOf,
+  currentIn,
+  latestPerIssue,
   waiting,
 }: {
   query: UseInfiniteQueryResult<WorkspaceActivityEntry[]>;
@@ -298,8 +308,12 @@ function FeedBody({
    * row, and there is no scroll paging.
    */
   onePerIssueOf?: readonly string[];
+  /** A status tab's statuses: one row per issue still in one of them. */
+  currentIn?: readonly string[];
+  /** One row per issue, its newest (repeats folded in), with scroll paging as usual. */
+  latestPerIssue?: boolean;
   /**
-   * What each row's issue waits on, shown before its move: always on the
+   * What each row's issue waits on, shown in the agents' column: always on the
    * Waiting tab, and on every tab when the Display menu asks for it.
    */
   waiting?: ReadonlyMap<string, WaitingReason>;
@@ -318,13 +332,18 @@ function FeedBody({
   const latestOnly = useOverviewLayoutStore((s) => s.latestOnly);
   const onePerIssue = onePerIssueOf !== undefined;
   const groups = useMemo(() => {
-    const rows = onePerIssue
-      ? latestRowPerIssue(entries ?? [])
-      : latestOnly
-        ? latestStatusChangePerIssue(entries ?? [])
-        : (entries ?? []);
+    const rows = currentIn
+      ? currentStatusRows(entries ?? [], currentIn)
+      : onePerIssue
+        ? latestRowPerIssue(entries ?? [])
+        : latestPerIssue
+          ? // Fold repeats first, so the issue's row keeps its "×N" count.
+            latestRowPerIssue(coalesceFeed(entries ?? []))
+          : latestOnly
+          ? latestStatusChangePerIssue(entries ?? [])
+          : (entries ?? []);
     return groupFeedByDay(coalesceFeed(rows), tz);
-  }, [entries, tz, latestOnly, onePerIssue]);
+  }, [entries, tz, latestOnly, onePerIssue, currentIn, latestPerIssue]);
   const covered = useMemo(() => new Set((entries ?? []).map((e) => e.issue.id)).size, [entries]);
   // Identifiers are monospace, so sizing their column to the longest one in
   // `ch` lines titles up down the list.
@@ -515,8 +534,21 @@ const FeedRow = memo(function FeedRow({
         <span className="min-w-32 flex-1 truncate text-label" title={entry.issue.title}>
           {entry.issue.title}
         </span>
-        {/* Fixed-width columns keep working agents and project labels aligned down the list. */}
-        {!showWaiting && <WorkingAgents agentIds={workingAgentIds} />}
+        {/* Fixed-width columns keep working agents and project labels aligned down the list.
+            With the waiting column, the agents' column widens to say what is
+            happening on the issue now: what it waits on, or the agents running
+            on it. A waiting issue has no agent running, so the two never
+            compete, and the agents stay put when the column is switched on. */}
+        {!showWaiting ? (
+          <WorkingAgents agentIds={workingAgentIds} />
+        ) : waitingReason ? (
+          <WaitingCell reason={waitingReason} />
+        ) : (
+          <span className="flex w-4 shrink-0 @sm:w-32">
+            {/* Starts where the waiting icons do. */}
+            <WorkingAgents agentIds={workingAgentIds} alignStart />
+          </span>
+        )}
         <span
           className="hidden w-32 shrink-0 items-center gap-1 text-caption text-muted-foreground @lg:flex"
           title={project?.title}
@@ -528,18 +560,6 @@ const FeedRow = memo(function FeedRow({
             </>
           )}
         </span>
-        {/* With the waiting column, one column says what is happening on the issue
-            now: what it waits on, or the agents running on it. A waiting issue
-            has no agent running, so the two never compete for it. */}
-        {showWaiting &&
-          (waitingReason ? (
-            <WaitingCell reason={waitingReason} />
-          ) : (
-            <span className="flex w-4 shrink-0 @sm:w-32">
-              {/* Starts where the waiting icons do. */}
-              <WorkingAgents agentIds={workingAgentIds} alignStart />
-            </span>
-          ))}
         {/* The move and the actor each get a fixed column: icons only, or with
             their names once the list is wide (56rem) enough to spare them. */}
         <span className="hidden shrink-0 items-center gap-2 text-caption text-muted-foreground @sm:flex">
@@ -621,7 +641,7 @@ const FeedRow = memo(function FeedRow({
 });
 
 /**
- * What an issue waits on, before its move: an icon, and once the list has
+ * What an issue waits on, in the agents' column: an icon, and once the list has
  * room (24rem) a short label with how long. The full sentence is the tooltip
  * and the screen-reader text.
  */

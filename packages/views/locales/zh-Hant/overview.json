@@ -27,7 +27,7 @@
     "empty": "暫無狀態變更",
     "empty_active": "目前沒有智慧體在處理任務",
     "empty_waiting": "沒有任務在等待執行、CI、合併門禁或喚醒",
-    "empty_filtered": "沒有變更為此狀態的記錄",
+    "empty_filtered": "沒有處於此狀態的任務",
     "empty_failures": "沒有失敗的執行",
     "filter_label": "按新狀態篩選",
     "filters": {

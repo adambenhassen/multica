@@ -61,6 +61,17 @@ export function latestStatusChangePerIssue(entries: WorkspaceActivityEntry[]): W
   });
 }
 
+/**
+ * A status tab's rows: one per issue whose current status is one of the tab's
+ * `targets`, at its latest move into them. An issue that moved on drops out,
+ * so the tab lists where issues are now. `entries` (moves into `targets`) are
+ * newest first.
+ */
+export function currentStatusRows(entries: WorkspaceActivityEntry[], targets: readonly string[]): WorkspaceActivityEntry[] {
+  const now = new Set(targets);
+  return latestRowPerIssue(entries.filter((entry) => now.has(entry.issue.status)));
+}
+
 /** Keeps each issue's newest row of any kind. `entries` are newest first. */
 export function latestRowPerIssue(entries: WorkspaceActivityEntry[]): WorkspaceActivityEntry[] {
   const seen = new Set<string>();

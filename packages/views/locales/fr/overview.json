@@ -27,7 +27,7 @@
     "empty": "Aucun changement de statut",
     "empty_active": "Aucun agent ne travaille sur une tâche en ce moment",
     "empty_waiting": "Rien n'attend une exécution, la CI, le merge gate ou un réveil",
-    "empty_filtered": "Aucun passage à ce statut",
+    "empty_filtered": "Aucune tâche dans ce statut",
     "empty_failures": "Aucune exécution échouée",
     "filter_label": "Filtrer par nouveau statut",
     "filters": {

@@ -27,7 +27,7 @@
     "empty": "아직 상태 변경 없음",
     "empty_active": "지금 작업 중인 에이전트 없음",
     "empty_waiting": "실행, CI, 머지 게이트, 깨우기를 기다리는 항목 없음",
-    "empty_filtered": "이 상태로의 변경 없음",
+    "empty_filtered": "이 상태의 태스크 없음",
     "empty_failures": "실패한 실행 없음",
     "filter_label": "변경된 상태로 필터",
     "filters": {

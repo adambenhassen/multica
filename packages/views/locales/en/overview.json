@@ -27,7 +27,7 @@
     "empty": "No status changes yet",
     "empty_active": "No agent is working on an issue right now",
     "empty_waiting": "Nothing is waiting on a run, CI, the merge gate or a wakeup",
-    "empty_filtered": "No changes into this status",
+    "empty_filtered": "No issues in this status",
     "empty_failures": "No failed runs",
     "filter_label": "Filter by new status",
     "filters": {

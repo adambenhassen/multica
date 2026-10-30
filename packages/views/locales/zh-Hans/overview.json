@@ -27,7 +27,7 @@
     "empty": "暂无状态变更",
     "empty_active": "目前没有智能体在处理任务",
     "empty_waiting": "没有任务在等待运行、CI、合并门禁或唤醒",
-    "empty_filtered": "没有变更为此状态的记录",
+    "empty_filtered": "没有处于此状态的任务",
     "empty_failures": "没有失败的运行",
     "filter_label": "按新状态筛选",
     "filters": {

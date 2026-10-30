@@ -27,7 +27,7 @@
     "empty": "ステータス変更はまだありません",
     "empty_active": "現在作業中のエージェントはいません",
     "empty_waiting": "実行・CI・マージゲート・ウェイクアップを待っているものはありません",
-    "empty_filtered": "このステータスへの変更はありません",
+    "empty_filtered": "このステータスのタスクはありません",
     "empty_failures": "失敗した実行はありません",
     "filter_label": "変更後のステータスで絞り込む",
     "filters": {
