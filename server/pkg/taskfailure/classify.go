@@ -605,9 +605,9 @@ var legacyUsageLimit403Reasons = map[string]bool{
 }
 
 // namedLimitRe is the CLI's own quota wording, "You've hit your session limit · resets 5:10pm (UTC)" (also
-// "weekly limit"). Neither "usage limit" nor "you've hit your limit" matches it: on 2026-10-17, 282 such failures in
-// 7 days landed in the catchall, so none moved to the agent's model fallback.
-var namedLimitRe = regexp.MustCompile(`you['\x{2019}]ve hit your (?:[\w']+ ){0,2}limit\b`)
+// "weekly limit", "5-hour limit"). Neither "usage limit" nor "you've hit your limit" matches it: on 2026-10-17, 282
+// such failures in 7 days landed in the catchall, so none moved to the agent's model fallback.
+var namedLimitRe = regexp.MustCompile(`you['\x{2019}]ve hit your (?:[\w'-]+ ){0,2}limit\b`)
 
 // legacyNamedLimitReasons are the catchalls an installed daemon reports for namedLimitRe failures.
 var legacyNamedLimitReasons = map[string]bool{

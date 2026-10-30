@@ -79,6 +79,7 @@ func TestClassifyRules(t *testing.T) {
 		// to the agent's model fallback).
 		{"session limit", "You've hit your session limit · resets 5:10pm (UTC)", ReasonAgentProviderQuotaLimit},
 		{"weekly limit", "You've hit your weekly limit · resets 9am (UTC)", ReasonAgentProviderQuotaLimit},
+		{"5-hour limit", "You've hit your 5-hour limit · resets 6:30pm (UTC)", ReasonAgentProviderQuotaLimit},
 		{"session limit curly", "You\u2019ve hit your session limit · resets 10:10pm (UTC)", ReasonAgentProviderQuotaLimit},
 		{"credits", "Your account has 0 credits remaining", ReasonAgentProviderQuotaLimit},
 		{"quota", "quota exceeded for project foo", ReasonAgentProviderQuotaLimit},
@@ -680,6 +681,7 @@ func TestNormalizeDaemonReasonUpgradesNamedLimit(t *testing.T) {
 		"You've hit your session limit · resets 5:10pm (UTC)",
 		"You've hit your weekly limit · resets 9am (UTC)",
 		"You\u2019ve hit your session limit · resets 10:10pm (UTC)",
+		"You've hit your 5-hour limit · resets 6:30pm (UTC)",
 	} {
 		for _, reason := range []string{string(ReasonAgentUnknown), "agent_error"} {
 			if got := NormalizeDaemonReason(reason, raw); got != ReasonAgentProviderQuotaLimit {
