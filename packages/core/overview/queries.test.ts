@@ -59,6 +59,15 @@ describe("overview query keys", () => {
   });
 });
 
+describe("current-status feed key", () => {
+  it("keys the issues still in a status apart from every move into it", () => {
+    const moves = workspaceActivityOptions("ws-1", { kind: "status", to: ["blocked"] }).queryKey;
+    const current = workspaceActivityOptions("ws-1", { kind: "status", to: ["blocked"], current: true }).queryKey;
+    expect(current).not.toEqual(moves);
+    expect(current.slice(0, 3)).toEqual(overviewKeys.activityAll("ws-1"));
+  });
+});
+
 describe("issue CI query key", () => {
   it("sits outside the feed prefix, so activity events do not refetch it", () => {
     const key = issueCIOptions("ws-1").queryKey;

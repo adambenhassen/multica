@@ -59,6 +59,21 @@ describe("workspace activity API", () => {
     expect(urls[1]?.has("to")).toBe(false);
   });
 
+  it("asks for the issues still in those statuses only with a status filter", async () => {
+    const fetch = vi.fn().mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ entries: [] }), { status: 200 })),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const client = new ApiClient("https://api.example.test");
+    await client.listWorkspaceActivity({ kind: "status", to: ["blocked"], current: true });
+    await client.listWorkspaceActivity({ kind: "status", to: [], current: true });
+    await client.listWorkspaceActivity({ kind: "status", to: ["blocked"] });
+    const urls = fetch.mock.calls.map(([url]) => new URL(String(url)).searchParams);
+    expect(urls[0]?.get("current")).toBe("1");
+    expect(urls[1]?.has("current")).toBe(false);
+    expect(urls[2]?.has("current")).toBe(false);
+  });
+
   it("sends the issue and project to narrow the feed to", async () => {
     const { url } = await read({ entries: [] }, 50, "all");
     expect(url).not.toContain("issue=");

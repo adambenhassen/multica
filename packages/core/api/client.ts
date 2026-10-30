@@ -1767,6 +1767,8 @@ export class ApiClient {
       limit?: number;
       kind?: WorkspaceActivityKind;
       to?: readonly string[];
+      /** Only the issues still in one of `to`. */
+      current?: boolean;
       issues?: readonly string[];
       project?: string;
       before?: string;
@@ -1777,6 +1779,7 @@ export class ApiClient {
     if (params.kind && params.kind !== "all") search.set("kind", params.kind);
     // Status keys the changes went into; the server takes it with kind=status only.
     if (params.to?.length) search.set("to", params.to.join(","));
+    if (params.current && params.to?.length) search.set("current", "1");
     // Those issues' history (UUIDs); the server takes them comma-separated.
     if (params.issues?.length) search.set("issue", params.issues.join(","));
     // One project's issues (the project's UUID).
