@@ -194,6 +194,44 @@ LEFT JOIN checks c ON c.pr_id = pr.id
 WHERE ipr.issue_id = sqlc.arg('issue_id')
 ORDER BY pr.pr_created_at DESC;
 
+-- name: ListOpenPullRequestChecksByWorkspace :many
+-- CI counts for every open or draft PR linked to an issue in the workspace,
+-- for the Activity page's Waiting tab. Same check-run aggregation as
+-- ListPullRequestsByIssue, scoped to the workspace instead of one issue.
+WITH ws_prs AS (
+    SELECT pr.id, pr.snapshot_head_sha
+    FROM github_pull_request pr
+    WHERE pr.workspace_id = sqlc.arg('workspace_id') AND pr.state IN ('open', 'draft')
+),
+checks AS (
+    SELECT
+        cr.pr_id,
+        SUM(CASE WHEN cr.status = 'completed' AND cr.conclusion IN
+                ('failure','cancelled','timed_out','action_required','startup_failure','stale','error')
+            THEN 1 ELSE 0 END)::bigint AS failed,
+        SUM(CASE WHEN cr.status = 'completed' AND cr.conclusion IN
+                ('success','neutral','skipped')
+            THEN 1 ELSE 0 END)::bigint AS passed,
+        SUM(CASE WHEN cr.status <> 'completed' OR cr.conclusion IS NULL
+            THEN 1 ELSE 0 END)::bigint AS running
+    FROM github_pull_request_check_run cr
+    JOIN ws_prs wp ON wp.id = cr.pr_id
+    WHERE cr.head_sha = wp.snapshot_head_sha AND wp.snapshot_head_sha <> ''
+    GROUP BY cr.pr_id
+)
+SELECT
+    ipr.issue_id, i.status AS issue_status,
+    pr.repo_owner, pr.repo_name, pr.pr_number, pr.html_url, pr.pr_updated_at,
+    pr.head_sha, pr.snapshot_head_sha, pr.snapshot_fetched_at, pr.checks_rollup_state,
+    COALESCE(c.passed, 0)::bigint  AS checks_passed,
+    COALESCE(c.failed, 0)::bigint  AS checks_failed,
+    COALESCE(c.running, 0)::bigint AS checks_running
+FROM github_pull_request pr
+JOIN issue_pull_request ipr ON ipr.pull_request_id = pr.id
+JOIN issue i ON i.id = ipr.issue_id AND i.workspace_id = pr.workspace_id
+LEFT JOIN checks c ON c.pr_id = pr.id
+WHERE pr.workspace_id = sqlc.arg('workspace_id') AND pr.state IN ('open', 'draft');
+
 -- name: GetIssueReviewHeadSha :one
 -- Returns the head SHA of the commit currently "under review" for an issue:
 -- the most-recently-updated linked PR that still has an open/draft state and a

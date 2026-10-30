@@ -533,6 +533,97 @@ func (q *Queries) ListIssueIDsForPullRequest(ctx context.Context, pullRequestID 
 	return items, nil
 }
 
+const listOpenPullRequestChecksByWorkspace = `-- name: ListOpenPullRequestChecksByWorkspace :many
+WITH ws_prs AS (
+    SELECT pr.id, pr.snapshot_head_sha
+    FROM github_pull_request pr
+    WHERE pr.workspace_id = $1 AND pr.state IN ('open', 'draft')
+),
+checks AS (
+    SELECT
+        cr.pr_id,
+        SUM(CASE WHEN cr.status = 'completed' AND cr.conclusion IN
+                ('failure','cancelled','timed_out','action_required','startup_failure','stale','error')
+            THEN 1 ELSE 0 END)::bigint AS failed,
+        SUM(CASE WHEN cr.status = 'completed' AND cr.conclusion IN
+                ('success','neutral','skipped')
+            THEN 1 ELSE 0 END)::bigint AS passed,
+        SUM(CASE WHEN cr.status <> 'completed' OR cr.conclusion IS NULL
+            THEN 1 ELSE 0 END)::bigint AS running
+    FROM github_pull_request_check_run cr
+    JOIN ws_prs wp ON wp.id = cr.pr_id
+    WHERE cr.head_sha = wp.snapshot_head_sha AND wp.snapshot_head_sha <> ''
+    GROUP BY cr.pr_id
+)
+SELECT
+    ipr.issue_id, i.status AS issue_status,
+    pr.repo_owner, pr.repo_name, pr.pr_number, pr.html_url, pr.pr_updated_at,
+    pr.head_sha, pr.snapshot_head_sha, pr.snapshot_fetched_at, pr.checks_rollup_state,
+    COALESCE(c.passed, 0)::bigint  AS checks_passed,
+    COALESCE(c.failed, 0)::bigint  AS checks_failed,
+    COALESCE(c.running, 0)::bigint AS checks_running
+FROM github_pull_request pr
+JOIN issue_pull_request ipr ON ipr.pull_request_id = pr.id
+JOIN issue i ON i.id = ipr.issue_id AND i.workspace_id = pr.workspace_id
+LEFT JOIN checks c ON c.pr_id = pr.id
+WHERE pr.workspace_id = $1 AND pr.state IN ('open', 'draft')
+`
+
+type ListOpenPullRequestChecksByWorkspaceRow struct {
+	IssueID           pgtype.UUID        `json:"issue_id"`
+	IssueStatus       string             `json:"issue_status"`
+	RepoOwner         string             `json:"repo_owner"`
+	RepoName          string             `json:"repo_name"`
+	PrNumber          int32              `json:"pr_number"`
+	HtmlUrl           string             `json:"html_url"`
+	PrUpdatedAt       pgtype.Timestamptz `json:"pr_updated_at"`
+	HeadSha           string             `json:"head_sha"`
+	SnapshotHeadSha   string             `json:"snapshot_head_sha"`
+	SnapshotFetchedAt pgtype.Timestamptz `json:"snapshot_fetched_at"`
+	ChecksRollupState pgtype.Text        `json:"checks_rollup_state"`
+	ChecksPassed      int64              `json:"checks_passed"`
+	ChecksFailed      int64              `json:"checks_failed"`
+	ChecksRunning     int64              `json:"checks_running"`
+}
+
+// CI counts for every open or draft PR linked to an issue in the workspace,
+// for the Activity page's Waiting tab. Same check-run aggregation as
+// ListPullRequestsByIssue, scoped to the workspace instead of one issue.
+func (q *Queries) ListOpenPullRequestChecksByWorkspace(ctx context.Context, workspaceID pgtype.UUID) ([]ListOpenPullRequestChecksByWorkspaceRow, error) {
+	rows, err := q.db.Query(ctx, listOpenPullRequestChecksByWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOpenPullRequestChecksByWorkspaceRow{}
+	for rows.Next() {
+		var i ListOpenPullRequestChecksByWorkspaceRow
+		if err := rows.Scan(
+			&i.IssueID,
+			&i.IssueStatus,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.PrNumber,
+			&i.HtmlUrl,
+			&i.PrUpdatedAt,
+			&i.HeadSha,
+			&i.SnapshotHeadSha,
+			&i.SnapshotFetchedAt,
+			&i.ChecksRollupState,
+			&i.ChecksPassed,
+			&i.ChecksFailed,
+			&i.ChecksRunning,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPullRequestsByIssue = `-- name: ListPullRequestsByIssue :many
 WITH issue_prs AS (
     SELECT pr.id, pr.snapshot_head_sha

@@ -2481,6 +2481,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Workspace-wide agent task snapshot for presence derivation:
 			// every active task + each agent's most recent terminal task.
 			r.Get("/api/agent-task-snapshot", h.ListWorkspaceAgentTaskSnapshot)
+			// Open-PR CI that is pending or failed, per issue (Activity → Waiting).
+			r.Get("/api/issue-ci", h.ListWorkspaceIssueCI)
 			r.Get("/api/issue-wakeup-summaries", h.ListWorkspaceWakeupSummaries)
 			r.Get("/api/issue-wakeups", h.ListWorkspaceWakeups)
 			r.Get("/api/issue-wakeup-paused", h.ListPausedWakeups)

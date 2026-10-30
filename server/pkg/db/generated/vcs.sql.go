@@ -343,6 +343,90 @@ func (q *Queries) ListIssueIDsForVCSPullRequest(ctx context.Context, pullRequest
 	return items, nil
 }
 
+const listOpenVCSPullRequestChecksByWorkspace = `-- name: ListOpenVCSPullRequestChecksByWorkspace :many
+WITH checks AS (
+    SELECT
+        pr.id AS pr_id,
+        COUNT(*)::bigint AS total,
+        SUM(CASE WHEN cs.state = 'failed'  THEN 1 ELSE 0 END)::bigint AS failed,
+        SUM(CASE WHEN cs.state = 'passed'  THEN 1 ELSE 0 END)::bigint AS passed,
+        SUM(CASE WHEN cs.state = 'pending' THEN 1 ELSE 0 END)::bigint AS pending,
+        MIN(cs.updated_at) FILTER (WHERE cs.state = 'pending')::timestamptz AS pending_since,
+        MAX(cs.updated_at) FILTER (WHERE cs.state = 'failed')::timestamptz AS failed_at
+    FROM vcs_pull_request pr
+    JOIN vcs_commit_status cs
+        ON cs.connection_id = pr.connection_id
+       AND cs.sha = pr.head_sha
+       AND pr.head_sha <> ''
+    WHERE pr.workspace_id = $1 AND pr.state IN ('open', 'draft')
+    GROUP BY pr.id
+)
+SELECT
+    ipr.issue_id, i.status AS issue_status,
+    pr.provider, pr.repo_owner, pr.repo_name, pr.pr_number, pr.html_url,
+    c.total AS checks_total, c.passed AS checks_passed, c.failed AS checks_failed,
+    c.pending AS checks_pending, c.pending_since, c.failed_at
+FROM vcs_pull_request pr
+JOIN issue_vcs_pull_request ipr ON ipr.pull_request_id = pr.id
+JOIN issue i ON i.id = ipr.issue_id AND i.workspace_id = pr.workspace_id
+JOIN checks c ON c.pr_id = pr.id
+WHERE pr.workspace_id = $1 AND pr.state IN ('open', 'draft')
+`
+
+type ListOpenVCSPullRequestChecksByWorkspaceRow struct {
+	IssueID       pgtype.UUID        `json:"issue_id"`
+	IssueStatus   string             `json:"issue_status"`
+	Provider      string             `json:"provider"`
+	RepoOwner     string             `json:"repo_owner"`
+	RepoName      string             `json:"repo_name"`
+	PrNumber      int32              `json:"pr_number"`
+	HtmlUrl       string             `json:"html_url"`
+	ChecksTotal   int64              `json:"checks_total"`
+	ChecksPassed  int64              `json:"checks_passed"`
+	ChecksFailed  int64              `json:"checks_failed"`
+	ChecksPending int64              `json:"checks_pending"`
+	PendingSince  pgtype.Timestamptz `json:"pending_since"`
+	FailedAt      pgtype.Timestamptz `json:"failed_at"`
+}
+
+// Commit-status counts at the head sha of every open or draft PR linked to an
+// issue in the workspace, for the Activity page's Waiting tab. PRs with no
+// status at their head are left out. pending_since is when the oldest
+// still-pending status was last written, failed_at the newest failure.
+func (q *Queries) ListOpenVCSPullRequestChecksByWorkspace(ctx context.Context, workspaceID pgtype.UUID) ([]ListOpenVCSPullRequestChecksByWorkspaceRow, error) {
+	rows, err := q.db.Query(ctx, listOpenVCSPullRequestChecksByWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOpenVCSPullRequestChecksByWorkspaceRow{}
+	for rows.Next() {
+		var i ListOpenVCSPullRequestChecksByWorkspaceRow
+		if err := rows.Scan(
+			&i.IssueID,
+			&i.IssueStatus,
+			&i.Provider,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.PrNumber,
+			&i.HtmlUrl,
+			&i.ChecksTotal,
+			&i.ChecksPassed,
+			&i.ChecksFailed,
+			&i.ChecksPending,
+			&i.PendingSince,
+			&i.FailedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVCSConnectionsByWorkspace = `-- name: ListVCSConnectionsByWorkspace :many
 
 SELECT id, workspace_id, provider, instance_url, account_login, access_token_encrypted, webhook_secret_encrypted, connected_by_id, created_at, updated_at FROM vcs_connection

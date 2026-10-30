@@ -137,6 +137,39 @@ LEFT JOIN checks c ON c.pr_id = pr.id
 WHERE ipr.issue_id = sqlc.arg('issue_id')
 ORDER BY pr.pr_created_at DESC;
 
+-- name: ListOpenVCSPullRequestChecksByWorkspace :many
+-- Commit-status counts at the head sha of every open or draft PR linked to an
+-- issue in the workspace, for the Activity page's Waiting tab. PRs with no
+-- status at their head are left out. pending_since is when the oldest
+-- still-pending status was last written, failed_at the newest failure.
+WITH checks AS (
+    SELECT
+        pr.id AS pr_id,
+        COUNT(*)::bigint AS total,
+        SUM(CASE WHEN cs.state = 'failed'  THEN 1 ELSE 0 END)::bigint AS failed,
+        SUM(CASE WHEN cs.state = 'passed'  THEN 1 ELSE 0 END)::bigint AS passed,
+        SUM(CASE WHEN cs.state = 'pending' THEN 1 ELSE 0 END)::bigint AS pending,
+        MIN(cs.updated_at) FILTER (WHERE cs.state = 'pending')::timestamptz AS pending_since,
+        MAX(cs.updated_at) FILTER (WHERE cs.state = 'failed')::timestamptz AS failed_at
+    FROM vcs_pull_request pr
+    JOIN vcs_commit_status cs
+        ON cs.connection_id = pr.connection_id
+       AND cs.sha = pr.head_sha
+       AND pr.head_sha <> ''
+    WHERE pr.workspace_id = sqlc.arg('workspace_id') AND pr.state IN ('open', 'draft')
+    GROUP BY pr.id
+)
+SELECT
+    ipr.issue_id, i.status AS issue_status,
+    pr.provider, pr.repo_owner, pr.repo_name, pr.pr_number, pr.html_url,
+    c.total AS checks_total, c.passed AS checks_passed, c.failed AS checks_failed,
+    c.pending AS checks_pending, c.pending_since, c.failed_at
+FROM vcs_pull_request pr
+JOIN issue_vcs_pull_request ipr ON ipr.pull_request_id = pr.id
+JOIN issue i ON i.id = ipr.issue_id AND i.workspace_id = pr.workspace_id
+JOIN checks c ON c.pr_id = pr.id
+WHERE pr.workspace_id = sqlc.arg('workspace_id') AND pr.state IN ('open', 'draft');
+
 -- =====================
 -- VCS commit status (CI)
 -- =====================
