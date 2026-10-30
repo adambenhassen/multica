@@ -15,7 +15,7 @@ async function read(body: unknown) {
 const entry = {
   issue_id: "issue-1",
   issue_status: "in_review",
-  state: "pending",
+  state: "running",
   since: "2026-10-30T06:00:00Z",
   pull_request: {
     provider: "gitea",
@@ -31,9 +31,13 @@ describe("issue CI API", () => {
     expect(await read({ issues: [entry] })).toEqual({ issues: [entry] });
   });
 
+  it("keeps a queued entry", async () => {
+    expect(await read({ issues: [{ ...entry, state: "queued" }] })).toEqual({ issues: [{ ...entry, state: "queued" }] });
+  });
+
   it("drops entries with an unknown state or no issue id", async () => {
     const { issue_id: _id, ...noId } = entry;
-    expect(await read({ issues: [{ ...entry, state: "passed" }, noId] })).toEqual({ issues: [] });
+    expect(await read({ issues: [{ ...entry, state: "passed" }, { ...entry, state: "pending" }, noId] })).toEqual({ issues: [] });
   });
 
   it("defaults missing optional fields", async () => {

@@ -82,7 +82,7 @@ export function activeIssuesOptions(wsId: string, ids: readonly string[], projec
   });
 }
 
-/** Issues whose open pull request has CI pending or failed at its head commit. */
+/** Issues whose open pull request has CI queued, running or failed at its head commit. */
 export function issueCIOptions(wsId: string) {
   return queryOptions({
     queryKey: overviewKeys.issueCI(wsId),
