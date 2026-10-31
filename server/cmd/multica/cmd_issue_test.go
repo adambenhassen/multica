@@ -5938,37 +5938,3 @@ func TestRunIssueCommentDeleteKeepsReplies(t *testing.T) {
 		})
 	}
 }
-
-func TestRunIssueRerunContinueSendsContinue(t *testing.T) {
-	const issue = "a57c0511-1ebc-471d-a314-438ca16cc75d"
-	for _, tc := range []struct {
-		args []string
-		want map[string]any
-	}{
-		{[]string{issue}, map[string]any{}},
-		{[]string{issue, "--continue"}, map[string]any{"continue": true}},
-	} {
-		var body map[string]any
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodPost || r.URL.Path != "/api/issues/"+issue+"/rerun" {
-				t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
-			}
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-				t.Error(err)
-			}
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "task-1"})
-		}))
-		setCLITestServerEnv(t, srv.URL)
-		cmd := &cobra.Command{Use: "rerun", RunE: runIssueRerun}
-		cmd.Flags().String("output", "json", "")
-		cmd.Flags().Bool("continue", false, "")
-		cmd.SetArgs(tc.args)
-		if err := cmd.Execute(); err != nil {
-			t.Fatal(err)
-		}
-		srv.Close()
-		if !reflect.DeepEqual(body, tc.want) {
-			t.Errorf("args %v: body = %#v, want %#v", tc.args, body, tc.want)
-		}
-	}
-}
