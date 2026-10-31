@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Play } from "lucide-react";
+import { Loader2, Play } from "@multica/ui/icons";
 import { toast } from "sonner";
 import { dispatchReasonCode } from "@multica/core/api";
 import { useRunIssueAssignee } from "@multica/core/issues/mutations";

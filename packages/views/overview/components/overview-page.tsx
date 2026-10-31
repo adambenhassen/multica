@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Activity, Hourglass, SlidersHorizontal, X } from "lucide-react";
+import { Activity, Hourglass, SlidersHorizontal, X } from "@multica/ui/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@multica/ui/components/ui/button";
 import {

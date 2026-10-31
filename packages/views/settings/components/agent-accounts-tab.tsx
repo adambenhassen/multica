@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { IdCard, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { IdCard, Loader2, Pencil, Plus, Trash2 } from "@multica/ui/icons";
 import { toast } from "sonner";
 import {
   agentAccountListOptions,

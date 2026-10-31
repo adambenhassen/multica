@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Users } from "lucide-react";
+import { Search, Users } from "@multica/ui/icons";
 import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { labelListOptions } from "@multica/core/labels";

@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, KeyRound } from "lucide-react";
+import { ChevronDown, KeyRound } from "@multica/ui/icons";
 import { agentAccountListOptions } from "@multica/core/agents";
 import type { AgentAccount } from "@multica/core/types";
 import {

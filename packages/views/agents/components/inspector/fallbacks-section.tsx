@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "@multica/ui/icons";
 import { toast } from "sonner";
 import { agentFallbacksOptions, useReplaceAgentFallbacks } from "@multica/core/agents";
 import { useWorkspaceId } from "@multica/core/hooks";

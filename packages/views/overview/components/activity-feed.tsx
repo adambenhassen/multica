@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { Activity, ArrowRight, Bell, CircleDashed, Clock, GitMerge, Hourglass, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, TriangleAlert, UserRound } from "lucide-react";
+import { Activity, ArrowRight, Bell, CircleDashed, Clock, GitMerge, Hourglass, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, TriangleAlert, UserRound } from "@multica/ui/icons";
 import { useInfiniteQuery, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
