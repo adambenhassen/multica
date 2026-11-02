@@ -39,6 +39,7 @@ import { ProviderLogo } from "./provider-logo";
 import { UsageSection } from "./usage-section";
 import { DeleteRuntimeDialog } from "./delete-runtime-dialog";
 import { RuntimeAccessEditor, RuntimeAccessReadout } from "./runtime-access-editor";
+import { RuntimeConcurrencyField } from "./runtime-concurrency-field";
 import { DeleteRuntimeProfileDialog } from "./delete-runtime-profile-dialog";
 import { runtimeRowLabel } from "./runtime-machines";
 import { useT, useTimeAgo } from "../../i18n";
@@ -203,6 +204,7 @@ export function RuntimeDetail({
             <DiagnosticsCard
               runtime={runtime}
               canEditVisibility={!!isRuntimeOwner}
+              canEditRuntime={!!canEditRuntime}
               canDelete={!!canDelete}
               onDelete={() => setDeleteOpen(true)}
             />
@@ -467,6 +469,7 @@ export function ServingAgentsCard({
 function DiagnosticsCard({
   runtime,
   canEditVisibility,
+  canEditRuntime,
   canDelete,
   onDelete,
 }: {
@@ -478,6 +481,8 @@ function DiagnosticsCard({
    * may still rename or delete the runtime.
    */
   canEditVisibility: boolean;
+  /** Runtime owner or workspace admin; gates the concurrency cap. */
+  canEditRuntime: boolean;
   canDelete: boolean;
   onDelete: () => void;
 }) {
@@ -497,6 +502,12 @@ function DiagnosticsCard({
           ) : (
             <RuntimeAccessReadout runtime={runtime} />
           )}
+        </div>
+        <div>
+          <div className="mb-1.5 text-micro uppercase tracking-wide text-muted-foreground">
+            {t(($) => $.detail.concurrency_title)}
+          </div>
+          <RuntimeConcurrencyField runtime={runtime} canEdit={canEditRuntime} />
         </div>
         {canDelete && (
           // The button stays clickable even when the runtime is a live
