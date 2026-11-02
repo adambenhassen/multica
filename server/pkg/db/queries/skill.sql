@@ -50,6 +50,14 @@ RETURNING *;
 -- cleanup runs with a snapshot that includes the attached row.
 SELECT id FROM skill WHERE id = $1 AND workspace_id = $2 FOR UPDATE;
 
+-- name: TouchSkill :one
+-- Supporting-file writes change the skill as a whole, so they bump the parent's
+-- updated_at in the same transaction. Updating the row also takes its lock,
+-- which serializes concurrent file writes on one skill with UpdateSkill.
+UPDATE skill SET updated_at = now()
+WHERE id = $1 AND workspace_id = $2
+RETURNING *;
+
 -- name: DeleteSkill :exec
 -- Defense-in-depth: workspace_id is a SQL-layer tenant guard. See DeleteIssue.
 -- project_skill, its audience and skill_invocation have no foreign key, so
