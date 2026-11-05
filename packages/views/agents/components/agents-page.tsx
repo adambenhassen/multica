@@ -83,15 +83,13 @@ import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 // with min-width + horizontal-scroll escape valve; <@2xl static core set of
 // name + status, toggles don't apply).
 //
-// Agents are identity-type entities (few, avatar + persona), so rows are
-// the TWO-LINE form: avatar left, name + description right, 64px tall —
-// the documented exception to the single-line management-list rule.
+// Single-line rows: avatar + name; the description is the name's tooltip.
 const GRID_COLS =
   "grid-cols-[0.75rem_minmax(120px,1fr)_var(--agc-status-mobile)_1.75rem_0.75rem] " +
   "@2xl:grid-cols-[0.75rem_1rem_minmax(200px,1fr)_var(--agc-status-desktop)_var(--agc-owner)_var(--agc-access)_var(--agc-runtime)_var(--agc-lastactive)_var(--agc-runs)_var(--agc-lasthour)_var(--agc-model)_var(--agc-concurrency)_var(--agc-created)_1.75rem_0.75rem]";
 
-// Two-line rows; the virtualizer's fixed-size contract.
-const ROW_HEIGHT = 64;
+// The virtualizer's fixed-size contract; matches the rows' h-10.
+const ROW_HEIGHT = 40;
 
 // Single source for hideable column widths: track vars and the grid's
 // min-width derive from the same numbers.
@@ -353,54 +351,49 @@ function CheckboxCell({
   );
 }
 
-// Two-line identity cell: avatar left, name + description right. The
-// documented exception to the single-line rule — agents are few and
-// identity-rich, so this is the "team roster" form (GitHub org members,
-// Slack member list).
-function NameCell({ row }: { row: AgentListRow }) {
+// Avatar + name on one line; the description shows as the name's tooltip.
+// The "You" badge is redundant in the Mine tab, where every row is yours.
+function NameCell({ row, showYou }: { row: AgentListRow; showYou: boolean }) {
   const { t } = useT("agents");
   const { agent, isOwnedByMe } = row;
   const isArchived = !!agent.archived_at;
   const isPrivate = agent.visibility === "private";
+  const nameClass = `min-w-0 truncate text-body font-medium ${
+    isArchived ? "text-muted-foreground" : ""
+  }`;
   return (
-    <ListGridCell className="gap-3">
+    <ListGridCell className="gap-2.5">
       <ActorAvatar
         actorType="agent"
         actorId={agent.id}
-        size="lg"
+        size="md"
         className={`shrink-0 ${isArchived ? "opacity-50 grayscale" : ""}`}
         showStatusDot
       />
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span
-            className={`min-w-0 truncate text-body font-medium ${
-              isArchived ? "text-muted-foreground" : ""
-            }`}
-          >
-            {agent.name}
-          </span>
-          {isPrivate && !isArchived && (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Lock className="h-3 w-3 shrink-0 text-faint-foreground" />
-                }
-              />
-              <TooltipContent>{VISIBILITY_TOOLTIP.private}</TooltipContent>
-            </Tooltip>
-          )}
-          {isOwnedByMe && (
-            <span className="shrink-0 rounded-xs bg-muted px-1 text-micro font-medium text-muted-foreground">
-              {t(($) => $.row.you)}
-            </span>
-          )}
-        </div>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         {agent.description ? (
-          <div className="mt-0.5 truncate text-caption text-muted-foreground">
-            {agent.description}
-          </div>
-        ) : null}
+          <Tooltip>
+            <TooltipTrigger
+              render={<span className={nameClass}>{agent.name}</span>}
+            />
+            <TooltipContent className="max-w-sm">{agent.description}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <span className={nameClass}>{agent.name}</span>
+        )}
+        {isPrivate && !isArchived && (
+          <Tooltip>
+            <TooltipTrigger
+              render={<Lock className="h-3 w-3 shrink-0 text-faint-foreground" />}
+            />
+            <TooltipContent>{VISIBILITY_TOOLTIP.private}</TooltipContent>
+          </Tooltip>
+        )}
+        {isOwnedByMe && showYou && (
+          <span className="shrink-0 rounded-xs bg-muted px-1 text-micro font-medium text-muted-foreground">
+            {t(($) => $.row.you)}
+          </span>
+        )}
       </div>
     </ListGridCell>
   );
@@ -742,14 +735,11 @@ function LoadingSkeleton() {
         <span aria-hidden="true" />
       </ListGridHeader>
       {Array.from({ length: 5 }).map((_, i) => (
-        <ListGridRow key={i} className="h-16 hover:bg-transparent">
+        <ListGridRow key={i} className="h-10 hover:bg-transparent">
           <span aria-hidden="true" className="hidden @2xl:inline" />
-          <ListGridCell className="gap-3">
-            <Skeleton className="size-8 rounded-full" />
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <Skeleton className="h-3.5 w-32 max-w-full" />
-              <Skeleton className="h-3 w-48 max-w-full" />
-            </div>
+          <ListGridCell className="gap-2.5">
+            <Skeleton className="size-6 rounded-full" />
+            <Skeleton className="h-3.5 w-32 max-w-full" />
           </ListGridCell>
           <ListGridCell>
             <Skeleton className="h-3 w-16" />
@@ -1136,7 +1126,7 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
                   return (
                     <ListGridRow
                       key={row.agent.id}
-                      className={`h-16 cursor-pointer ${
+                      className={`h-10 cursor-pointer ${
                         selectedIds.has(row.agent.id) ? "bg-accent/30" : ""
                       }`}
                       {...rowLink(paths.agentDetail(row.agent.id), row.agent.name)}
@@ -1145,7 +1135,7 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
                         checked={selectedIds.has(row.agent.id)}
                         onToggle={() => toggleSelected(row.agent.id)}
                       />
-                      <NameCell row={row} />
+                      <NameCell row={row} showYou={scope !== "mine"} />
                       {isColVisible("status") ? (
                         <StatusCell row={row} />
                       ) : (

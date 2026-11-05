@@ -394,6 +394,27 @@ describe("AgentsPage model and concurrency columns", () => {
   });
 });
 
+describe("AgentsPage compact name cell", () => {
+  it("marks my agents with You in All but not in Mine, where every row is mine", () => {
+    renderPage();
+    expect(screen.getAllByText("You")).toHaveLength(2);
+  });
+
+  it("drops the You badge in the Mine tab", () => {
+    mocks.viewState.scope = "mine";
+    renderPage();
+    expect(screen.getByText("Alpha Agent")).toBeInTheDocument();
+    expect(screen.queryByText("You")).not.toBeInTheDocument();
+  });
+
+  it("shows the description as the name's tooltip, not as a second line", () => {
+    mocks.agents = [makeAgent({ id: "a-alpha", name: "Alpha Agent", description: "Reviews every PR" })];
+    renderPage();
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Reviews every PR");
+    expect(screen.getAllByText("Reviews every PR")).toHaveLength(1);
+  });
+});
+
 describe("AgentsPage search + model column (GitHub #9500)", () => {
   it("filters by the store's search query so it survives leaving the page", () => {
     // The query comes from the view store, not page-local state: a remount
