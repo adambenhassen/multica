@@ -112,9 +112,10 @@ const GRID_COLS =
   "grid-cols-[0.75rem_1rem_minmax(120px,1fr)_var(--lgc-usedby)_1.75rem_0.75rem] " +
   "@2xl:grid-cols-[0.75rem_1rem_minmax(200px,1fr)_var(--lgc-usedby)_var(--lgc-runs)_var(--lgc-lastused)_var(--lgc-source)_var(--lgc-creator)_var(--lgc-updated)_var(--lgc-created)_1.75rem_0.75rem]";
 
-// h-12 rows. The virtualizer's fixed-size contract: every row renders at
-// exactly this height, which is what lets it skip per-row measurement.
-const ROW_HEIGHT = 48;
+// The virtualizer's fixed-size contract: every row (and group header) renders
+// at exactly this height, matching the rows' h-10, so it skips per-row
+// measurement.
+const ROW_HEIGHT = 40;
 
 // Single source for hideable column widths: track vars and the grid's
 // min-width derive from the same numbers.
@@ -596,7 +597,7 @@ function LoadingSkeleton() {
         <span aria-hidden="true" />
       </ListGridHeader>
       {Array.from({ length: 5 }).map((_, i) => (
-        <ListGridRow key={i} className="hover:bg-transparent">
+        <ListGridRow key={i} className="h-10 hover:bg-transparent">
           <span aria-hidden="true" />
           <ListGridCell>
             <Skeleton className="h-3.5 w-40 max-w-full" />
@@ -990,7 +991,7 @@ export default function SkillsPage() {
                 return (
               <ListGridRow
                 key={row.skill.id}
-                className={`cursor-pointer ${
+                className={`h-10 cursor-pointer ${
                   selectedIds.has(row.skill.id) ? "bg-accent/30" : ""
                 }`}
                 {...rowLink(paths.skillDetail(row.skill.id), row.skill.name)}
