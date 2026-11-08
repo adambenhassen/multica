@@ -107,6 +107,7 @@ func run(args []string) error {
 func extractRequests(dir string) ([]transcriptRequest, error) {
 	type key struct{ session, request string }
 	seen := map[key]transcriptRequest{}
+	malformed := 0
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -114,15 +115,18 @@ func extractRequests(dir string) ([]transcriptRequest, error) {
 		if d.IsDir() || filepath.Ext(path) != ".jsonl" {
 			return nil
 		}
-		return readTranscript(path, func(r transcriptRequest) {
+		return readTranscript(path, &malformed, func(r transcriptRequest) {
 			k := key{r.SessionID, r.Key}
-			if prev, ok := seen[k]; !ok || !r.Time.Before(prev.Time) {
+			if prev, ok := seen[k]; !ok || r.Time.After(prev.Time) || (r.Time.Equal(prev.Time) && r.Output >= prev.Output) {
 				seen[k] = r
 			}
 		})
 	})
 	if err != nil {
 		return nil, err
+	}
+	if malformed > 0 {
+		slog.Warn("skipped unreadable transcript lines", "count", malformed)
 	}
 	out := make([]transcriptRequest, 0, len(seen))
 	for _, r := range seen {
@@ -155,7 +159,7 @@ type transcriptEntry struct {
 
 var usageMarker = []byte(`"usage"`)
 
-func readTranscript(path string, emit func(transcriptRequest)) error {
+func readTranscript(path string, malformed *int, emit func(transcriptRequest)) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -166,7 +170,9 @@ func readTranscript(path string, emit func(transcriptRequest)) error {
 		line, err := rd.ReadBytes('\n')
 		if len(line) > 0 && bytes.Contains(line, usageMarker) {
 			var e transcriptEntry
-			if json.Unmarshal(line, &e) == nil && e.Type == "assistant" && e.Message.Usage != nil && e.SessionID != "" {
+			if err := json.Unmarshal(line, &e); err != nil {
+				*malformed++
+			} else if e.Type == "assistant" && e.Message.Usage != nil && e.SessionID != "" {
 				key := e.Message.ID
 				if e.RequestID != nil && *e.RequestID != "" {
 					key = *e.RequestID
@@ -194,45 +200,92 @@ func readTranscript(path string, emit func(transcriptRequest)) error {
 	}
 }
 
-// taskWindow is when a task ran and which Claude sessions it used. A zero End
-// means it has not finished.
+// taskWindow is when a task ran and which Claude sessions it used. A zero
+// Start means it never ran; a zero End, that it has not finished. Covered
+// marks a task that already has per-request rows from live telemetry.
 type taskWindow struct {
 	ID       string
 	Sessions []string
 	Start    time.Time
 	End      time.Time
+	Covered  bool
 }
 
-// assignRequests gives each request to the task that ran its session at that
-// time; a resumed session spans several tasks with disjoint windows.
-func assignRequests(reqs []transcriptRequest, tasks []taskWindow, slack time.Duration) (map[string][]transcriptRequest, int) {
-	bySession := map[string][]taskWindow{}
-	for _, t := range tasks {
-		for _, s := range t.Sessions {
+func (t taskWindow) contains(at time.Time, slack time.Duration) bool {
+	if t.Start.IsZero() || at.Before(t.Start.Add(-slack)) {
+		return false
+	}
+	return t.End.IsZero() || !at.After(t.End.Add(slack))
+}
+
+type assignStats struct {
+	// Unmatched requests ran in no known task window; Covered ones belong to
+	// a task whose live telemetry already priced them.
+	Unmatched, Covered int
+}
+
+// assignRequests gives each request to the task that ran it. A resumed
+// session spans several tasks, and a resume can copy earlier requests into a
+// new session, so a request is placed once. A window that contains it beats
+// one that only does within slack (clock skew at the edges). Among containing
+// windows the latest start wins, since a task never marked finished keeps an
+// open window; among slack matches the earliest task, which ran it first.
+func assignRequests(reqs []transcriptRequest, tasks []taskWindow, slack time.Duration) (map[string][]transcriptRequest, assignStats) {
+	bySession := map[string][]*taskWindow{}
+	for i := range tasks {
+		for _, s := range tasks[i].Sessions {
 			if s != "" {
-				bySession[s] = append(bySession[s], t)
+				bySession[s] = append(bySession[s], &tasks[i])
+			}
+		}
+	}
+	type placement struct {
+		task  *taskWindow
+		exact bool
+		req   transcriptRequest
+	}
+	better := func(a, b placement) bool {
+		if a.exact != b.exact {
+			return a.exact
+		}
+		if a.exact {
+			return a.task.Start.After(b.task.Start)
+		}
+		return a.task.Start.Before(b.task.Start)
+	}
+	placed := map[string]placement{}
+	seen := map[string]bool{}
+	for _, r := range reqs {
+		seen[r.Key] = true
+		for _, t := range bySession[r.SessionID] {
+			var p placement
+			switch {
+			case t.contains(r.Time, 0):
+				p = placement{task: t, exact: true, req: r}
+			case t.contains(r.Time, slack):
+				p = placement{task: t, req: r}
+			default:
+				continue
+			}
+			if prev, ok := placed[r.Key]; !ok || better(p, prev) {
+				placed[r.Key] = p
 			}
 		}
 	}
 	out := map[string][]transcriptRequest{}
-	unmatched := 0
+	stats := assignStats{Unmatched: len(seen) - len(placed)}
 	for _, r := range reqs {
-		var best *taskWindow
-		for i, t := range bySession[r.SessionID] {
-			if r.Time.Before(t.Start.Add(-slack)) || (!t.End.IsZero() && r.Time.After(t.End.Add(slack))) {
-				continue
-			}
-			if best == nil || t.Start.After(best.Start) {
-				best = &bySession[r.SessionID][i]
-			}
-		}
-		if best == nil {
-			unmatched++
+		p, ok := placed[r.Key]
+		if !ok || p.req != r {
 			continue
 		}
-		out[best.ID] = append(out[best.ID], r)
+		if p.task.Covered {
+			stats.Covered++
+			continue
+		}
+		out[p.task.ID] = append(out[p.task.ID], r)
 	}
-	return out, unmatched
+	return out, stats
 }
 
 func readExtract(path string) ([]transcriptRequest, error) {
@@ -279,10 +332,10 @@ func load(ctx context.Context, path string, execute bool) error {
 	}
 	rows, err := pool.Query(ctx, `
 		SELECT t.id::text, COALESCE(t.session_id, ''), COALESCE(t.retired_session_id, ''),
-		       COALESCE(t.started_at, t.dispatched_at, t.created_at), t.completed_at
+		       COALESCE(t.started_at, t.dispatched_at), t.completed_at,
+		       EXISTS (SELECT 1 FROM task_request_usage r WHERE r.task_id = t.id)
 		FROM agent_task_queue t
-		WHERE (t.session_id = ANY($1) OR t.retired_session_id = ANY($1))
-		  AND NOT EXISTS (SELECT 1 FROM task_request_usage r WHERE r.task_id = t.id)`, ids)
+		WHERE t.session_id = ANY($1) OR t.retired_session_id = ANY($1)`, ids)
 	if err != nil {
 		return fmt.Errorf("load tasks: %w", err)
 	}
@@ -290,12 +343,15 @@ func load(ctx context.Context, path string, execute bool) error {
 	for rows.Next() {
 		var t taskWindow
 		var session, retired string
-		var end *time.Time
-		if err := rows.Scan(&t.ID, &session, &retired, &t.Start, &end); err != nil {
+		var start, end *time.Time
+		if err := rows.Scan(&t.ID, &session, &retired, &start, &end, &t.Covered); err != nil {
 			rows.Close()
 			return fmt.Errorf("scan task: %w", err)
 		}
 		t.Sessions = []string{session, retired}
+		if start != nil {
+			t.Start = *start
+		}
 		if end != nil {
 			t.End = *end
 		}
@@ -306,7 +362,7 @@ func load(ctx context.Context, path string, execute bool) error {
 		return fmt.Errorf("load tasks: %w", err)
 	}
 
-	byTask, unmatched := assignRequests(reqs, tasks, 2*time.Minute)
+	byTask, stats := assignRequests(reqs, tasks, 2*time.Minute)
 	var exact int64
 	priced := 0
 	for _, rs := range byTask {
@@ -318,7 +374,7 @@ func load(ctx context.Context, path string, execute bool) error {
 		}
 	}
 	slog.Info("backfill plan", "requests", len(reqs), "tasks", len(byTask), "priced_requests", priced,
-		"unmatched_requests", unmatched, "exact_usd", float64(exact)/metrics.CostUSDTicksPerUSD, "execute", execute)
+		"unmatched_requests", stats.Unmatched, "covered_by_telemetry", stats.Covered, "exact_usd", float64(exact)/metrics.CostUSDTicksPerUSD, "execute", execute)
 	if !execute {
 		return nil
 	}

@@ -84,9 +84,9 @@ func TestAssignRequestsToTasks(t *testing.T) {
 		{SessionID: "s2", Key: "c", Time: at("2026-10-21T10:00:00Z")},
 		{SessionID: "unknown", Key: "d", Time: at("2026-10-21T10:00:00Z")},
 	}
-	byTask, unmatched := assignRequests(reqs, tasks, 2*time.Minute)
-	if unmatched != 2 {
-		t.Errorf("unmatched = %d, want 2", unmatched)
+	byTask, stats := assignRequests(reqs, tasks, 2*time.Minute)
+	if stats.Unmatched != 2 {
+		t.Errorf("unmatched = %d, want 2", stats.Unmatched)
 	}
 	keys := func(id string) string {
 		var out []string
@@ -97,5 +97,68 @@ func TestAssignRequestsToTasks(t *testing.T) {
 	}
 	if keys("first") != "a" || keys("second") != "b" || keys("running") != "c" {
 		t.Fatalf("assigned first=%q second=%q running=%q", keys("first"), keys("second"), keys("running"))
+	}
+}
+
+func TestAssignRequestsAtTaskBoundaries(t *testing.T) {
+	at := func(s string) time.Time {
+		v, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	// A retry resumes its parent's session seconds after the parent ends, and
+	// a later run already reports live telemetry.
+	tasks := []taskWindow{
+		{ID: "parent", Sessions: []string{"s1"}, Start: at("2026-10-20T10:00:00Z"), End: at("2026-10-20T10:30:00Z")},
+		{ID: "retry", Sessions: []string{"s1", "s2"}, Start: at("2026-10-20T10:30:10Z"), End: at("2026-10-20T11:00:00Z")},
+		{ID: "live", Sessions: []string{"s1"}, Start: at("2026-10-20T11:00:30Z"), Covered: true},
+		{ID: "never-started", Sessions: []string{"s3"}},
+	}
+	reqs := []transcriptRequest{
+		{SessionID: "s1", Key: "parent-last", Time: at("2026-10-20T10:29:40Z")},
+		{SessionID: "s1", Key: "retry-first", Time: at("2026-10-20T10:30:30Z")},
+		// The parent's history copied into the retry's new session.
+		{SessionID: "s2", Key: "parent-last", Time: at("2026-10-20T10:29:40Z")},
+		// Inside the live run, which already has exact telemetry.
+		{SessionID: "s1", Key: "live-first", Time: at("2026-10-20T11:00:40Z")},
+		// Just past the retry's end and before the live run: slack applies.
+		{SessionID: "s1", Key: "retry-tail", Time: at("2026-10-20T11:00:20Z")},
+		{SessionID: "s3", Key: "orphan", Time: at("2026-10-20T10:00:00Z")},
+	}
+	byTask, stats := assignRequests(reqs, tasks, 2*time.Minute)
+	keys := func(id string) string {
+		var out []string
+		for _, r := range byTask[id] {
+			out = append(out, r.Key)
+		}
+		return strings.Join(out, ",")
+	}
+	if keys("parent") != "parent-last" || keys("retry") != "retry-first,retry-tail" {
+		t.Errorf("parent=%q retry=%q; want each request once, in the task that ran it", keys("parent"), keys("retry"))
+	}
+	if _, ok := byTask["live"]; ok {
+		t.Errorf("live-telemetry task got backfill rows: %v", byTask["live"])
+	}
+	if stats.Covered != 1 || stats.Unmatched != 1 {
+		t.Errorf("stats = %+v; want 1 covered (live-first), 1 unmatched (orphan)", stats)
+	}
+}
+
+func TestAssignRequestsPrefersLatestOpenWindow(t *testing.T) {
+	start := time.Date(2026, 10, 20, 10, 0, 0, 0, time.UTC)
+	// "stale" never got a completed_at, so its window stays open.
+	tasks := []taskWindow{
+		{ID: "stale", Sessions: []string{"s1"}, Start: start},
+		{ID: "later", Sessions: []string{"s1"}, Start: start.Add(2 * time.Hour), End: start.Add(3 * time.Hour)},
+	}
+	reqs := []transcriptRequest{
+		{SessionID: "s1", Key: "early", Time: start.Add(time.Minute)},
+		{SessionID: "s1", Key: "late", Time: start.Add(2*time.Hour + time.Minute)},
+	}
+	byTask, _ := assignRequests(reqs, tasks, 2*time.Minute)
+	if len(byTask["stale"]) != 1 || byTask["stale"][0].Key != "early" || len(byTask["later"]) != 1 || byTask["later"][0].Key != "late" {
+		t.Fatalf("assigned %v; want early->stale, late->later", byTask)
 	}
 }
