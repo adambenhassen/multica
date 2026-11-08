@@ -149,6 +149,19 @@ func appURLFromEnv() string {
 	return strings.TrimRight(strings.TrimSpace(os.Getenv("FRONTEND_ORIGIN")), "/")
 }
 
+// agentTelemetryURLFromEnv is the base URL daemon hosts reach the API at, the
+// same one `multica setup` hands daemons. Agent CLIs export per-request usage
+// there; without it, Claude Code and Codex costs stay estimates.
+func agentTelemetryURLFromEnv() string {
+	for _, key := range []string{"MULTICA_DAEMON_SERVER_URL", "MULTICA_PUBLIC_URL"} {
+		if v := strings.TrimRight(strings.TrimSpace(os.Getenv(key)), "/"); v != "" {
+			return v
+		}
+	}
+	slog.Info("agent telemetry off: set MULTICA_DAEMON_SERVER_URL or MULTICA_PUBLIC_URL for per-request Claude Code and Codex pricing")
+	return ""
+}
+
 // pluginActionBaseURL resolves the versioned public base a hook handler calls
 // back into. Managed deployments give the Plugin API its own hostname through
 // MULTICA_PLUGIN_API_URL; self-hosted and local deployments can leave it empty
@@ -460,6 +473,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		WorkspaceCreationAllowedEmails: splitAndTrim(os.Getenv("WORKSPACE_CREATION_ALLOWED_EMAILS")),
 		VCSIntegrationEnabled:          os.Getenv("MULTICA_VCS_INTEGRATION_ENABLED") == "true",
 		PublicURL:                      strings.TrimRight(strings.TrimSpace(os.Getenv("MULTICA_PUBLIC_URL")), "/"),
+		AgentTelemetryURL:              agentTelemetryURLFromEnv(),
 		AppURL:                         appURLFromEnv(),
 		TrustedProxies:                 parseTrustedProxies(os.Getenv("MULTICA_TRUSTED_PROXIES")),
 		CloudURL:                       strings.TrimSpace(os.Getenv("MULTICA_CLOUD_URL")),
@@ -1613,6 +1627,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// purpose: the bearer token in the URL path IS the credential. Workspace
 	// context is derived from the trigger row, never from request headers.
 	r.Post("/api/webhooks/autopilots/{token}", h.HandleAutopilotWebhook)
+	// Per-request usage from agent CLIs' OpenTelemetry log exporters. The
+	// per-task bearer token minted at claim time is the credential.
+	r.Post("/api/otlp/v1/logs", h.IngestAgentTelemetry)
 	// GitHub App webhook (no Multica auth — requests are authenticated via
 	// HMAC-SHA256 signature in the handler) and post-install setup callback.
 	r.Post("/api/webhooks/github", h.HandleGitHubWebhook)

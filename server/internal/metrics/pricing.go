@@ -53,7 +53,8 @@ var modelPrices = map[string]ModelPrice{
 	"anthropic:claude-sonnet-5-5": {Provider: "anthropic", Model: "claude-sonnet-5-5", InputPerM: 2.00, CacheReadPerM: 0.10, CacheWritePerM: 2.50, OutputPerM: 10.00},
 	// Haiku 5.5 uses the <=100K prompt tier, matching the frontend estimate.
 	// Above 100K (including cache reads/writes), all four rates are 5x higher.
-	// Usage aggregates lack per-request prompt sizes, so long requests are underestimated.
+	// Usage aggregates lack per-request prompt sizes, so long requests are underestimated
+	// here; Claude Code and Codex tasks are priced per request instead (request_pricing.go).
 	"anthropic:claude-haiku-5-5":  {Provider: "anthropic", Model: "claude-haiku-5-5", InputPerM: 0.10, CacheReadPerM: 0.01, CacheWritePerM: 0.125, OutputPerM: 0.50},
 	"anthropic:claude-fable-5-1":  {Provider: "anthropic", Model: "claude-fable-5-1", InputPerM: 10.00, CacheReadPerM: 0.25, CacheWritePerM: 12.50, OutputPerM: 50.00},
 	"anthropic:claude-fable-5":    {Provider: "anthropic", Model: "claude-fable-5", InputPerM: 10.00, CacheReadPerM: 1.00, CacheWritePerM: 12.50, OutputPerM: 50.00},

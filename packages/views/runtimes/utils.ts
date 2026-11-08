@@ -248,8 +248,9 @@ const MODEL_PRICING: Record<
   "claude-sonnet-5-5":   { input: 2,    output: 10,   cacheRead: 0.10, cacheWrite: 2.50 },
   // Haiku 5.5 uses the <=100K prompt tier. Above 100K (including cache
   // reads/writes), all four rates are 5x higher. Rollups lack per-request
-  // prompt sizes, so long requests are underestimated. Mirror the backend
-  // estimate in server/internal/metrics/pricing.go.
+  // prompt sizes, so long requests are underestimated here; the server prices
+  // Claude Code tasks per request into cost_usd_ticks, which wins. Mirror the
+  // backend estimate in server/internal/metrics/pricing.go.
   "claude-haiku-5-5":    { input: 0.10, output: 0.50, cacheRead: 0.01, cacheWrite: 0.125 },
   "claude-fable-5-1":   { input: 10,   output: 50,   cacheRead: 0.25, cacheWrite: 12.50 },
   "claude-fable-5":     { input: 10,   output: 50,   cacheRead: 1.00, cacheWrite: 12.50 },

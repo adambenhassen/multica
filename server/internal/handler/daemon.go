@@ -29,6 +29,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/logger"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/middleware"
+	"github.com/multica-ai/multica/server/internal/requestusage"
 	"github.com/multica-ai/multica/server/internal/runtimeapps"
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
@@ -3035,6 +3036,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 			serviceTier = ""
 		}
 	}
+	customEnv, customArgs = agentTelemetryLaunch(h.cfg.AgentTelemetryURL, runtime.Provider, uuidToString(task.ID), customEnv, customArgs)
 	resp.Agent = &TaskAgentData{
 		ID:                    uuidToString(agent.ID),
 		Name:                  agent.Name,
@@ -5619,6 +5621,12 @@ func (h *Handler) ReportTaskUsage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if updated {
+		// The upsert wrote the daemon's cost (none for Claude Code or Codex)
+		// over any cost priced from the task's per-request telemetry; restore
+		// it against the new totals.
+		if _, err := requestusage.Refresh(r.Context(), h.TxStarter, task.ID); err != nil {
+			slog.Warn("refresh request-priced task cost failed", "task_id", taskID, "error", err)
+		}
 		// This invalidates the existing task and issue-usage queries without
 		// broadcasting token counts or changing task progress/status.
 		h.Bus.Publish(events.Event{

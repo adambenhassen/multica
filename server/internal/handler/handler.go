@@ -105,6 +105,11 @@ type Config struct {
 	// the server into minting webhook URLs pointing at an attacker-controlled
 	// host.
 	PublicURL string
+	// AgentTelemetryURL is the base URL daemon hosts reach this API at
+	// (MULTICA_DAEMON_SERVER_URL, falling back to MULTICA_PUBLIC_URL). Claimed
+	// Claude Code and Codex tasks export per-request usage to it; empty turns
+	// that off.
+	AgentTelemetryURL string
 	// AppURL is the browser application's canonical origin, resolved from
 	// MULTICA_APP_URL (falling back to FRONTEND_ORIGIN). It is kept separate
 	// from PublicURL because split app/API deployments use different origins.
