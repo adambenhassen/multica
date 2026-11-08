@@ -341,8 +341,8 @@ ORDER BY atq.agent_id, 2;
 
 -- name: InsertTaskRequestUsage :execrows
 -- A request already stored (telemetry retry, repeated backfill) is ignored.
-INSERT INTO task_request_usage (task_id, request_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO task_request_usage (task_id, request_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cache_write_1h_tokens, cost_usd_ticks)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 ON CONFLICT (task_id, request_key) DO NOTHING;
 
 -- name: LockTaskUsageRows :many

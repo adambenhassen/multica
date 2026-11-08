@@ -129,21 +129,22 @@ func (q *Queries) GetTaskUsage(ctx context.Context, taskID pgtype.UUID) ([]TaskU
 }
 
 const insertTaskRequestUsage = `-- name: InsertTaskRequestUsage :execrows
-INSERT INTO task_request_usage (task_id, request_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO task_request_usage (task_id, request_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cache_write_1h_tokens, cost_usd_ticks)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 ON CONFLICT (task_id, request_key) DO NOTHING
 `
 
 type InsertTaskRequestUsageParams struct {
-	TaskID           pgtype.UUID `json:"task_id"`
-	RequestKey       string      `json:"request_key"`
-	Provider         string      `json:"provider"`
-	Model            string      `json:"model"`
-	InputTokens      int64       `json:"input_tokens"`
-	OutputTokens     int64       `json:"output_tokens"`
-	CacheReadTokens  int64       `json:"cache_read_tokens"`
-	CacheWriteTokens int64       `json:"cache_write_tokens"`
-	CostUsdTicks     int64       `json:"cost_usd_ticks"`
+	TaskID             pgtype.UUID `json:"task_id"`
+	RequestKey         string      `json:"request_key"`
+	Provider           string      `json:"provider"`
+	Model              string      `json:"model"`
+	InputTokens        int64       `json:"input_tokens"`
+	OutputTokens       int64       `json:"output_tokens"`
+	CacheReadTokens    int64       `json:"cache_read_tokens"`
+	CacheWriteTokens   int64       `json:"cache_write_tokens"`
+	CacheWrite1hTokens int64       `json:"cache_write_1h_tokens"`
+	CostUsdTicks       int64       `json:"cost_usd_ticks"`
 }
 
 // A request already stored (telemetry retry, repeated backfill) is ignored.
@@ -157,6 +158,7 @@ func (q *Queries) InsertTaskRequestUsage(ctx context.Context, arg InsertTaskRequ
 		arg.OutputTokens,
 		arg.CacheReadTokens,
 		arg.CacheWriteTokens,
+		arg.CacheWrite1hTokens,
 		arg.CostUsdTicks,
 	)
 	if err != nil {

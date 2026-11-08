@@ -37,26 +37,44 @@ type TxStarter interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
+// maxRequestTokens bounds each count of one request. Context windows are at
+// most a few million tokens; anything larger is a corrupt or forged record,
+// and summing it could overflow the task's totals.
+const maxRequestTokens = 10_000_000
+
+func plausible(t metrics.RequestTokens) bool {
+	for _, n := range []int64{t.Input, t.Output, t.CacheRead, t.CacheWrite, t.CacheWrite1h} {
+		if n < 0 || n > maxRequestTokens {
+			return false
+		}
+	}
+	return true
+}
+
 // Record stores the task's priced requests and reprices its usage rows in one
-// transaction. Requests for unpriced models are dropped. It reports whether
-// any row's cost changed.
+// transaction. Requests for unpriced models or with impossible counts are
+// dropped. It reports whether any row's cost changed.
 func Record(ctx context.Context, conn TxStarter, taskID pgtype.UUID, reqs []Request) (bool, error) {
 	return inTx(ctx, conn, func(q *db.Queries) (bool, error) {
 		for _, r := range reqs {
+			if !plausible(r.Tokens) {
+				continue
+			}
 			ticks, ok := metrics.RequestCostTicks(r.Model, r.Tokens)
 			if !ok {
 				continue
 			}
 			if _, err := q.InsertTaskRequestUsage(ctx, db.InsertTaskRequestUsageParams{
-				TaskID:           taskID,
-				RequestKey:       r.Key,
-				Provider:         r.Provider,
-				Model:            r.Model,
-				InputTokens:      r.Tokens.Input,
-				OutputTokens:     r.Tokens.Output,
-				CacheReadTokens:  r.Tokens.CacheRead,
-				CacheWriteTokens: r.Tokens.CacheWrite + r.Tokens.CacheWrite1h,
-				CostUsdTicks:     ticks,
+				TaskID:             taskID,
+				RequestKey:         r.Key,
+				Provider:           r.Provider,
+				Model:              r.Model,
+				InputTokens:        r.Tokens.Input,
+				OutputTokens:       r.Tokens.Output,
+				CacheReadTokens:    r.Tokens.CacheRead,
+				CacheWriteTokens:   r.Tokens.CacheWrite + r.Tokens.CacheWrite1h,
+				CacheWrite1hTokens: r.Tokens.CacheWrite1h,
+				CostUsdTicks:       ticks,
 			}); err != nil {
 				return false, fmt.Errorf("insert request usage: %w", err)
 			}
@@ -92,6 +110,15 @@ func inTx(ctx context.Context, conn TxStarter, fn func(*db.Queries) (bool, error
 type rowKey struct{ provider, model string }
 
 func refresh(ctx context.Context, q *db.Queries, taskID pgtype.UUID) (bool, error) {
+	// Most tasks never get request rows; skip the row locks for them. A
+	// request stored after this check refreshes the task itself.
+	sums, err := q.SumTaskRequestUsage(ctx, taskID)
+	if err != nil {
+		return false, fmt.Errorf("sum request usage: %w", err)
+	}
+	if len(sums) == 0 {
+		return false, nil
+	}
 	rows, err := q.LockTaskUsageRows(ctx, taskID)
 	if err != nil {
 		return false, fmt.Errorf("lock usage rows: %w", err)
@@ -99,12 +126,9 @@ func refresh(ctx context.Context, q *db.Queries, taskID pgtype.UUID) (bool, erro
 	if len(rows) == 0 {
 		return false, nil
 	}
-	sums, err := q.SumTaskRequestUsage(ctx, taskID)
-	if err != nil {
+	// Re-read under the locks so a request committed meanwhile is included.
+	if sums, err = q.SumTaskRequestUsage(ctx, taskID); err != nil {
 		return false, fmt.Errorf("sum request usage: %w", err)
-	}
-	if len(sums) == 0 {
-		return false, nil
 	}
 	byKey := make(map[rowKey]db.SumTaskRequestUsageRow, len(sums))
 	for _, s := range sums {
@@ -126,40 +150,45 @@ func refresh(ctx context.Context, q *db.Queries, taskID pgtype.UUID) (bool, erro
 	for _, r := range rows {
 		k := rowKey{r.Provider, normalizeModel(r.Model)}
 		sum, ok := byKey[k]
-		// Two rows spelling one model cannot split the requests between them.
-		if !ok || rowsPerKey[k] > 1 {
+		if !ok {
 			continue
 		}
-		ticks := sum.CostUsdTicks
-		remainder := [4]int64{
-			r.InputTokens - sum.InputTokens,
-			r.OutputTokens - sum.OutputTokens,
-			r.CacheReadTokens - sum.CacheReadTokens,
-			r.CacheWriteTokens - sum.CacheWriteTokens,
-		}
-		for i := range remainder {
-			remainder[i] = max(remainder[i], 0)
-		}
-		if remainder != [4]int64{} {
-			est, ok := metrics.UsageCostTicks(r.Model, remainder[0], remainder[1], remainder[2], remainder[3])
-			if !ok {
-				continue
+		// A row with no price of its own falls back to the estimate (NULL).
+		// Two rows spelling one model cannot split the requests between them,
+		// so neither keeps a cost built from all of them.
+		cost := pgtype.Int8{}
+		if rowsPerKey[k] == 1 {
+			if ticks, ok := rowCost(r, sum); ok {
+				cost = pgtype.Int8{Int64: ticks, Valid: true}
 			}
-			ticks += est
 		}
-		if ticks <= 0 {
-			continue
-		}
-		n, err := q.SetTaskUsageCost(ctx, db.SetTaskUsageCostParams{
-			ID:           r.ID,
-			CostUsdTicks: pgtype.Int8{Int64: ticks, Valid: true},
-		})
+		n, err := q.SetTaskUsageCost(ctx, db.SetTaskUsageCostParams{ID: r.ID, CostUsdTicks: cost})
 		if err != nil {
 			return false, fmt.Errorf("set usage cost: %w", err)
 		}
 		changed = changed || n > 0
 	}
 	return changed, nil
+}
+
+// rowCost is the requests' exact cost plus a base-rate estimate of the
+// reported tokens no stored request covers.
+func rowCost(r db.LockTaskUsageRowsRow, sum db.SumTaskRequestUsageRow) (int64, bool) {
+	ticks := sum.CostUsdTicks
+	remainder := [4]int64{
+		max(r.InputTokens-sum.InputTokens, 0),
+		max(r.OutputTokens-sum.OutputTokens, 0),
+		max(r.CacheReadTokens-sum.CacheReadTokens, 0),
+		max(r.CacheWriteTokens-sum.CacheWriteTokens, 0),
+	}
+	if remainder != [4]int64{} {
+		est, ok := metrics.UsageCostTicks(r.Model, remainder[0], remainder[1], remainder[2], remainder[3])
+		if !ok {
+			return 0, false
+		}
+		ticks += est
+	}
+	return ticks, ticks > 0
 }
 
 var contextTagRe = regexp.MustCompile(`\[[^\]]*\]$`)

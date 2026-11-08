@@ -203,3 +203,48 @@ func TestRefreshRestoresCostAfterDaemonOverwrite(t *testing.T) {
 		t.Fatalf("cost = %v, want %d", got, want)
 	}
 }
+
+func TestRefreshClearsCostWhenRowsBecomeAmbiguous(t *testing.T) {
+	ctx := context.Background()
+	fx, taskID := newFixture(t)
+	usageRow(t, fx, taskID, "claude", "claude-opus-5-5", 3, 30, 300, 0)
+	if _, err := Record(ctx, fx.Pool, util.MustParseUUID(taskID), []Request{
+		{Key: "req_1", Provider: "claude", Model: "claude-opus-5-5", Tokens: metrics.RequestTokens{Input: 3, Output: 30, CacheRead: 300}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// A second spelling of the model appears later; the requests can no
+	// longer be split, so neither row may keep a cost built from all of them.
+	usageRow(t, fx, taskID, "claude", "claude-opus-5-5[1m]", 1, 1, 1, 0)
+
+	if _, err := Refresh(ctx, fx.Pool, util.MustParseUUID(taskID)); err != nil {
+		t.Fatal(err)
+	}
+	for _, model := range []string{"claude-opus-5-5", "claude-opus-5-5[1m]"} {
+		if got := cost(t, fx, taskID, model); got != nil {
+			t.Errorf("%s cost = %d, want NULL", model, *got)
+		}
+	}
+}
+
+func TestRecordStoresOneHourWritesAndRejectsImpossibleCounts(t *testing.T) {
+	ctx := context.Background()
+	fx, taskID := newFixture(t)
+	usageRow(t, fx, taskID, "claude", "claude-haiku-5-5", 2, 4, 9403, 14143)
+
+	if _, err := Record(ctx, fx.Pool, util.MustParseUUID(taskID), []Request{
+		{Key: "req_1", Provider: "claude", Model: "claude-haiku-5-5", Tokens: metrics.RequestTokens{Input: 2, Output: 4, CacheRead: 9403, CacheWrite: 143, CacheWrite1h: 14000}},
+		// No request carries billions of tokens; such a record is corrupt.
+		{Key: "req_2", Provider: "claude", Model: "claude-haiku-5-5", Tokens: metrics.RequestTokens{Input: 1 << 50}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var total, oneHour int64
+	fx.QueryRow(t, `SELECT cache_write_tokens, cache_write_1h_tokens FROM task_request_usage WHERE task_id = $1 AND request_key = 'req_1'`, taskID).Scan(&total, &oneHour)
+	if total != 14143 || oneHour != 14000 {
+		t.Fatalf("stored writes = %d total, %d 1h; want 14143, 14000", total, oneHour)
+	}
+	if n := fx.Count(t, `SELECT count(*) FROM task_request_usage WHERE task_id = $1`, taskID); n != 1 {
+		t.Fatalf("stored requests = %d, want 1", n)
+	}
+}

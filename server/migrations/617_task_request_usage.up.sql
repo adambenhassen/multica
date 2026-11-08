@@ -2,8 +2,9 @@
 -- Code, Codex) or a Claude Code transcript backfill. A single request knows
 -- its prompt size and cache-write lifetime, which aggregated task_usage rows
 -- do not, so its list price is exact. task_usage.cost_usd_ticks is recomputed
--- from these rows. cache_write_tokens counts every write; cost_usd_ticks
--- already prices them by lifetime.
+-- from these rows. cache_write_tokens counts every write and
+-- cache_write_1h_tokens the 1-hour ones among them, so a request can be
+-- repriced if a rate changes.
 CREATE TABLE IF NOT EXISTS task_request_usage (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     task_id UUID NOT NULL,
@@ -14,6 +15,7 @@ CREATE TABLE IF NOT EXISTS task_request_usage (
     output_tokens BIGINT NOT NULL DEFAULT 0,
     cache_read_tokens BIGINT NOT NULL DEFAULT 0,
     cache_write_tokens BIGINT NOT NULL DEFAULT 0,
+    cache_write_1h_tokens BIGINT NOT NULL DEFAULT 0,
     cost_usd_ticks BIGINT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
