@@ -283,3 +283,56 @@ func TestClaim_PointsClaudeCodeTelemetryAtServer(t *testing.T) {
 		t.Fatalf("telemetry token authenticates task %q (ok=%v); want %s", got, ok, taskID)
 	}
 }
+
+func TestIngestAgentTelemetryIgnoresOverriddenServiceName(t *testing.T) {
+	taskID := newTelemetryTask(t, "claude telemetry renamed service")
+	dbfx.Exec(t, `INSERT INTO task_usage (task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens)
+		VALUES ($1, 'claude', 'claude-haiku-5-5', 2, 4, 9403, 14143)`, taskID)
+	h := *testHandler
+	h.Bus = events.New()
+	// A daemon host's OTEL_SERVICE_NAME renames the resource; the event is still Claude Code's.
+	body := otlpLogs("renamed-by-host", claudeAPIRequest("req_1", "claude-haiku-5-5", 2, 4, 9403, 0, 14143))
+	testutil.Call(t, h.IngestAgentTelemetry, telemetryRequest(signAgentTelemetryToken(taskID), body)).Want(http.StatusOK)
+
+	want := mustRequestCost(t, "claude-haiku-5-5", metrics.RequestTokens{Input: 2, Output: 4, CacheRead: 9403, CacheWrite1h: 14143})
+	if got := taskUsageCost(t, taskID, "claude-haiku-5-5"); got == nil || *got != want {
+		t.Fatalf("cost = %v, want %d", got, want)
+	}
+}
+
+func TestIngestAgentTelemetryKeysCodexEventsWithoutObservedTime(t *testing.T) {
+	taskID := newTelemetryTask(t, "codex telemetry without observed time")
+	h := *testHandler
+	h.Bus = events.New()
+	record := func(ts string) map[string]any {
+		return map[string]any{"observedTimeUnixNano": nil, "attributes": []otlpAttr{
+			otlpString("event.name", "codex.sse_event"),
+			otlpString("event.kind", "response.completed"),
+			otlpString("conversation.id", "conv-1"),
+			otlpString("event.timestamp", ts),
+			otlpString("model", "gpt-6-luna"),
+			otlpString("input_token_count", "10"),
+			otlpString("output_token_count", "1"),
+		}}
+	}
+	body, _ := json.Marshal(map[string]any{"resourceLogs": []any{map[string]any{
+		"scopeLogs": []any{map[string]any{"logRecords": []any{record("2026-11-08T10:00:00.001Z"), record("2026-11-08T10:00:00.002Z")}}},
+	}}})
+	testutil.Call(t, h.IngestAgentTelemetry, telemetryRequest(signAgentTelemetryToken(taskID), body)).Want(http.StatusOK)
+	if n := dbfx.Count(t, `SELECT count(*) FROM task_request_usage WHERE task_id = $1`, taskID); n != 2 {
+		t.Fatalf("stored requests = %d, want 2 distinct", n)
+	}
+}
+
+func TestAgentTelemetryLaunchCodexOptOutMatchesOnlyOtelKeys(t *testing.T) {
+	args := []string{"-c", `model_providers.hotel.base_url="http://x"`}
+	_, got := agentTelemetryLaunch("https://multica.example", "codex", uuid.NewString(), nil, args)
+	if len(got) != len(args)+2 {
+		t.Fatalf("args = %v; an unrelated key containing \"otel.\" must not opt out", got)
+	}
+	for _, own := range [][]string{{"-c", `otel.exporter="none"`}, {`-c=otel.environment="x"`}, {"--config", `otel.log_user_prompt=true`}} {
+		if _, got := agentTelemetryLaunch("https://multica.example", "codex", uuid.NewString(), nil, own); len(got) != len(own) {
+			t.Errorf("args %v: own otel config must opt out, got %v", own, got)
+		}
+	}
+}

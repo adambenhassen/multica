@@ -158,7 +158,11 @@ func agentTelemetryURLFromEnv() string {
 			return v
 		}
 	}
-	slog.Info("agent telemetry off: set MULTICA_DAEMON_SERVER_URL or MULTICA_PUBLIC_URL for per-request Claude Code and Codex pricing")
+	// The app origin proxies /api to this server, as it does for daemons.
+	if v := appURLFromEnv(); v != "" {
+		return v
+	}
+	slog.Info("agent telemetry off: set MULTICA_DAEMON_SERVER_URL, MULTICA_PUBLIC_URL or MULTICA_APP_URL for per-request Claude Code and Codex pricing")
 	return ""
 }
 

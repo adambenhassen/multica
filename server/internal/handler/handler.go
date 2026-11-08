@@ -106,7 +106,7 @@ type Config struct {
 	// host.
 	PublicURL string
 	// AgentTelemetryURL is the base URL daemon hosts reach this API at
-	// (MULTICA_DAEMON_SERVER_URL, falling back to MULTICA_PUBLIC_URL). Claimed
+	// (MULTICA_DAEMON_SERVER_URL, then MULTICA_PUBLIC_URL, then the app URL). Claimed
 	// Claude Code and Codex tasks export per-request usage to it; empty turns
 	// that off.
 	AgentTelemetryURL string

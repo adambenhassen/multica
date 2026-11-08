@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math"
 	"mime"
 	"net/http"
 	"slices"
@@ -109,7 +110,8 @@ func (h *Handler) IngestAgentTelemetry(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		slog.Warn("telemetry: load task failed", "task_id", taskID, "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to load task")
+		// 503, not 500: OTLP exporters retry only 429, 502, 503 and 504.
+		writeError(w, http.StatusServiceUnavailable, "failed to load task")
 		return
 	}
 
@@ -118,7 +120,7 @@ func (h *Handler) IngestAgentTelemetry(w http.ResponseWriter, r *http.Request) {
 		changed, err := requestusage.Record(r.Context(), h.TxStarter, task.ID, reqs)
 		if err != nil {
 			slog.Warn("telemetry: record request usage failed", "task_id", taskID, "error", err)
-			writeError(w, http.StatusInternalServerError, "failed to record usage")
+			writeError(w, http.StatusServiceUnavailable, "failed to record usage")
 			return
 		}
 		if changed {
@@ -148,9 +150,6 @@ func (h *Handler) publishTaskUsageUpdated(r *http.Request, task db.AgentTaskQueu
 // encoding) that carries request usage.
 type otlpLogsRequest struct {
 	ResourceLogs []struct {
-		Resource struct {
-			Attributes []otlpKeyValue `json:"attributes"`
-		} `json:"resource"`
 		ScopeLogs []struct {
 			LogRecords []struct {
 				ObservedTimeUnixNano json.RawMessage `json:"observedTimeUnixNano"`
@@ -198,7 +197,10 @@ func (a otlpAttrs) int(key string) int64 {
 	case v.StringValue != nil:
 		n, _ = strconv.ParseInt(*v.StringValue, 10, 64)
 	case v.DoubleValue != nil:
-		n = int64(*v.DoubleValue)
+		// Out-of-range floats have no defined int64 conversion.
+		if d := *v.DoubleValue; d >= 0 && d < math.MaxInt32 {
+			n = int64(d)
+		}
 	}
 	return max(n, 0)
 }
@@ -206,14 +208,16 @@ func (a otlpAttrs) int(key string) int64 {
 func (p otlpLogsRequest) requests() []requestusage.Request {
 	var reqs []requestusage.Request
 	for _, rl := range p.ResourceLogs {
-		service := newOTLPAttrs(rl.Resource.Attributes).str("service.name")
 		for _, sl := range rl.ScopeLogs {
 			for _, rec := range sl.LogRecords {
 				attrs := newOTLPAttrs(rec.Attributes)
 				var req requestusage.Request
 				var ok bool
 				switch {
-				case service == "claude-code" && attrs.str("event.name") == "api_request":
+				// Matched by event name alone: a daemon host can rename the
+				// resource (OTEL_SERVICE_NAME), and the token already scopes
+				// the batch to one task.
+				case attrs.str("event.name") == "api_request":
 					req, ok = claudeCodeRequest(attrs)
 				case attrs.str("event.name") == "codex.sse_event" && attrs.str("event.kind") == "response.completed":
 					req, ok = codexRequest(attrs, strings.Trim(string(rec.ObservedTimeUnixNano), `"`))
@@ -255,7 +259,7 @@ func claudeCodeRequest(a otlpAttrs) (requestusage.Request, bool) {
 // retried batch resends both unchanged.
 func codexRequest(a otlpAttrs, observed string) (requestusage.Request, bool) {
 	conversation := a.str("conversation.id")
-	if observed == "" || observed == "0" {
+	if observed == "" || observed == "0" || observed == "null" {
 		observed = a.str("event.timestamp")
 	}
 	model := a.str("model")
@@ -310,10 +314,8 @@ func agentTelemetryLaunch(baseURL, provider, taskID string, env map[string]strin
 	case "codex":
 		// Codex reads exporter settings only from config, so they ride as
 		// `-c` overrides; the token stays in env, out of logged argv.
-		for _, arg := range args {
-			if strings.Contains(arg, "otel.") {
-				return env, args
-			}
+		if codexArgsConfigureOtel(args) {
+			return env, args
 		}
 		out := make(map[string]string, len(env)+1)
 		for k, v := range env {
@@ -325,4 +327,26 @@ func agentTelemetryLaunch(baseURL, provider, taskID string, env map[string]strin
 		)
 	}
 	return env, args
+}
+
+// codexArgsConfigureOtel reports whether the agent's own args already set a
+// Codex `otel.*` config key.
+func codexArgsConfigureOtel(args []string) bool {
+	for i, arg := range args {
+		var value string
+		switch {
+		case (arg == "-c" || arg == "--config") && i+1 < len(args):
+			value = args[i+1]
+		case strings.HasPrefix(arg, "-c="):
+			value = strings.TrimPrefix(arg, "-c=")
+		case strings.HasPrefix(arg, "--config="):
+			value = strings.TrimPrefix(arg, "--config=")
+		default:
+			continue
+		}
+		if strings.HasPrefix(strings.Trim(value, `"'`), "otel.") {
+			return true
+		}
+	}
+	return false
 }
