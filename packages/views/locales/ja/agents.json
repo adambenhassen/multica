@@ -168,6 +168,8 @@
     "prop_speed": "速度",
     "prop_visibility": "公開範囲",
     "prop_concurrency": "同時実行数",
+    "prop_fresh_when_idle": "50分経過後は新しいセッション",
+    "prop_fresh_when_idle_description": "このエージェントのタスクでの前回の実行が終わってからそれより長く経っている場合、次の実行は再開せず新しいセッションで始まります。コストは下がりますが、以前の実行内容は覚えていません。",
     "prop_owner": "オーナー",
     "prop_created": "作成日",
     "prop_updated": "更新日",

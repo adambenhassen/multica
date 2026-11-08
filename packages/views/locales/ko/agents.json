@@ -176,6 +176,8 @@
     "prop_speed": "속도",
     "prop_visibility": "공개 범위",
     "prop_concurrency": "동시 실행",
+    "prop_fresh_when_idle": "50분 후 새 세션",
+    "prop_fresh_when_idle_description": "이 에이전트의 태스크에서 마지막 실행이 끝난 뒤 그보다 오래 지났다면, 다음 실행은 이어서 진행하지 않고 새 세션으로 시작합니다. 비용은 줄지만 이전 실행 내용은 기억하지 못합니다.",
     "prop_owner": "소유자",
     "prop_created": "생성일",
     "prop_updated": "수정일",

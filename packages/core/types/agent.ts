@@ -660,6 +660,11 @@ export interface Agent {
   service_tier?: string;
   /** Selected agent account; null/omitted = runtime default. */
   account_id?: string | null;
+  /**
+   * Follow-up runs on an issue start a new session once the agent's last run
+   * there is older than the prompt-cache lifetime. Older servers omit it.
+   */
+  fresh_session_when_idle?: boolean;
   owner_id: string | null;
   skills: AgentSkillSummary[];
   /** Runtime-local skills this agent must not inherit. Older servers omit it. */
@@ -879,6 +884,7 @@ export interface UpdateAgentRequest {
   service_tier?: string;
   /** Agent account whose env applies to the next task; `null` = runtime default. */
   account_id?: string | null;
+  fresh_session_when_idle?: boolean;
 }
 
 /**

@@ -185,6 +185,8 @@
     "prop_speed": "Speed",
     "prop_visibility": "Visibility",
     "prop_concurrency": "Concurrency",
+    "prop_fresh_when_idle": "New session after 50 minutes",
+    "prop_fresh_when_idle_description": "If this agent's last run on an issue ended longer ago, its next run there starts a new session instead of resuming. Cheaper, but the agent forgets earlier runs.",
     "prop_owner": "Owner",
     "prop_created": "Created",
     "prop_updated": "Updated",

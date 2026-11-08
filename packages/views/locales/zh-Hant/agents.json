@@ -176,6 +176,8 @@
     "prop_speed": "速度",
     "prop_visibility": "可見性",
     "prop_concurrency": "併發",
+    "prop_fresh_when_idle": "50 分鐘後新開會話",
+    "prop_fresh_when_idle_description": "如果該智慧體在某個任務上的上次執行已結束超過這個時長，下一次執行會新開會話而不是繼續原會話。成本更低，但智慧體不會記得之前的執行。",
     "prop_owner": "所有者",
     "prop_created": "建立時間",
     "prop_updated": "更新時間",

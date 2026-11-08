@@ -20,6 +20,7 @@ import {
 import { useConfigStore } from "@multica/core/config";
 import { isImeComposing } from "@multica/core/utils";
 import { Input } from "@multica/ui/components/ui/input";
+import { Switch } from "@multica/ui/components/ui/switch";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { cn } from "@multica/ui/lib/utils";
 import { AvatarUploadControl } from "../../common/avatar-upload-control";
@@ -425,6 +426,19 @@ export function AgentDetailInspector({
                   value={agent.max_concurrent_tasks}
                   canEdit={canEdit}
                   onSave={(next) => update({ max_concurrent_tasks: next })}
+                />
+              </SettingsRow>
+              <SettingsRow
+                label={t(($) => $.inspector.prop_fresh_when_idle)}
+                description={t(($) => $.inspector.prop_fresh_when_idle_description)}
+              >
+                <Switch
+                  checked={agent.fresh_session_when_idle === true}
+                  disabled={!canEdit}
+                  onCheckedChange={(checked) =>
+                    update({ fresh_session_when_idle: checked })
+                  }
+                  aria-label={t(($) => $.inspector.prop_fresh_when_idle)}
                 />
               </SettingsRow>
             </SettingsCard>

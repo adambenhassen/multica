@@ -185,6 +185,8 @@
     "prop_speed": "Vitesse",
     "prop_visibility": "Visibilité",
     "prop_concurrency": "Parallélisme",
+    "prop_fresh_when_idle": "Nouvelle session après 50 minutes",
+    "prop_fresh_when_idle_description": "Si la dernière exécution de cet agent sur une tâche s'est terminée plus tôt, la suivante démarre une nouvelle session au lieu de reprendre. Moins coûteux, mais l'agent oublie les exécutions précédentes.",
     "prop_owner": "Propriétaire",
     "prop_created": "Création",
     "prop_updated": "Mise à jour",
