@@ -123,6 +123,11 @@ type AgentResponse struct {
 	// AccountID is the workspace account whose env this agent's tasks run
 	// with; null = runtime default. Values never ride on this resource.
 	AccountID *string `json:"account_id"`
+	// FreshSessionWhenIdle makes a follow-up run on an issue start a new
+	// session once the agent's last run there is older than the provider's
+	// prompt-cache lifetime, instead of resuming a conversation whose cache
+	// has expired.
+	FreshSessionWhenIdle bool `json:"fresh_session_when_idle"`
 	// ComposioToolkitAllowlist is the subset of Composio toolkit slugs this
 	// agent is allowed to mount as MCP at task dispatch — for ANY run that
 	// passes the agent's invocation permission, using the agent OWNER's
@@ -237,6 +242,7 @@ func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 		ThinkingLevel:            a.ThinkingLevel.String,
 		ServiceTier:              a.ServiceTier.String,
 		AccountID:                uuidToPtr(a.AccountID),
+		FreshSessionWhenIdle:     a.FreshSessionWhenIdle,
 		ComposioToolkitAllowlist: composioAllowlist,
 		OwnerID:                  uuidToPtr(a.OwnerID),
 		Skills:                   []AgentSkillSummary{},
@@ -1834,6 +1840,8 @@ type UpdateAgentRequest struct {
 	// use that workspace account, which must match the target runtime's
 	// provider.
 	AccountID *string `json:"account_id"`
+	// FreshSessionWhenIdle: omitted → no change.
+	FreshSessionWhenIdle *bool `json:"fresh_session_when_idle"`
 }
 
 // workspaceAlwaysRedactSecrets reports whether the workspace has opted
@@ -2255,6 +2263,9 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		params.MaxConcurrentTasks = pgtype.Int4{Int32: *req.MaxConcurrentTasks, Valid: true}
+	}
+	if req.FreshSessionWhenIdle != nil {
+		params.FreshSessionWhenIdle = pgtype.Bool{Bool: *req.FreshSessionWhenIdle, Valid: true}
 	}
 	if req.Model != nil {
 		params.Model = pgtype.Text{String: *req.Model, Valid: true}

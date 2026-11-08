@@ -245,7 +245,7 @@ func (q *Queries) ListAgentsUsingAccount(ctx context.Context, arg ListAgentsUsin
 const setAgentAccount = `-- name: SetAgentAccount :one
 UPDATE agent SET account_id = $1, updated_at = now()
 WHERE id = $2
-RETURNING id, workspace_id, name, avatar_url, runtime_mode, runtime_config, visibility, status, max_concurrent_tasks, owner_id, created_at, updated_at, description, runtime_id, instructions, archived_at, archived_by, custom_env, custom_args, mcp_config, model, thinking_level, composio_toolkit_allowlist, permission_mode, kind, system_key, disabled_runtime_skills, service_tier, conversation_starters, account_id
+RETURNING id, workspace_id, name, avatar_url, runtime_mode, runtime_config, visibility, status, max_concurrent_tasks, owner_id, created_at, updated_at, description, runtime_id, instructions, archived_at, archived_by, custom_env, custom_args, mcp_config, model, thinking_level, composio_toolkit_allowlist, permission_mode, kind, system_key, disabled_runtime_skills, service_tier, conversation_starters, account_id, fresh_session_when_idle
 `
 
 type SetAgentAccountParams struct {
@@ -288,6 +288,7 @@ func (q *Queries) SetAgentAccount(ctx context.Context, arg SetAgentAccountParams
 		&i.ServiceTier,
 		&i.ConversationStarters,
 		&i.AccountID,
+		&i.FreshSessionWhenIdle,
 	)
 	return i, err
 }

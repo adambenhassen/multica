@@ -55,6 +55,7 @@ type Agent struct {
 	ServiceTier           pgtype.Text `json:"service_tier"`
 	ConversationStarters  []byte      `json:"conversation_starters"`
 	AccountID             pgtype.UUID `json:"account_id"`
+	FreshSessionWhenIdle  bool        `json:"fresh_session_when_idle"`
 }
 
 type AgentAccount struct {

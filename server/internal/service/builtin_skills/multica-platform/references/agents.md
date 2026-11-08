@@ -32,8 +32,11 @@ editable, but no trigger path will run it — they all refuse with
 binds it again. Unbound is orthogonal to archived.
 
 `agent get` returns the persisted agent including `runtime_id`, `model`,
-`thinking_level`, `service_tier`, `custom_args`, `has_custom_env`,
-`custom_env_key_count`, and `skills`. It never returns plaintext `custom_env`.
+`thinking_level`, `service_tier`, `fresh_session_when_idle`, `custom_args`,
+`has_custom_env`, `custom_env_key_count`, and `skills`. It never returns
+plaintext `custom_env`. When `fresh_session_when_idle` is true, a run that
+starts more than 50 minutes after the agent's last run on an issue begins a new
+session instead of resuming; set it with `PUT /api/agents/{id}`.
 
 ## Core model
 

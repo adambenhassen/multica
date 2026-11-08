@@ -2070,6 +2070,19 @@ func (h *Handler) repairStaleCommentPlanIfNeeded(ctx context.Context, task *db.A
 // daemon never asks for more than its free execution-slot count anyway.
 const claimBatchMaxTasksCap = 32
 
+// idleFreshSessionCutoff is how long a session may sit unused before an agent
+// with fresh_session_when_idle starts a new one instead of resuming.
+// Anthropic's prompt cache lives an hour, so a later resume re-writes the whole
+// conversation to cache; the margin covers the delay between a run ending and
+// the next run's first request. The agent settings copy states this value.
+const idleFreshSessionCutoff = 50 * time.Minute
+
+// idleSessionStartsFresh reports whether a follow-up run should skip resuming
+// a session last used at lastUsed. The workdir is still reused.
+func idleSessionStartsFresh(agent db.Agent, lastUsed pgtype.Timestamptz, now time.Time) bool {
+	return agent.FreshSessionWhenIdle && lastUsed.Valid && now.Sub(lastUsed.Time) > idleFreshSessionCutoff
+}
+
 // ClaimTasksByRuntime is the machine-level (MUL-4257) batch claim endpoint. A
 // daemon posts every runtime_id it hosts plus its free execution-slot count and
 // receives up to max_tasks already-claimed tasks in ONE round trip — each
@@ -3496,7 +3509,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 				AgentID: task.AgentID,
 				IssueID: task.IssueID,
 			}); err == nil && prior.SessionID.Valid {
-				if prior.RuntimeID == task.RuntimeID {
+				if prior.RuntimeID == task.RuntimeID && !idleSessionStartsFresh(agent, prior.TerminalAt, time.Now()) {
 					resp.PriorSessionID = prior.SessionID.String
 					resumedRunStartedAt = prior.StartedAt
 					// Same rule as the rerun path: date the deltas from the run
