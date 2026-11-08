@@ -1610,6 +1610,20 @@ type TaskMessage struct {
 	CallID          pgtype.Text        `json:"call_id"`
 }
 
+type TaskRequestUsage struct {
+	ID               pgtype.UUID        `json:"id"`
+	TaskID           pgtype.UUID        `json:"task_id"`
+	RequestKey       string             `json:"request_key"`
+	Provider         string             `json:"provider"`
+	Model            string             `json:"model"`
+	InputTokens      int64              `json:"input_tokens"`
+	OutputTokens     int64              `json:"output_tokens"`
+	CacheReadTokens  int64              `json:"cache_read_tokens"`
+	CacheWriteTokens int64              `json:"cache_write_tokens"`
+	CostUsdTicks     int64              `json:"cost_usd_ticks"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
 type TaskSupplement struct {
 	TaskID          pgtype.UUID        `json:"task_id"`
 	WorkspaceID     pgtype.UUID        `json:"workspace_id"`

@@ -128,6 +128,43 @@ func (q *Queries) GetTaskUsage(ctx context.Context, taskID pgtype.UUID) ([]TaskU
 	return items, nil
 }
 
+const insertTaskRequestUsage = `-- name: InsertTaskRequestUsage :execrows
+INSERT INTO task_request_usage (task_id, request_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (task_id, request_key) DO NOTHING
+`
+
+type InsertTaskRequestUsageParams struct {
+	TaskID           pgtype.UUID `json:"task_id"`
+	RequestKey       string      `json:"request_key"`
+	Provider         string      `json:"provider"`
+	Model            string      `json:"model"`
+	InputTokens      int64       `json:"input_tokens"`
+	OutputTokens     int64       `json:"output_tokens"`
+	CacheReadTokens  int64       `json:"cache_read_tokens"`
+	CacheWriteTokens int64       `json:"cache_write_tokens"`
+	CostUsdTicks     int64       `json:"cost_usd_ticks"`
+}
+
+// A request already stored (telemetry retry, repeated backfill) is ignored.
+func (q *Queries) InsertTaskRequestUsage(ctx context.Context, arg InsertTaskRequestUsageParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertTaskRequestUsage,
+		arg.TaskID,
+		arg.RequestKey,
+		arg.Provider,
+		arg.Model,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.CacheReadTokens,
+		arg.CacheWriteTokens,
+		arg.CostUsdTicks,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listAgentTaskUsage = `-- name: ListAgentTaskUsage :many
 SELECT
     tu.task_id,
@@ -765,6 +802,126 @@ func (q *Queries) ListIssueTaskUsage(ctx context.Context, issueID pgtype.UUID) (
 			&i.CacheWriteTokens,
 			&i.CostUsdTicks,
 			&i.CreditsMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockTaskUsageRows = `-- name: LockTaskUsageRows :many
+SELECT id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks
+FROM task_usage
+WHERE task_id = $1
+ORDER BY id
+FOR UPDATE
+`
+
+type LockTaskUsageRowsRow struct {
+	ID               pgtype.UUID `json:"id"`
+	Provider         string      `json:"provider"`
+	Model            string      `json:"model"`
+	InputTokens      int64       `json:"input_tokens"`
+	OutputTokens     int64       `json:"output_tokens"`
+	CacheReadTokens  int64       `json:"cache_read_tokens"`
+	CacheWriteTokens int64       `json:"cache_write_tokens"`
+	CostUsdTicks     pgtype.Int8 `json:"cost_usd_ticks"`
+}
+
+// Row locks serialize request-cost refreshes with daemon usage reports, so the
+// last refresh always sees both the newest totals and every stored request.
+func (q *Queries) LockTaskUsageRows(ctx context.Context, taskID pgtype.UUID) ([]LockTaskUsageRowsRow, error) {
+	rows, err := q.db.Query(ctx, lockTaskUsageRows, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LockTaskUsageRowsRow{}
+	for rows.Next() {
+		var i LockTaskUsageRowsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.Model,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CacheReadTokens,
+			&i.CacheWriteTokens,
+			&i.CostUsdTicks,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setTaskUsageCost = `-- name: SetTaskUsageCost :execrows
+UPDATE task_usage
+SET cost_usd_ticks = $2, updated_at = now()
+WHERE id = $1 AND cost_usd_ticks IS DISTINCT FROM $2
+`
+
+type SetTaskUsageCostParams struct {
+	ID           pgtype.UUID `json:"id"`
+	CostUsdTicks pgtype.Int8 `json:"cost_usd_ticks"`
+}
+
+// Bumps updated_at only on a real change so the hourly rollup re-aggregates.
+func (q *Queries) SetTaskUsageCost(ctx context.Context, arg SetTaskUsageCostParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setTaskUsageCost, arg.ID, arg.CostUsdTicks)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const sumTaskRequestUsage = `-- name: SumTaskRequestUsage :many
+SELECT provider, model,
+    SUM(input_tokens)::bigint AS input_tokens,
+    SUM(output_tokens)::bigint AS output_tokens,
+    SUM(cache_read_tokens)::bigint AS cache_read_tokens,
+    SUM(cache_write_tokens)::bigint AS cache_write_tokens,
+    SUM(cost_usd_ticks)::bigint AS cost_usd_ticks
+FROM task_request_usage
+WHERE task_id = $1
+GROUP BY provider, model
+`
+
+type SumTaskRequestUsageRow struct {
+	Provider         string `json:"provider"`
+	Model            string `json:"model"`
+	InputTokens      int64  `json:"input_tokens"`
+	OutputTokens     int64  `json:"output_tokens"`
+	CacheReadTokens  int64  `json:"cache_read_tokens"`
+	CacheWriteTokens int64  `json:"cache_write_tokens"`
+	CostUsdTicks     int64  `json:"cost_usd_ticks"`
+}
+
+func (q *Queries) SumTaskRequestUsage(ctx context.Context, taskID pgtype.UUID) ([]SumTaskRequestUsageRow, error) {
+	rows, err := q.db.Query(ctx, sumTaskRequestUsage, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SumTaskRequestUsageRow{}
+	for rows.Next() {
+		var i SumTaskRequestUsageRow
+		if err := rows.Scan(
+			&i.Provider,
+			&i.Model,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CacheReadTokens,
+			&i.CacheWriteTokens,
+			&i.CostUsdTicks,
 		); err != nil {
 			return nil, err
 		}

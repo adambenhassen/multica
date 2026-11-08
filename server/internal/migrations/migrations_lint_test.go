@@ -38,6 +38,8 @@ func TestMigrationNumericPrefixesAreUnique(t *testing.T) {
 		"587_agent_task_fallback":                     false,
 		"588_skill_invocation":                        false,
 		"589_skill_invocation_workspace_idx":          false,
+		"617_task_request_usage":                      false,
+		"618_task_request_usage_task_request_idx":     false,
 	}
 	stemByNumber := make(map[int]string)
 	for _, file := range files {

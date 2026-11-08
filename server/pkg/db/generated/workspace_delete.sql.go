@@ -19,6 +19,9 @@ batch AS MATERIALIZED (
 deleted_task_usage AS (
     DELETE FROM task_usage WHERE task_id IN (SELECT id FROM batch)
 ),
+deleted_task_request_usage AS (
+    DELETE FROM task_request_usage WHERE task_id IN (SELECT id FROM batch)
+),
 deleted_task_messages AS (
     DELETE FROM task_message WHERE task_id IN (SELECT id FROM batch)
 ),

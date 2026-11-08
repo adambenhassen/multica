@@ -338,3 +338,35 @@ WHERE a.workspace_id = $1
   AND (sqlc.narg('project_id')::uuid IS NULL OR i.project_id = sqlc.narg('project_id'))
 GROUP BY atq.agent_id, 2
 ORDER BY atq.agent_id, 2;
+
+-- name: InsertTaskRequestUsage :execrows
+-- A request already stored (telemetry retry, repeated backfill) is ignored.
+INSERT INTO task_request_usage (task_id, request_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (task_id, request_key) DO NOTHING;
+
+-- name: LockTaskUsageRows :many
+-- Row locks serialize request-cost refreshes with daemon usage reports, so the
+-- last refresh always sees both the newest totals and every stored request.
+SELECT id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks
+FROM task_usage
+WHERE task_id = $1
+ORDER BY id
+FOR UPDATE;
+
+-- name: SumTaskRequestUsage :many
+SELECT provider, model,
+    SUM(input_tokens)::bigint AS input_tokens,
+    SUM(output_tokens)::bigint AS output_tokens,
+    SUM(cache_read_tokens)::bigint AS cache_read_tokens,
+    SUM(cache_write_tokens)::bigint AS cache_write_tokens,
+    SUM(cost_usd_ticks)::bigint AS cost_usd_ticks
+FROM task_request_usage
+WHERE task_id = $1
+GROUP BY provider, model;
+
+-- name: SetTaskUsageCost :execrows
+-- Bumps updated_at only on a real change so the hourly rollup re-aggregates.
+UPDATE task_usage
+SET cost_usd_ticks = $2, updated_at = now()
+WHERE id = $1 AND cost_usd_ticks IS DISTINCT FROM $2;
