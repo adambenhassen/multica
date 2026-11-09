@@ -319,6 +319,7 @@ Object.assign(DRAWINGS, {
   Maximize: `<path d="${shape([[3.5, 8.5], [3.5, 3.5, 3], [8.5, 3.5]], false)}"/><path d="${shape([[15.5, 3.5], [20.5, 3.5, 3], [20.5, 8.5]], false)}"/>
     <path d="${shape([[20.5, 15.5], [20.5, 20.5, 3], [15.5, 20.5]], false)}"/><path d="${shape([[8.5, 20.5], [3.5, 20.5, 3], [3.5, 15.5]], false)}"/>`,
   Activity: `<path d="M2.75 12h3.5l2.75-7 6 14 2.75-7h3.5"/>`,
+  SquareActivity: `<path class="b" d="${rect(3, 3, 18, 18, 7)}"/><path class="k" d="M6.5 12h2.25l1.75-4.5 3 9 1.75-4.5h2.25"/>`,
   Waves: `<path d="${wave(6.75)}M${wave(12).slice(1)}M${wave(17.25).slice(1)}"/>`,
 
   // Lists and layout

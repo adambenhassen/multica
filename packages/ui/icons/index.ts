@@ -266,6 +266,7 @@ export const SmilePlus = /* @__PURE__ */ createIcon("SmilePlus", glyph.SmilePlus
 export const Space = /* @__PURE__ */ createIcon("Space", glyph.Space);
 export const Sparkles = /* @__PURE__ */ createIcon("Sparkles", glyph.Sparkles);
 export const Square = /* @__PURE__ */ createIcon("Square", glyph.Square);
+export const SquareActivity = /* @__PURE__ */ createIcon("SquareActivity", glyph.SquareActivity);
 export const SquarePen = /* @__PURE__ */ createIcon("SquarePen", glyph.SquarePen);
 export const SquarePlus = /* @__PURE__ */ createIcon("SquarePlus", glyph.SquarePlus);
 export const SquareTerminal = /* @__PURE__ */ createIcon("SquareTerminal", glyph.SquareTerminal);
