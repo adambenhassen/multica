@@ -1,6 +1,6 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import type { Agent } from "@multica/core/types";
 import type { SupportedLocale } from "@multica/core/i18n";
 import { renderWithI18n } from "../../test/i18n";
@@ -17,6 +17,7 @@ import { AgentsPage } from "./agents-page";
 // state on those queries.
 
 const mocks = vi.hoisted(() => ({
+  narrow: false,
   agents: [] as Agent[],
   agentsLoading: false,
   runCounts: [] as Array<{
@@ -85,7 +86,13 @@ vi.mock("@tanstack/react-virtual", () => ({
         size: 64,
       })),
     getTotalSize: () => count * 64,
+    measure: () => {},
   }),
+}));
+
+// jsdom has no layout: a test opts into the narrow (stacked) list by flag.
+vi.mock("@multica/ui/hooks/use-is-narrower-than", () => ({
+  useIsNarrowerThan: () => [() => {}, mocks.narrow],
 }));
 
 vi.mock("sonner", () => ({
@@ -236,6 +243,7 @@ function betaPrecedesAlpha(): boolean {
 }
 
 beforeEach(() => {
+  mocks.narrow = false;
   mocks.agents = [ALPHA, BETA];
   mocks.agentsLoading = false;
   mocks.runCounts = [];
@@ -412,6 +420,56 @@ describe("AgentsPage compact name cell", () => {
     renderPage();
     expect(screen.getByRole("tooltip")).toHaveTextContent("Reviews every PR");
     expect(screen.getAllByText("Reviews every PR")).toHaveLength(1);
+  });
+});
+
+describe("AgentsPage stacked rows in a narrow list", () => {
+  const rowOf = (name: string) =>
+    screen.getByText(name).closest('[role="row"]') as HTMLElement;
+
+  it("stacks each row to its fixed height, with no column header", () => {
+    mocks.narrow = true;
+    mocks.viewState.sortField = "name";
+    renderPage();
+
+    expect(screen.queryAllByRole("columnheader")).toHaveLength(0);
+    // The virtualizer's stacked row height is 60px: h-15.
+    expect(rowOf("Alpha Agent").className).toContain("h-15");
+    expect(rowOf("Alpha Agent").className).not.toContain("h-10");
+    // Name cell and row menu only: none of the wide list's columns.
+    expect(within(rowOf("Alpha Agent")).getAllByRole("cell")).toHaveLength(2);
+    expect(screen.queryByText("claude")).not.toBeInTheDocument();
+  });
+
+  it("says when an agent last ran, and nothing for one that has not", () => {
+    mocks.narrow = true;
+    mocks.runCounts = [
+      { agent_id: "a-alpha", run_count: 3, last_run_at: minutesAgo(5) },
+    ];
+    renderPage();
+
+    expect(within(rowOf("Alpha Agent")).getByText("5m ago")).toBeInTheDocument();
+    expect(within(rowOf("Beta Agent")).queryByText(/ago/)).not.toBeInTheDocument();
+    expect(screen.queryByText("No activity (30d)")).not.toBeInTheDocument();
+  });
+
+  it("keeps the one-line row and its header in a wide list", () => {
+    mocks.viewState.sortField = "name";
+    renderPage();
+
+    expect(screen.getAllByRole("columnheader").length).toBeGreaterThan(0);
+    expect(rowOf("Alpha Agent").className).toContain("h-10");
+  });
+
+  it("loads as stacked skeleton rows", () => {
+    mocks.narrow = true;
+    mocks.agentsLoading = true;
+    renderPage();
+
+    expect(screen.queryAllByRole("columnheader")).toHaveLength(0);
+    const rows = screen.getAllByRole("row");
+    expect(rows).toHaveLength(5);
+    expect(rows.every((row) => row.className.includes("h-15"))).toBe(true);
   });
 });
 

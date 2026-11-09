@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Bot,
@@ -53,6 +53,7 @@ import {
   type ListGridSortDirection,
 } from "@multica/ui/components/ui/list-grid";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
+import { useIsNarrowerThan } from "@multica/ui/hooks/use-is-narrower-than";
 import {
   Tooltip,
   TooltipContent,
@@ -90,6 +91,17 @@ const GRID_COLS =
 
 // The virtualizer's fixed-size contract; matches the rows' h-10.
 const ROW_HEIGHT = 40;
+
+// A list narrower than 32rem (a phone) stacks each row instead: the name on
+// its own line up to the row menu, over status, runtime and last activity.
+// There is no column header, and no column toggles apply. The edge tracks
+// plus the grid gap put row content on the page gutter; the last track is a
+// fingertip-sized row menu. The switch is measured in JS rather than left to
+// a container query because the virtualizer needs the row height.
+const STACKED_BELOW_REM = 32;
+const STACKED_GRID_COLS = "grid-cols-[0.25rem_minmax(0,1fr)_2.75rem_0.25rem]";
+// Matches the stacked rows' h-15.
+const STACKED_ROW_HEIGHT = 60;
 
 // Single source for hideable column widths: track vars and the grid's
 // min-width derive from the same numbers.
@@ -351,9 +363,9 @@ function CheckboxCell({
   );
 }
 
-// Avatar + name on one line; the description shows as the name's tooltip.
-// The "You" badge is redundant in the Mine tab, where every row is yours.
-function NameCell({ row, showYou }: { row: AgentListRow; showYou: boolean }) {
+// The name, with the description as its tooltip, the private lock and the
+// "You" badge. The badge is redundant in the Mine tab, where every row is yours.
+function AgentName({ row, showYou }: { row: AgentListRow; showYou: boolean }) {
   const { t } = useT("agents");
   const { agent, isOwnedByMe } = row;
   const isArchived = !!agent.archived_at;
@@ -362,38 +374,88 @@ function NameCell({ row, showYou }: { row: AgentListRow; showYou: boolean }) {
     isArchived ? "text-muted-foreground" : ""
   }`;
   return (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      {agent.description ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={<span className={nameClass}>{agent.name}</span>}
+          />
+          <TooltipContent className="max-w-sm">{agent.description}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <span className={nameClass}>{agent.name}</span>
+      )}
+      {isPrivate && !isArchived && (
+        <Tooltip>
+          <TooltipTrigger
+            render={<Lock className="h-3 w-3 shrink-0 text-faint-foreground" />}
+          />
+          <TooltipContent>{VISIBILITY_TOOLTIP.private}</TooltipContent>
+        </Tooltip>
+      )}
+      {isOwnedByMe && showYou && (
+        <span className="shrink-0 rounded-xs bg-muted px-1 text-micro font-medium text-muted-foreground">
+          {t(($) => $.row.you)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function AgentAvatar({ row }: { row: AgentListRow }) {
+  return (
+    <ActorAvatar
+      actorType="agent"
+      actorId={row.agent.id}
+      size="md"
+      className={`shrink-0 ${row.agent.archived_at ? "opacity-50 grayscale" : ""}`}
+      showStatusDot
+    />
+  );
+}
+
+// Avatar + name on one line.
+function NameCell({ row, showYou }: { row: AgentListRow; showYou: boolean }) {
+  return (
     <ListGridCell className="gap-2.5">
-      <ActorAvatar
-        actorType="agent"
-        actorId={agent.id}
-        size="md"
-        className={`shrink-0 ${isArchived ? "opacity-50 grayscale" : ""}`}
-        showStatusDot
-      />
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        {agent.description ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={<span className={nameClass}>{agent.name}</span>}
-            />
-            <TooltipContent className="max-w-sm">{agent.description}</TooltipContent>
-          </Tooltip>
-        ) : (
-          <span className={nameClass}>{agent.name}</span>
-        )}
-        {isPrivate && !isArchived && (
-          <Tooltip>
-            <TooltipTrigger
-              render={<Lock className="h-3 w-3 shrink-0 text-faint-foreground" />}
-            />
-            <TooltipContent>{VISIBILITY_TOOLTIP.private}</TooltipContent>
-          </Tooltip>
-        )}
-        {isOwnedByMe && showYou && (
-          <span className="shrink-0 rounded-xs bg-muted px-1 text-micro font-medium text-muted-foreground">
-            {t(($) => $.row.you)}
+      <AgentAvatar row={row} />
+      <AgentName row={row} showYou={showYou} />
+    </ListGridCell>
+  );
+}
+
+// A stacked row but for its menu: the avatar, then the name over a line of
+// status, runtime and last activity. The status is never cut short; the
+// runtime's name gives way first, and an agent with no recent run says
+// nothing about when.
+function StackedAgentCell({
+  row,
+  showYou,
+}: {
+  row: AgentListRow;
+  showYou: boolean;
+}) {
+  const { agent, runtime } = row;
+  return (
+    <ListGridCell className="gap-2.5 px-0">
+      <AgentAvatar row={row} />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex min-w-0">
+          <AgentName row={row} showYou={showYou} />
+        </div>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex shrink-0 items-center gap-1.5">
+            <AgentStatus row={row} />
           </span>
-        )}
+          {isAgentRuntimeBound(agent) && runtime && (
+            <RuntimeLabel runtime={runtime} />
+          )}
+          {row.lastRunAt !== null && (
+            <span className="ml-auto flex shrink-0">
+              <LastActive row={row} />
+            </span>
+          )}
+        </div>
       </div>
     </ListGridCell>
   );
@@ -401,39 +463,33 @@ function NameCell({ row, showYou }: { row: AgentListRow; showYou: boolean }) {
 
 // Availability dot + label, with the workload folded in as a suffix
 // ("Online · 2 tasks") — a 0-2 integer doesn't earn its own column.
-function StatusCell({ row }: { row: AgentListRow }) {
+function AgentStatus({ row }: { row: AgentListRow }) {
   const { t } = useT("agents");
   const { agent, presence } = row;
   if (agent.archived_at) {
     return (
-      <ListGridCell>
-        <span className="text-caption text-muted-foreground">
-          {t(($) => $.row.archived)}
-        </span>
-      </ListGridCell>
+      <span className="text-caption text-muted-foreground">
+        {t(($) => $.row.archived)}
+      </span>
     );
   }
   if (!isAgentRuntimeBound(agent)) {
     return (
-      <ListGridCell className="gap-1.5">
+      <>
         <AlertCircle className="size-3.5 shrink-0 text-amber-500" />
         <span className="truncate text-caption text-amber-600 dark:text-amber-400">
           {t(($) => $.row.needs_runtime)}
         </span>
-      </ListGridCell>
+      </>
     );
   }
   if (!presence) {
-    return (
-      <ListGridCell>
-        <span className="text-caption text-faint-foreground">—</span>
-      </ListGridCell>
-    );
+    return <span className="text-caption text-faint-foreground">—</span>;
   }
   const visual = availabilityConfig[presence.availability];
   const active = presence.runningCount + presence.queuedCount;
   return (
-    <ListGridCell className="gap-1.5">
+    <>
       <span className={`size-1.5 shrink-0 rounded-full ${visual.dotClass}`} />
       <span className={`truncate text-caption ${visual.textClass}`}>
         {t(($) => $.availability[presence.availability])}
@@ -444,6 +500,14 @@ function StatusCell({ row }: { row: AgentListRow }) {
           </span>
         )}
       </span>
+    </>
+  );
+}
+
+function StatusCell({ row }: { row: AgentListRow }) {
+  return (
+    <ListGridCell className="gap-1.5">
+      <AgentStatus row={row} />
     </ListGridCell>
   );
 }
@@ -514,17 +578,7 @@ function RuntimeCell({ row }: { row: AgentListRow }) {
   return (
     <ListGridCell className="hidden @2xl:flex">
       {runtime ? (
-        // Provider mark before the label: scanning this column for "which of
-        // these run on Codex" is a shape match, not a read.
-        <span className="inline-flex min-w-0 items-center gap-1.5">
-          <ProviderLogo
-            provider={runtime.provider}
-            className="h-3.5 w-3.5 shrink-0"
-          />
-          <span className="min-w-0 truncate text-caption text-muted-foreground">
-            {runtimeDisplayLabel(runtime)}
-          </span>
-        </span>
+        <RuntimeLabel runtime={runtime} />
       ) : (
         <span className="text-caption text-faint-foreground">—</span>
       )}
@@ -532,25 +586,45 @@ function RuntimeCell({ row }: { row: AgentListRow }) {
   );
 }
 
-function LastActiveCell({ row }: { row: AgentListRow }) {
+// Provider mark before the label: scanning this column for "which of these
+// run on Codex" is a shape match, not a read.
+function RuntimeLabel({ runtime }: { runtime: AgentRuntime }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <ProviderLogo
+        provider={runtime.provider}
+        className="h-3.5 w-3.5 shrink-0"
+      />
+      <span className="min-w-0 truncate text-caption text-muted-foreground">
+        {runtimeDisplayLabel(runtime)}
+      </span>
+    </span>
+  );
+}
+
+function LastActive({ row }: { row: AgentListRow }) {
   const { t } = useT("agents");
   const locale = useLocale();
   const timeAgo = useTimeAgo();
   const at = row.lastRunAt;
+  return at === null ? (
+    <span className="truncate text-caption text-muted-foreground">
+      {row.agent.archived_at ? "—" : t(($) => $.last_active.none)}
+    </span>
+  ) : (
+    <span
+      className="whitespace-nowrap text-caption tabular-nums text-muted-foreground"
+      title={new Date(at).toLocaleString(locale)}
+    >
+      {timeAgo(at)}
+    </span>
+  );
+}
+
+function LastActiveCell({ row }: { row: AgentListRow }) {
   return (
     <ListGridCell className="hidden @2xl:flex">
-      {at === null ? (
-        <span className="truncate text-caption text-muted-foreground">
-          {row.agent.archived_at ? "—" : t(($) => $.last_active.none)}
-        </span>
-      ) : (
-        <span
-          className="whitespace-nowrap text-caption tabular-nums text-muted-foreground"
-          title={new Date(at).toLocaleString(locale)}
-        >
-          {timeAgo(at)}
-        </span>
-      )}
+      <LastActive row={row} />
     </ListGridCell>
   );
 }
@@ -693,7 +767,25 @@ function AgentListHeader({
   );
 }
 
-function LoadingSkeleton() {
+function LoadingSkeleton({ stacked }: { stacked: boolean }) {
+  if (stacked) {
+    return (
+      <ListGrid className={STACKED_GRID_COLS}>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <ListGridRow key={i} className="h-15 hover:bg-transparent">
+            <ListGridCell className="gap-2.5 px-0">
+              <Skeleton className="size-6 rounded-full" />
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <Skeleton className="h-3.5 w-40 max-w-full" />
+                <Skeleton className="h-3 w-28 max-w-full" />
+              </div>
+            </ListGridCell>
+            <ListGridCell className="px-0" />
+          </ListGridRow>
+        ))}
+      </ListGrid>
+    );
+  }
   return (
     <ListGrid
       className={GRID_COLS}
@@ -982,12 +1074,20 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
   // scrollbar. The sticky header pins inside this scroller; the vertical
   // scrollbar spans the full pane height (Linear's structure).
   const listScrollRef = useRef<HTMLDivElement | null>(null);
+  // Measured on the page, which is as wide as the list and stays mounted
+  // through loading, so the skeleton stacks too.
+  const [pageRef, stacked] = useIsNarrowerThan<HTMLDivElement>(STACKED_BELOW_REM);
+  const rowHeight = stacked ? STACKED_ROW_HEIGHT : ROW_HEIGHT;
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => listScrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: 10,
   });
+  // The virtualizer caches row sizes; a new height has to be measured again.
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [rowVirtualizer, rowHeight]);
 
   // Straight to the manual form: a duplicate already has every field decided,
   // so the method chooser would be a step with nothing to choose.
@@ -1053,7 +1153,7 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
   return (
     // relative: positioning anchor for the batch toolbar (page-centered,
     // not viewport-centered).
-    <div className="relative flex flex-1 min-h-0 flex-col">
+    <div ref={pageRef} className="relative flex flex-1 min-h-0 flex-col">
       <PageHeaderBar
         totalCount={totalCount}
         onCreate={() => navigation.push(paths.newAgent())}
@@ -1088,7 +1188,7 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
           />
           {isLoading || !listReady ? (
             <div className="flex-1 overflow-y-auto @container">
-              <LoadingSkeleton />
+              <LoadingSkeleton stacked={stacked} />
             </div>
           ) : (
           <div
@@ -1096,18 +1196,25 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
             className="min-h-0 flex-1 overflow-auto @container"
           >
             <ListGrid
-              className={`${GRID_COLS} @2xl:min-w-[var(--agc-minw)]`}
+              className={
+                stacked
+                  ? STACKED_GRID_COLS
+                  : `${GRID_COLS} @2xl:min-w-[var(--agc-minw)]`
+              }
               style={columnTrackVars(isColVisible)}
             >
-              <AgentListHeader
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-                allSelected={allSelected}
-                someSelected={someSelected}
-                onToggleAll={handleToggleAll}
-                isColVisible={isColVisible}
-              />
+              {/* A stacked list has no columns to head; sorting stays in the toolbar. */}
+              {!stacked && (
+                <AgentListHeader
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                  allSelected={allSelected}
+                  someSelected={someSelected}
+                  onToggleAll={handleToggleAll}
+                  isColVisible={isColVisible}
+                />
+              )}
               <ListGridBody
                 style={{
                   paddingTop: virtualPadding.top,
@@ -1126,93 +1233,105 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
                   return (
                     <ListGridRow
                       key={row.agent.id}
-                      className={`h-10 cursor-pointer ${
+                      className={`${stacked ? "h-15" : "h-10"} cursor-pointer ${
                         selectedIds.has(row.agent.id) ? "bg-accent/30" : ""
                       }`}
                       {...rowLink(paths.agentDetail(row.agent.id), row.agent.name)}
                     >
-                      <CheckboxCell
-                        checked={selectedIds.has(row.agent.id)}
-                        onToggle={() => toggleSelected(row.agent.id)}
-                      />
-                      <NameCell row={row} showYou={scope !== "mine"} />
-                      {isColVisible("status") ? (
-                        <StatusCell row={row} />
+                      {stacked ? (
+                        <StackedAgentCell
+                          row={row}
+                          showYou={scope !== "mine"}
+                        />
                       ) : (
-                        <ListGridCell className="px-0" />
-                      )}
-                      {isColVisible("owner") ? (
-                        <OwnerCell row={row} />
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("access") ? (
-                        <AccessCell row={row} />
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("runtime") ? (
-                        <RuntimeCell row={row} />
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("lastActive") ? (
-                        <LastActiveCell row={row} />
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("runs") ? (
-                        <ListGridCell className="hidden justify-end font-mono text-caption tabular-nums text-muted-foreground @2xl:flex">
-                          {row.runCount.toLocaleString(locale)}
-                        </ListGridCell>
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("lastHour") ? (
-                        <ListGridCell className="hidden justify-end font-mono text-caption tabular-nums text-muted-foreground @2xl:flex">
-                          {row.lastHourCount.toLocaleString(locale)}
-                        </ListGridCell>
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("model") ? (
-                        <ListGridCell className="hidden gap-1.5 @2xl:flex">
-                          <TruncatedTooltip content={row.agent.model || undefined}>
-                            <span
-                              className="min-w-0 truncate text-caption text-muted-foreground"
-                            >
-                              {row.agent.model || "—"}
-                            </span>
-                          </TruncatedTooltip>
-                          {row.agent.thinking_level?.trim() ? (
-                            <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
-                              {row.agent.thinking_level.trim()}
-                            </span>
-                          ) : null}
-                        </ListGridCell>
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("concurrency") ? (
-                        <ListGridCell className="hidden justify-end font-mono text-caption tabular-nums text-muted-foreground @2xl:flex">
-                          {row.agent.max_concurrent_tasks.toLocaleString(locale)}
-                        </ListGridCell>
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("created") ? (
-                        <ListGridCell className="hidden whitespace-nowrap text-caption tabular-nums text-muted-foreground @2xl:flex">
-                          {new Date(
-                            row.agent.created_at,
-                          ).toLocaleDateString(locale)}
-                        </ListGridCell>
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
+                        <>
+                          <CheckboxCell
+                            checked={selectedIds.has(row.agent.id)}
+                            onToggle={() => toggleSelected(row.agent.id)}
+                          />
+                          <NameCell row={row} showYou={scope !== "mine"} />
+                          {isColVisible("status") ? (
+                            <StatusCell row={row} />
+                          ) : (
+                            <ListGridCell className="px-0" />
+                          )}
+                          {isColVisible("owner") ? (
+                            <OwnerCell row={row} />
+                          ) : (
+                            <ListGridCell className="hidden px-0 @2xl:flex" />
+                          )}
+                          {isColVisible("access") ? (
+                            <AccessCell row={row} />
+                          ) : (
+                            <ListGridCell className="hidden px-0 @2xl:flex" />
+                          )}
+                          {isColVisible("runtime") ? (
+                            <RuntimeCell row={row} />
+                          ) : (
+                            <ListGridCell className="hidden px-0 @2xl:flex" />
+                          )}
+                          {isColVisible("lastActive") ? (
+                            <LastActiveCell row={row} />
+                          ) : (
+                            <ListGridCell className="hidden px-0 @2xl:flex" />
+                          )}
+                          {isColVisible("runs") ? (
+                            <ListGridCell className="hidden justify-end font-mono text-caption tabular-nums text-muted-foreground @2xl:flex">
+                              {row.runCount.toLocaleString(locale)}
+                            </ListGridCell>
+                          ) : (
+                            <ListGridCell className="hidden px-0 @2xl:flex" />
+                          )}
+                          {isColVisible("lastHour") ? (
+                            <ListGridCell className="hidden justify-end font-mono text-caption tabular-nums text-muted-foreground @2xl:flex">
+                              {row.lastHourCount.toLocaleString(locale)}
+                            </ListGridCell>
+                          ) : (
+                            <ListGridCell className="hidden px-0 @2xl:flex" />
+                          )}
+                          {isColVisible("model") ? (
+                            <ListGridCell className="hidden gap-1.5 @2xl:flex">
+                              <TruncatedTooltip content={row.agent.model || undefined}>
+                                <span
+                                  className="min-w-0 truncate text-caption text-muted-foreground"
+                                >
+                                  {row.agent.model || "—"}
+                                </span>
+                              </TruncatedTooltip>
+                              {row.agent.thinking_level?.trim() ? (
+                                <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
+                                  {row.agent.thinking_level.trim()}
+                                </span>
+                              ) : null}
+                            </ListGridCell>
+                          ) : (
+                            <ListGridCell className="hidden px-0 @2xl:flex" />
+                          )}
+                          {isColVisible("concurrency") ? (
+                            <ListGridCell className="hidden justify-end font-mono text-caption tabular-nums text-muted-foreground @2xl:flex">
+                              {row.agent.max_concurrent_tasks.toLocaleString(locale)}
+                            </ListGridCell>
+                          ) : (
+                            <ListGridCell className="hidden px-0 @2xl:flex" />
+                          )}
+                          {isColVisible("created") ? (
+                            <ListGridCell className="hidden whitespace-nowrap text-caption tabular-nums text-muted-foreground @2xl:flex">
+                              {new Date(
+                                row.agent.created_at,
+                              ).toLocaleDateString(locale)}
+                            </ListGridCell>
+                          ) : (
+                            <ListGridCell className="hidden px-0 @2xl:flex" />
+                          )}
+                        </>
                       )}
                       <ListGridCell className="justify-end px-0">
                         <span
                           onClick={(e) => e.stopPropagation()}
-                          className="flex items-center"
+                          // Stacked, the menu button fills its fingertip-sized track.
+                          className={`flex items-center ${
+                            stacked ? "[&_button]:size-11" : ""
+                          }`}
                         >
                           <AgentRowActions
                             agent={row.agent}
