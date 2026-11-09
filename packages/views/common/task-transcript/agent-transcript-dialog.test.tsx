@@ -1165,3 +1165,32 @@ describe("tool output completeness", () => {
     expect(screen.queryByText(/cannot be confirmed|completeness/i)).not.toBeInTheDocument();
   });
 });
+
+describe("run details carried-over context", () => {
+  const usage = [
+    {
+      provider: "claude",
+      model: "claude-opus-5-5",
+      input_tokens: 10,
+      output_tokens: 20,
+      cache_read_tokens: 238_000,
+      cache_write_tokens: 236_000,
+    },
+  ];
+
+  it("shows the context a resumed run reloaded and how much was uncached", async () => {
+    renderDialog(items, {
+      task: { ...baseTask, usage, carried_over: { context_tokens: 237_005, uncached_tokens: 236_005 } },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Run details" }));
+    expect(screen.getByText("Resumed")).toBeInTheDocument();
+    expect(screen.getByText("237K context, 236K uncached")).toBeInTheDocument();
+  });
+
+  it("omits the row for a run that started fresh", async () => {
+    renderDialog(items, { task: { ...baseTask, usage } });
+    await userEvent.click(screen.getByRole("button", { name: "Run details" }));
+    expect(screen.getByText("Cache write")).toBeInTheDocument();
+    expect(screen.queryByText("Resumed")).not.toBeInTheDocument();
+  });
+});

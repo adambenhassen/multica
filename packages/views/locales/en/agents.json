@@ -971,6 +971,8 @@
     "details_output": "Output",
     "details_cache_read": "Cache read",
     "details_cache_write": "Cache write",
+    "details_carried_over": "Resumed",
+    "details_carried_over_value": "{{tokens}} context, {{uncached}} uncached",
     "details_cost": "Cost",
     "usage_chip_title": "Tokens and estimated cost for this run",
     "details_branch": "Branch",

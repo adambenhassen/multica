@@ -802,6 +802,8 @@
     "details_output": "출력",
     "details_cache_read": "캐시 읽기",
     "details_cache_write": "캐시 쓰기",
+    "details_carried_over": "재개",
+    "details_carried_over_value": "컨텍스트 {{tokens}}, 캐시 미적중 {{uncached}}",
     "details_cost": "비용",
     "usage_chip_title": "이 실행의 토큰 및 예상 비용",
     "details_branch": "브랜치",

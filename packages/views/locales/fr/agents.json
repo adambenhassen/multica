@@ -971,6 +971,8 @@
     "details_output": "Sortie",
     "details_cache_read": "Lecture de cache",
     "details_cache_write": "Écriture de cache",
+    "details_carried_over": "Reprise",
+    "details_carried_over_value": "{{tokens}} de contexte, {{uncached}} hors cache",
     "details_cost": "Coût",
     "usage_chip_title": "Tokens et coût estimé de cette exécution",
     "details_branch": "Branche",

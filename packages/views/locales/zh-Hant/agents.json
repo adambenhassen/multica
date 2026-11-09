@@ -951,6 +951,8 @@
     "details_output": "輸出",
     "details_cache_read": "快取讀",
     "details_cache_write": "快取寫",
+    "details_carried_over": "恢復會話",
+    "details_carried_over_value": "上下文 {{tokens}}，其中 {{uncached}} 未命中快取",
     "details_cost": "費用",
     "usage_chip_title": "這次執行消耗的 token 與估算費用",
     "details_branch": "分支",

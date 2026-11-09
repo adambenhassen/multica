@@ -2418,6 +2418,16 @@ describe("task usage credits", () => {
     expect(parsed.usage?.[1]?.credits_micros).toBeUndefined();
   });
 
+  it("keeps carried-over context and drops a malformed one", () => {
+    const parsed = AgentTaskSchema.parse({
+      id: "run",
+      carried_over: { context_tokens: 236_000, uncached_tokens: 231_000 },
+    });
+    expect(parsed.carried_over).toEqual({ context_tokens: 236_000, uncached_tokens: 231_000 });
+    expect(AgentTaskSchema.parse({ id: "run", carried_over: { context_tokens: "many" } }).carried_over).toBeUndefined();
+    expect(AgentTaskSchema.parse({ id: "run" }).carried_over).toBeUndefined();
+  });
+
   it("drops malformed credits without losing the usage row", () => {
     const parsed = AgentTaskSchema.parse({
       id: "run",

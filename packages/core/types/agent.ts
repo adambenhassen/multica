@@ -493,6 +493,17 @@ export interface AgentTask {
    * reporting was not free, we just don't know what it cost.
    */
   usage?: TaskUsage[];
+  /**
+   * Earlier context a resumed run reloaded on its first request, and how much
+   * of it the provider did not serve from cache. Absent for fresh runs, runs
+   * without timed request telemetry, and older backends.
+   */
+  carried_over?: TaskCarriedOver;
+}
+
+export interface TaskCarriedOver {
+  context_tokens: number;
+  uncached_tokens: number;
 }
 
 /**

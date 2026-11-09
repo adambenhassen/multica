@@ -794,6 +794,8 @@
     "details_output": "出力",
     "details_cache_read": "キャッシュ読み取り",
     "details_cache_write": "キャッシュ書き込み",
+    "details_carried_over": "再開",
+    "details_carried_over_value": "コンテキスト {{tokens}}、うち {{uncached}} はキャッシュ外",
     "details_cost": "費用",
     "usage_chip_title": "この実行のトークンと推定費用",
     "details_branch": "ブランチ",

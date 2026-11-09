@@ -1074,6 +1074,15 @@ export function AgentTranscriptDialog({
                             label={t(($) => $.transcript.details_cost)}
                             value={formatSpend(usage)}
                           />
+                          {task.carried_over && (
+                            <RunDetailRow
+                              label={t(($) => $.transcript.details_carried_over)}
+                              value={t(($) => $.transcript.details_carried_over_value, {
+                                tokens: formatTokens(task.carried_over.context_tokens),
+                                uncached: formatTokens(task.carried_over.uncached_tokens),
+                              })}
+                            />
+                          )}
                         </>
                       )}
                     </div>

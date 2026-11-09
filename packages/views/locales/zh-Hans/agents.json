@@ -951,6 +951,8 @@
     "details_output": "输出",
     "details_cache_read": "缓存读",
     "details_cache_write": "缓存写",
+    "details_carried_over": "恢复会话",
+    "details_carried_over_value": "上下文 {{tokens}}，其中 {{uncached}} 未命中缓存",
     "details_cost": "费用",
     "usage_chip_title": "这次运行消耗的 token 与估算费用",
     "details_branch": "分支",
