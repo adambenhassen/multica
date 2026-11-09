@@ -1,9 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   NumberFlow,
   NumberFlowGroup,
 } from "@multica/ui/components/ui/number-flow";
+import { cn } from "@multica/ui/lib/utils";
 import { formatDuration } from "../utils";
 
 // Period selector — mirrors the runtime detail page so users see the same
@@ -66,11 +68,14 @@ export function Segmented<T extends string | number>({
   onChange,
   options,
   label,
+  buttonClassName,
 }: {
   value: T;
   onChange: (v: T) => void;
-  options: readonly { label: string; value: T }[];
+  /** `badge` follows the label inside the button, e.g. a count. */
+  options: readonly { label: string; value: T; badge?: ReactNode }[];
   label: string;
+  buttonClassName?: string;
 }) {
   return (
     <div
@@ -84,13 +89,16 @@ export function Segmented<T extends string | number>({
           type="button"
           aria-pressed={o.value === value}
           onClick={() => onChange(o.value)}
-          className={`whitespace-nowrap rounded-sm px-2.5 py-1 text-caption font-medium transition-colors ${
+          className={cn(
+            "whitespace-nowrap rounded-sm px-2.5 py-1 text-caption font-medium transition-colors",
             o.value === value
               ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
+              : "text-muted-foreground hover:text-foreground",
+            buttonClassName,
+          )}
         >
           {o.label}
+          {o.badge}
         </button>
       ))}
     </div>

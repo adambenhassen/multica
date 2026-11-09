@@ -116,7 +116,9 @@ export function ProjectFilter({
             ) : (
               <FolderKanban className="size-3.5" />
             )}
-            <span className="max-w-40 truncate">
+            {/* Capped tighter on a phone, where a long project name would
+                otherwise squeeze the page title out of the header. */}
+            <span className="max-w-24 truncate md:max-w-40">
               {selected ? selected.title : allLabel}
             </span>
             <ChevronDown className="size-3 text-muted-foreground" />

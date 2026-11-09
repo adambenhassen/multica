@@ -286,7 +286,7 @@ describe("OverviewPage", () => {
     renderPage();
     await within(feed()).findByText("Ship the dashboard");
 
-    fireEvent.click(within(feed()).getByRole("button", { name: "Active" }));
+    fireEvent.click(within(feed()).getByRole("button", { name: /^Active/ }));
     expect(await within(feed()).findByText("Fix the reconnect")).toBeTruthy();
     expect(within(feed()).getAllByText("Ship the dashboard")).toHaveLength(1);
     // It stops once both issues have a row: page three is never asked for.
@@ -323,7 +323,7 @@ describe("OverviewPage", () => {
     expect(chip.getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(chip);
     expect(chip.getAttribute("aria-pressed")).toBe("true");
-    expect(within(feed()).getByRole("button", { name: "Active", pressed: true })).toBeTruthy();
+    expect(within(feed()).getByRole("button", { name: "Active 2", pressed: true })).toBeTruthy();
     expect(await within(feed()).findByText("Ship the dashboard")).toBeTruthy();
   });
 
@@ -339,7 +339,7 @@ describe("OverviewPage", () => {
     renderPage();
     await within(feed()).findByText("Fix the reconnect");
 
-    fireEvent.click(within(feed()).getByRole("button", { name: "Active" }));
+    fireEvent.click(within(feed()).getByRole("button", { name: /^Active/ }));
     await waitFor(() => expect(within(feed()).queryByText("Fix the reconnect")).toBeNull());
     // Same rows as All, asked for only the issue with a running task.
     const row = within(feed()).getByText("Ship the dashboard").closest("a")!;
@@ -353,7 +353,7 @@ describe("OverviewPage", () => {
     renderPage();
     await within(feed()).findByText("Ship the dashboard");
     const before = calls.length;
-    fireEvent.click(within(feed()).getByRole("button", { name: "Active" }));
+    fireEvent.click(within(feed()).getByRole("button", { name: /^Active/ }));
     expect(await within(feed()).findByText("No agent is working on an issue right now")).toBeTruthy();
     expect(calls.length).toBe(before);
   });
@@ -394,7 +394,7 @@ describe("OverviewPage", () => {
     const chip = await screen.findByRole("button", { name: "4 waiting" });
     fireEvent.click(chip);
     expect(chip.getAttribute("aria-pressed")).toBe("true");
-    expect(within(feed()).getByRole("button", { name: "Waiting", pressed: true })).toBeTruthy();
+    expect(within(feed()).getByRole("button", { name: "Waiting 4", pressed: true })).toBeTruthy();
     expect(await within(feed()).findByText("CI running on acme/widget#7 for 37m")).toBeTruthy();
     expect(within(feed()).getByText("Run queued for 10m")).toBeTruthy();
     const docs = within(feed()).getByText("Update the docs").closest("a")!;
@@ -486,12 +486,81 @@ describe("OverviewPage", () => {
     await within(feed()).findByText("Ship the dashboard");
     expect(await screen.findByRole("button", { name: "0 waiting" })).toBeTruthy();
     const before = calls.length;
-    fireEvent.click(within(feed()).getByRole("button", { name: "Waiting" }));
+    fireEvent.click(within(feed()).getByRole("button", { name: /^Waiting/ }));
     expect(await within(feed()).findByText("Nothing is waiting on a run, CI, the merge gate or a wakeup")).toBeTruthy();
     expect(calls.length).toBe(before);
   });
 
-  it("shows each event on one line and names what it hides on hover", async () => {
+  it("moves the header counts onto the tabs for a phone", async () => {
+    apiRef.current.getAgentTaskSnapshot = () =>
+      Promise.resolve([
+        { id: "t-1", agent_id: "agent-1", issue_id: "issue-1", status: "running", started_at: NOW, created_at: NOW },
+        { id: "t-2", agent_id: "agent-2", issue_id: "", status: "running", started_at: NOW, created_at: NOW },
+        { id: "t-3", agent_id: "agent-3", issue_id: "issue-2", status: "queued", started_at: null, created_at: NOW },
+      ]);
+    apiRef.current.getIssueCI = () => Promise.resolve({ issues: [] });
+    apiRef.current.listIssueWakeupSummaries = () => Promise.resolve([]);
+    scriptFeed(() => [move("a-1", SHIP)]);
+    renderPage();
+
+    // Below `md` the chips are hidden and each tab's count shows instead.
+    const chip = await screen.findByRole("button", { name: "2 runs working" });
+    expect(chip.parentElement!.className).toBe("hidden md:contents");
+    expect(screen.getByRole("button", { name: "1 waiting" }).parentElement).toBe(chip.parentElement);
+    for (const [name, count] of [["Active 2", "2"], ["Waiting 1", "1"]] as const) {
+      const tab = within(feed()).getByRole("button", { name });
+      expect(within(tab).getByText(count).className).toContain("md:hidden");
+    }
+    // A tab with nothing to count keeps its bare name.
+    expect(within(feed()).getByRole("button", { name: "Blocked" })).toBeTruthy();
+  });
+
+  it("stacks a row in a narrow list and spells out what happened", async () => {
+    apiRef.current.getAgentTaskSnapshot = () =>
+      Promise.resolve([{ id: "t-1", agent_id: "agent-1", issue_id: "issue-2", status: "queued", started_at: null, created_at: NOW }]);
+    apiRef.current.getIssueCI = () => Promise.resolve({ issues: [] });
+    apiRef.current.listIssueWakeupSummaries = () => Promise.resolve([]);
+    useOverviewLayoutStore.setState({ showWaiting: true, showComments: true });
+    const created = {
+      type: "activity", id: "k-1", actor_type: "agent", actor_id: "agent-1", created_at: NOW, action: "created", details: {}, issue: FIX,
+    };
+    scriptFeed(() => [move("a-1", SHIP), created, comment("c-1", SHIP, "Looks good")]);
+    renderPage();
+
+    const [row] = (await within(feed()).findAllByText("Ship the dashboard")).map((el) => el.closest("a")!);
+    // Stacked below 32rem, one line from there up.
+    expect(row!.className).toContain("grid");
+    expect(row!.className).toContain("@lg:flex");
+    expect(within(row!).getByText("Ship the dashboard").className).toContain("@max-lg:line-clamp-2");
+    // Nothing can hover on a phone, so the status the issue moved into is named in view.
+    const shown = (r: HTMLElement, name: string) =>
+      within(r).getAllByText(name).some((el) => el.className.includes("@max-lg:inline"));
+    expect(shown(row!, "Done")).toBe(true);
+    expect(shown(row!, "In Review")).toBe(false);
+    // A comment shows its text.
+    const commented = within(feed()).getByText("Looks good");
+    expect(commented.className).toContain("@max-lg:inline");
+    // Beside a waiting reason there is no room for the words: the icons say it.
+    const waitingRow = (await within(feed()).findByText(/^Queued/)).closest("a")!;
+    expect(within(waitingRow).getByText("Fix the reconnect")).toBeTruthy();
+    expect(shown(waitingRow, "Issue created")).toBe(false);
+  });
+
+  it("leaves the whole row to a tap where nothing can hover", async () => {
+    scriptFeed(() => [move("a-1", SHIP)]);
+    renderPage();
+
+    const row = (await within(feed()).findByText("Ship the dashboard")).closest("a")!;
+    // Invisible but still in place, the filter button took taps meant for the row.
+    const filter = within(row.parentElement!).getByRole("button", { name: "Show only this issue" });
+    expect(filter.className).toContain("[@media(hover:none)]:hidden");
+    // The time gives way to the button only where the button can appear.
+    const time = row.querySelector('[class*="group-hover:invisible"]')!;
+    expect(time.className).toContain("[@media(hover:hover)]:group-hover:invisible");
+    expect(time.className).toContain("[@media(hover:hover)]:group-focus-within:invisible");
+  });
+
+  it("shows each event on one line in a wide list and names what it hides on hover", async () => {
     scriptFeed(() => [move("a-1", SHIP)]);
     renderPage();
 

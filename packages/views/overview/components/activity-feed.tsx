@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Activity, ArrowRight, Bell, CircleDashed, Clock, GitMerge, Hourglass, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, TriangleAlert, UserRound } from "@multica/ui/icons";
 import { useInfiniteQuery, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -70,6 +70,37 @@ const FEED_TABS = ["all", "active", "waiting", ...STATUS_CHANGE_FILTERS.filter((
 export type FeedTab = (typeof FEED_TABS)[number];
 
 /**
+ * Counts a phone shows on the tabs, where the header has no room for its
+ * chips. A tab without a count, or with none yet, shows only its name.
+ */
+export type FeedTabCounts = Partial<Record<FeedTab, number | undefined>>;
+
+// Fingertip-sized tabs on a phone.
+const PHONE_TAB_CLASS = "max-md:h-11 max-md:px-3.5 max-md:text-label";
+
+/**
+ * A row of tabs that outgrows a phone: it scrolls sideways rather than wrap,
+ * from one screen edge to the other, and keeps the selected tab in view.
+ */
+function TabStrip({ selected, className, children }: { selected: string; className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [selected]);
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "max-w-full overflow-x-auto max-md:-mx-4 max-md:w-[calc(100%+2rem)] max-md:max-w-none max-md:shrink-0 max-md:px-4",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
  * Running tasks from the live task snapshot, grouped by issue (the agents on
  * it and when the earliest run started) and by agent (how many runs).
  * `pending` until the snapshot has loaded.
@@ -130,11 +161,13 @@ export function StatusChangesFeed({
   focus,
   tab,
   onTabChange,
+  tabCounts = {},
 }: {
   focus: FeedFocus;
   /** Owned by the page, so its header can open the Active tab. */
   tab: FeedTab;
   onTabChange: (tab: FeedTab) => void;
+  tabCounts?: FeedTabCounts;
 }) {
   const { t } = useT("overview");
   const wsId = useWorkspaceId();
@@ -233,25 +266,37 @@ export function StatusChangesFeed({
     <section className={LIST_SECTION_CLASS}>
       <SectionHeading
         action={
-          // The tabs outgrow a phone: they scroll sideways rather than wrap.
-          <div className="max-w-full overflow-x-auto">
+          <TabStrip selected={tab}>
             <Segmented
               label={t(($) => $.status_changes.filter_label)}
               value={tab}
               onChange={onTabChange}
-              options={FEED_TABS.map((value) => ({ value, label: tabLabels[value] }))}
+              buttonClassName={PHONE_TAB_CLASS}
+              options={FEED_TABS.map((value) => ({
+                value,
+                label: tabLabels[value],
+                // The space sits outside the span so the tab still reads "Waiting 7"
+                // to a screen reader; trailing, it takes no room once the count hides.
+                badge: tabCounts[value] ? (
+                  <>
+                    {" "}
+                    <span className="tabular-nums md:hidden">{tabCounts[value]}</span>
+                  </>
+                ) : undefined,
+              }))}
             />
-          </div>
+          </TabStrip>
         }
       >
         {t(($) => $.activity.heading)}
       </SectionHeading>
       {tab === "waiting" && waitingGroups.size > 0 && (
-        <div className="mb-3 max-w-full overflow-x-auto">
+        <TabStrip selected={reasonFilter} className="mb-3">
           <Segmented
             label={t(($) => $.waiting.filter_label)}
             value={reasonFilter}
             onChange={setWaitingFilter}
+            buttonClassName={PHONE_TAB_CLASS}
             options={[
               { value: "all" as const, label: t(($) => $.waiting.groups.all, { count: waitingGroups.size }) },
               ...WAITING_GROUPS.filter((group) => waitingCounts[group]).map((group) => ({
@@ -260,7 +305,7 @@ export function StatusChangesFeed({
               })),
             ]}
           />
-        </div>
+        </TabStrip>
       )}
       {tab === "active" && !running.pending && activeIssues.length === 0 ? (
         <EmptyBox>{t(($) => $.status_changes.empty_active)}</EmptyBox>
@@ -417,14 +462,19 @@ function FeedBody({
 type RowProject = { id: string; title: string; icon: string | null };
 
 /**
- * One event on one line: what happened as an icon, the issue, the agents
- * working on it now, its project,
- * the move as status icons, the actor's avatar, then when. A wide list also
- * names the statuses and the actor and puts any other event into words; otherwise
- * every icon names itself on hover, and the names hidden from view stay for
- * screen readers. Sized by the list's width (it is
- * the query container): a narrow list drops the project, then the detail, so
- * the title stays readable.
+ * One event, sized by the list's width (it is the query container).
+ *
+ * From 32rem it is one line: what happened as an icon, the issue, the agents
+ * working on it now, its project, the move as status icons, the actor's
+ * avatar, then when. A wide (56rem) list also names the statuses and the
+ * actor and puts any other event into words; otherwise every icon names
+ * itself on hover, and the names hidden from view stay for screen readers.
+ *
+ * Narrower (a phone) it stacks: the title on its own line, up to two, over a
+ * line with the identifier, what the issue waits on or who works on it, what
+ * happened in words, the actor's avatar and when. A touch screen has no hover
+ * to name an icon, so the words are in view; the project is left to the
+ * header's filter.
  */
 const FeedRow = memo(function FeedRow({
   entry,
@@ -509,6 +559,9 @@ const FeedRow = memo(function FeedRow({
   }
   // A comment's line of text lives in its icon's tooltip.
   const action = excerpt ? t(($) => $.activity.with_excerpt, { phrase, excerpt }) : phrase;
+  // A stacked row spells out what happened, unless a waiting reason has taken
+  // the room: then the leading icon and the move's icons say it.
+  const stackedWords = !(showWaiting && waitingReason) && "@max-lg:inline";
   const href = paths.issueDetail(entry.issue.id) + (isComment ? `#comment-${entry.id}` : "");
 
   // Hovering (or focusing) a row tints every row of its issue in both feeds,
@@ -524,102 +577,124 @@ const FeedRow = memo(function FeedRow({
       onFocus={() => onHoverIssue(entry.issue.id)}
       onBlur={() => onHoverIssue(null)}
     >
-      <AppLink href={href} className="flex min-w-0 items-center gap-3 px-4 py-2">
-        <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center" title={action}>
+      <AppLink
+        href={href}
+        // The second line is a wrapper that dissolves (`contents`) from 32rem,
+        // so both layouts share one set of cells.
+        className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-3 gap-y-1 px-4 py-2.5 @lg:flex @lg:min-w-0 @lg:items-center @lg:py-2"
+      >
+        <span
+          aria-hidden="true"
+          className="flex size-4 shrink-0 items-center justify-center @max-lg:mt-0.5 @lg:order-first"
+          title={action}
+        >
           {lead}
         </span>
-        <span className="w-(--feed-id-width) shrink-0 font-mono text-caption text-muted-foreground">
-          {entry.issue.identifier}
-        </span>
-        <span className="min-w-32 flex-1 truncate text-label" title={entry.issue.title}>
+        <span
+          className="text-body @max-lg:line-clamp-2 @max-lg:break-words @lg:min-w-32 @lg:flex-1 @lg:truncate @lg:text-label"
+          title={entry.issue.title}
+        >
           {entry.issue.title}
         </span>
-        {/* Fixed-width columns keep working agents and project labels aligned down the list.
-            With the waiting column, the agents' column widens to say what is
-            happening on the issue now: what it waits on, or the agents running
-            on it. A waiting issue has no agent running, so the two never
-            compete, and the agents stay put when the column is switched on. */}
-        {!showWaiting ? (
-          <WorkingAgents agentIds={workingAgentIds} />
-        ) : waitingReason ? (
-          <WaitingCell reason={waitingReason} />
-        ) : (
-          <span className="flex w-4 shrink-0 @sm:w-32">
-            {/* Starts where the waiting icons do. */}
-            <WorkingAgents agentIds={workingAgentIds} alignStart />
+        <span className="col-start-2 flex min-w-0 items-center gap-2 @lg:contents">
+          <span className="w-(--feed-id-width) shrink-0 font-mono text-caption text-muted-foreground @lg:-order-1">
+            {entry.issue.identifier}
           </span>
-        )}
-        <span
-          className="hidden w-32 shrink-0 items-center gap-1 text-caption text-muted-foreground @lg:flex"
-          title={project?.title}
-        >
-          {project && (
-            <>
-              <ProjectIcon project={project} size="sm" />
-              <span className="truncate">{project.title}</span>
-            </>
+          {/* Fixed-width columns keep working agents and project labels aligned down a wide list.
+              With the waiting column, the agents' column widens to say what is
+              happening on the issue now: what it waits on, or the agents running
+              on it. A waiting issue has no agent running, so the two never
+              compete, and the agents stay put when the column is switched on. */}
+          {!showWaiting ? (
+            <WorkingAgents agentIds={workingAgentIds} />
+          ) : waitingReason ? (
+            <WaitingCell reason={waitingReason} />
+          ) : (
+            <span className="flex shrink-0 @max-lg:contents @lg:w-32">
+              {/* Starts where the waiting icons do. */}
+              <WorkingAgents agentIds={workingAgentIds} alignStart />
+            </span>
           )}
-        </span>
-        {/* The move and the actor each get a fixed column: icons only, or with
-            their names once the list is wide (56rem) enough to spare them. */}
-        <span className="hidden shrink-0 items-center gap-2 text-caption text-muted-foreground @sm:flex">
-          <span className="flex w-14 items-center justify-end gap-1.5 @4xl:w-48 @4xl:justify-start">
-            {/* What happened, in words, once the list has room: a comment's
-                text, or the change ("assigned to Builder"). Screen readers get
-                the full sentence from the sr-only copy below. */}
-            {isCreated ? (
-              // A new issue reads like a move: its icon, then (wide) its name.
-              <span aria-hidden="true" className="flex min-w-0 shrink-0 items-center gap-1 @4xl:shrink" title={phrase}>
-                <CirclePlus className="size-3.5 shrink-0" />
-                <span className="hidden truncate text-foreground @4xl:inline">{phrase}</span>
-              </span>
-            ) : (
-              !isMove && (
-                <span aria-hidden="true" className="hidden min-w-0 truncate @4xl:inline">
-                  {excerpt || phrase}
-                </span>
-              )
-            )}
-            {isMove && (
+          <span
+            className="hidden w-32 shrink-0 items-center gap-1 text-caption text-muted-foreground @lg:flex"
+            title={project?.title}
+          >
+            {project && (
               <>
-                {details.from && (
-                  <>
-                    <StatusChip statusKey={details.from} />
-                    <ArrowRight aria-label="→" className="size-3 shrink-0" />
-                  </>
-                )}
-                <StatusChip statusKey={details.to!} />
+                <ProjectIcon project={project} size="sm" />
+                <span className="truncate">{project.title}</span>
               </>
             )}
-            {/* Repeats of the same event fold into one row; the count stays
-                inside this fixed column so the row keeps its alignment. */}
-            {(entry.coalesced_count ?? 1) > 1 && (
-              <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
+          </span>
+          {/* The move and the actor each get a fixed column in a one-line row:
+              icons only, or with their names once the list is wide (56rem)
+              enough to spare them. Stacked, the move takes the room the line
+              has left and is spelled out. */}
+          <span className="flex min-w-0 items-center gap-2 text-caption text-muted-foreground @max-lg:flex-1 @lg:shrink-0">
+            <span className="flex min-w-0 items-center gap-1.5 @max-lg:flex-1 @lg:w-14 @lg:justify-end @4xl:w-48 @4xl:justify-start">
+              {/* What happened, in words, wherever the list has room: a
+                  comment's text, or the change ("assigned to Builder"). Screen
+                  readers get the full sentence from the sr-only copy below. */}
+              {isCreated ? (
+                // A new issue reads like a move: its icon, then its name. Stacked,
+                // the row's leading icon is already this one.
+                <span
+                  aria-hidden="true"
+                  className="flex min-w-0 shrink-0 items-center gap-1 @max-lg:shrink @4xl:shrink"
+                  title={phrase}
+                >
+                  <CirclePlus className="size-3.5 shrink-0 @max-lg:hidden" />
+                  <span className={cn("hidden truncate text-foreground @4xl:inline", stackedWords)}>{phrase}</span>
+                </span>
+              ) : (
+                !isMove && (
+                  <span aria-hidden="true" className={cn("hidden min-w-0 truncate @4xl:inline", stackedWords)}>
+                    {excerpt || phrase}
+                  </span>
+                )
+              )}
+              {isMove && (
+                <>
+                  {details.from && (
+                    <>
+                      <StatusChip statusKey={details.from} />
+                      <ArrowRight aria-label="→" className="size-3 shrink-0" />
+                    </>
+                  )}
+                  <StatusChip statusKey={details.to!} namedStacked={!!stackedWords} />
+                </>
+              )}
+              {/* Repeats of the same event fold into one row; the count stays
+                  inside this fixed column so the row keeps its alignment. */}
+              {(entry.coalesced_count ?? 1) > 1 && (
+                <span className="shrink-0 tabular-nums">×{entry.coalesced_count}</span>
+              )}
+            </span>
+            <span className="flex min-w-0 items-center gap-1.5 @max-lg:shrink-0 @4xl:w-32">
+              <ActorAvatar
+                actorType={entry.actor_type}
+                actorId={entry.actor_id}
+                name={entry.actor_name}
+                avatarUrl={entry.actor_avatar_url}
+                size="xs"
+                profileLink={false}
+                enableHoverCard
+              />
+              <span className="sr-only @4xl:hidden">{actorName}</span>
+              <span className="hidden truncate font-medium text-foreground @4xl:inline">{actorName}</span>
+            </span>
+            {!isMove && <span className="sr-only">{action}</span>}
+          </span>
+          <span
+            className={cn(
+              "w-16 shrink-0 text-right text-caption text-muted-foreground @max-lg:w-auto",
+              // The filter button takes the time's place while the row is hovered.
+              onFilterIssue &&
+                "[@media(hover:hover)]:group-hover:invisible [@media(hover:hover)]:group-focus-within:invisible",
             )}
+          >
+            {timeAgo(entry.created_at)}
           </span>
-          <span className="flex min-w-0 items-center gap-1.5 @4xl:w-32">
-            <ActorAvatar
-              actorType={entry.actor_type}
-              actorId={entry.actor_id}
-              name={entry.actor_name}
-              avatarUrl={entry.actor_avatar_url}
-              size="xs"
-              profileLink={false}
-              enableHoverCard
-            />
-            <span className="sr-only @4xl:hidden">{actorName}</span>
-            <span className="hidden truncate font-medium text-foreground @4xl:inline">{actorName}</span>
-          </span>
-          {!isMove && <span className="sr-only">{action}</span>}
-        </span>
-        <span
-          className={cn(
-            "w-16 shrink-0 text-right text-caption text-muted-foreground",
-            // The filter button takes the time's place while the row is hovered.
-            onFilterIssue && "group-hover:invisible group-focus-within:invisible",
-          )}
-        >
-          {timeAgo(entry.created_at)}
         </span>
       </AppLink>
       {onFilterIssue && (
@@ -630,7 +705,10 @@ const FeedRow = memo(function FeedRow({
           title={t(($) => $.issue_filter.filter)}
           // Centered without a transform: Button's pressed state sets its own
           // translate, which would drop the button out from under the pointer.
-          className="absolute inset-y-0 right-3 my-auto opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+          // In a stacked row the time is on the last line, so the button sits there.
+          // A touch screen cannot hover to reveal it, and left in place it
+          // would take taps meant for the row: there a tap opens the issue.
+          className="absolute inset-y-0 right-3 my-auto opacity-0 group-hover:opacity-100 focus-visible:opacity-100 @max-lg:top-auto @max-lg:bottom-2 @max-lg:my-0 [@media(hover:none)]:hidden"
           onClick={() => onFilterIssue(entry.issue)}
         >
           <ListFilter aria-hidden="true" />
@@ -641,9 +719,8 @@ const FeedRow = memo(function FeedRow({
 });
 
 /**
- * What an issue waits on, in the agents' column: an icon, and once the list has
- * room (24rem) a short label with how long. The full sentence is the tooltip
- * and the screen-reader text.
+ * What an issue waits on, in the agents' column: an icon and a short label
+ * with how long. The full sentence is the tooltip and the screen-reader text.
  */
 function WaitingCell({ reason }: { reason: WaitingReason }) {
   const { t } = useT("overview");
@@ -708,17 +785,20 @@ function WaitingCell({ reason }: { reason: WaitingReason }) {
   return (
     <span
       data-waiting={reason.kind}
-      className="flex w-4 shrink-0 items-center gap-1 text-caption text-muted-foreground @sm:w-32"
+      className="flex shrink-0 items-center gap-1 text-caption text-muted-foreground @max-lg:max-w-36 @lg:w-32"
       title={long}
     >
       <span aria-hidden="true" className="flex">{icon}</span>
-      <span aria-hidden="true" className="hidden truncate tabular-nums @sm:inline">{short}</span>
+      <span aria-hidden="true" className="truncate tabular-nums">{short}</span>
       <span className="sr-only">{long}</span>
     </span>
   );
 }
 
-/** Up to three overlapping avatars of the agents working on the issue now. */
+/**
+ * Up to three overlapping avatars of the agents working on the issue now: a
+ * fixed column in a one-line row, and only as wide as its avatars when stacked.
+ */
 function WorkingAgents({ agentIds, alignStart }: { agentIds: string[] | undefined; alignStart?: boolean }) {
   const { t } = useT("overview");
   const { getActorName } = useActorName();
@@ -727,7 +807,11 @@ function WorkingAgents({ agentIds, alignStart }: { agentIds: string[] | undefine
   const extra = (agentIds?.length ?? 0) - shown.length;
   return (
     <span
-      className={cn("hidden w-14 shrink-0 items-center @lg:flex", alignStart ? "justify-start" : "justify-end")}
+      className={cn(
+        "hidden w-14 shrink-0 items-center @lg:flex",
+        shown.length > 0 && "@max-lg:flex @max-lg:w-auto",
+        alignStart ? "justify-start" : "justify-end",
+      )}
       title={names ? t(($) => $.working_now, { names }) : undefined}
     >
       {shown.length > 0 && (
@@ -748,13 +832,20 @@ function WorkingAgents({ agentIds, alignStart }: { agentIds: string[] | undefine
 /**
  * A status as its icon, named beside it once the list is wide (56rem);
  * narrower, the name is the hover tooltip and the screen-reader text.
+ * `namedStacked` also names it in a stacked row, where nothing can hover.
  */
-function StatusChip({ statusKey }: { statusKey: string }) {
+function StatusChip({ statusKey, namedStacked }: { statusKey: string; namedStacked?: boolean }) {
   const wsId = useWorkspaceId();
   const catalog = useIssueStatuses(wsId);
   const label = catalog.labelOf(statusKey);
   return (
-    <span className="flex shrink-0 items-center gap-1 @4xl:min-w-0 @4xl:shrink" title={label}>
+    <span
+      className={cn(
+        "flex shrink-0 items-center gap-1 @4xl:min-w-0 @4xl:shrink",
+        namedStacked && "@max-lg:min-w-0 @max-lg:shrink",
+      )}
+      title={label}
+    >
       <StatusIcon
         status={statusKey}
         category={catalog.categoryOf(statusKey)}
@@ -762,8 +853,8 @@ function StatusChip({ statusKey }: { statusKey: string }) {
         icon={catalog.iconOf(statusKey)}
         className="size-3.5 shrink-0"
       />
-      <span className="sr-only @4xl:hidden">{label}</span>
-      <span className="hidden truncate text-foreground @4xl:inline">{label}</span>
+      <span className={cn("sr-only @4xl:hidden", namedStacked && "@max-lg:hidden")}>{label}</span>
+      <span className={cn("hidden truncate text-foreground @4xl:inline", namedStacked && "@max-lg:inline")}>{label}</span>
     </span>
   );
 }

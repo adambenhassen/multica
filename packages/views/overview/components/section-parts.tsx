@@ -5,18 +5,20 @@ import { useT } from "../../i18n";
 
 // Shared building blocks for the Dashboard's sections.
 
-// On desktop the lists fill the rest of the page and scroll inside; on narrow
-// screens they keep a fixed height and the page scrolls.
+// The list fills the rest of the page and is its only scroller. On a phone it
+// spans the screen, so rows start on the page gutter, and it ends with room
+// for the floating chat button to clear the last row.
 export const LIST_CLASS =
-  "max-h-[30rem] divide-y overflow-y-auto rounded-lg border bg-card md:max-h-none md:min-h-0 md:flex-1";
+  "min-h-0 flex-1 divide-y overflow-y-auto border-t bg-card max-md:-mx-4 max-md:pb-20 md:rounded-lg md:border";
 // A list section is a column so its list can take the height left under the
 // heading.
-export const LIST_SECTION_CLASS = "flex min-w-0 flex-col md:min-h-0 md:flex-1";
+export const LIST_SECTION_CLASS = "flex min-h-0 min-w-0 flex-1 flex-col";
 
 export function SectionHeading({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <h2 className="text-label font-semibold uppercase tracking-wide text-muted-foreground">
+      {/* On a phone the page title already says it; screen readers keep it. */}
+      <h2 className="text-label font-semibold uppercase tracking-wide text-muted-foreground max-md:sr-only">
         {children}
       </h2>
       {action}

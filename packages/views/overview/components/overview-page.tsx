@@ -20,9 +20,9 @@ import { CollectionPageHeader, CollectionPageHeaderAction } from "../../layout/c
 import { PAGE_GUTTER } from "../../layout/page-header";
 import { ALL_PROJECTS } from "../../dashboard/components/dashboard-shared";
 import { ProjectFilter } from "../../dashboard/components/dashboard-filters";
-import { WorkspaceAgentWorkingChip, chipAppearance } from "../../issues/components/workspace-agent-working-chip";
+import { WorkspaceAgentWorkingChip, chipAppearance, countRuns } from "../../issues/components/workspace-agent-working-chip";
 import { useT } from "../../i18n";
-import { StatusChangesFeed, useRunningTasks, useWaitingIssues, type FeedFocus, type FeedTab } from "./activity-feed";
+import { StatusChangesFeed, useRunningTasks, useWaitingIssues, type FeedFocus, type FeedTab, type FeedTabCounts } from "./activity-feed";
 import { cn } from "@multica/ui/lib/utils";
 
 export function OverviewPage() {
@@ -45,25 +45,29 @@ export function OverviewPage() {
         title={t(($) => $.title)}
         actions={
           <>
-            {/* How many agents are running right now; opens the Active tab. */}
-            <WorkspaceAgentWorkingChip
-              value={tab === "active"}
-              onToggle={() => setTab(tab === "active" ? "all" : "active")}
-              agents={workingAgents}
-            />
-            {/* How many issues wait on a queued run or CI; opens the Waiting tab. */}
-            <WaitingChip
-              value={tab === "waiting"}
-              onToggle={() => setTab(tab === "waiting" ? "all" : "waiting")}
-              count={waitingCount}
-            />
+            {/* A phone's header has no room for the chips: there the Active
+                and Waiting tabs carry the counts. */}
+            <div className="hidden md:contents">
+              {/* How many agents are running right now; opens the Active tab. */}
+              <WorkspaceAgentWorkingChip
+                value={tab === "active"}
+                onToggle={() => setTab(tab === "active" ? "all" : "active")}
+                agents={workingAgents}
+              />
+              {/* How many issues wait on a queued run or CI; opens the Waiting tab. */}
+              <WaitingChip
+                value={tab === "waiting"}
+                onToggle={() => setTab(tab === "waiting" ? "all" : "waiting")}
+                count={waitingCount}
+              />
+            </div>
             <ProjectFilter projects={projects} projectValue={projectValue} onProjectChange={setProjectValue} />
             <DisplayMenu />
           </>
         }
       />
       <div className="flex-1 overflow-y-auto">
-        <div className={cn("flex min-h-full flex-col py-6", PAGE_GUTTER)}>
+        <div className={cn("flex min-h-full flex-col pt-3 md:py-6", PAGE_GUTTER)}>
           <ActivityList
             // A new project starts from a clean slate: an issue filter from
             // another project would leave the feed empty.
@@ -71,6 +75,7 @@ export function OverviewPage() {
             projectId={projectId}
             tab={tab}
             onTabChange={setTab}
+            tabCounts={{ active: workingAgents && countRuns(workingAgents), waiting: waitingCount }}
           />
         </div>
       </div>
@@ -87,10 +92,12 @@ function ActivityList({
   projectId,
   tab,
   onTabChange,
+  tabCounts,
 }: {
   projectId: string | null;
   tab: FeedTab;
   onTabChange: (tab: FeedTab) => void;
+  tabCounts: FeedTabCounts;
 }) {
   const { t } = useT("overview");
   const [hoveredIssueId, setHoveredIssueId] = useState<string | null>(null);
@@ -104,9 +111,9 @@ function ActivityList({
   };
 
   return (
-    // Fills the page height (at least 30rem), so the list reaches the bottom
-    // of the window and scrolls inside.
-    <div className="flex flex-col gap-3 md:min-h-[30rem] md:flex-1 md:basis-0">
+    // Fills the page height (at least 30rem, 20rem on a phone), so the list
+    // reaches the bottom of the window and scrolls inside.
+    <div className="flex min-h-[20rem] flex-1 basis-0 flex-col gap-3 md:min-h-[30rem]">
       {issue && (
         <div className="flex min-w-0 items-center gap-2 text-label">
           <span className="shrink-0 text-muted-foreground">{t(($) => $.issue_filter.label)}</span>
@@ -127,8 +134,8 @@ function ActivityList({
           </span>
         </div>
       )}
-      <div className="flex flex-col md:min-h-0 md:flex-1">
-        <StatusChangesFeed focus={focus} tab={tab} onTabChange={onTabChange} />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <StatusChangesFeed focus={focus} tab={tab} onTabChange={onTabChange} tabCounts={tabCounts} />
       </div>
     </div>
   );
@@ -235,8 +242,7 @@ function WaitingChip({ value, onToggle, count }: { value: boolean; onToggle: () 
       aria-label={label}
     >
       <Hourglass aria-hidden="true" />
-      <span className="tabular-nums md:hidden">{count === undefined ? "—" : count}</span>
-      <span className="hidden tabular-nums md:inline">{label}</span>
+      <span className="tabular-nums">{label}</span>
     </Button>
   );
 }
