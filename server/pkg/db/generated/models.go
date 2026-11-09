@@ -1624,6 +1624,7 @@ type TaskRequestUsage struct {
 	CacheWrite1hTokens int64              `json:"cache_write_1h_tokens"`
 	CostUsdTicks       int64              `json:"cost_usd_ticks"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	RequestedAt        pgtype.Timestamptz `json:"requested_at"`
 }
 
 type TaskSupplement struct {

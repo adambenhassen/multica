@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/multica-ai/multica/server/internal/auth"
 	"github.com/multica-ai/multica/server/internal/events"
@@ -152,6 +153,7 @@ type otlpLogsRequest struct {
 	ResourceLogs []struct {
 		ScopeLogs []struct {
 			LogRecords []struct {
+				TimeUnixNano         json.RawMessage `json:"timeUnixNano"`
 				ObservedTimeUnixNano json.RawMessage `json:"observedTimeUnixNano"`
 				Attributes           []otlpKeyValue  `json:"attributes"`
 			} `json:"logRecords"`
@@ -223,12 +225,27 @@ func (p otlpLogsRequest) requests() []requestusage.Request {
 					req, ok = codexRequest(attrs, strings.Trim(string(rec.ObservedTimeUnixNano), `"`))
 				}
 				if ok {
+					req.At = otlpRecordTime(attrs, rec.TimeUnixNano, rec.ObservedTimeUnixNano)
 					reqs = append(reqs, req)
 				}
 			}
 		}
 	}
 	return reqs
+}
+
+// otlpRecordTime is when a usage event happened: the event's own timestamp
+// attribute, else the record's time fields. Zero when none parses.
+func otlpRecordTime(a otlpAttrs, timeNano, observedNano json.RawMessage) time.Time {
+	if t, err := time.Parse(time.RFC3339Nano, a.str("event.timestamp")); err == nil {
+		return t
+	}
+	for _, raw := range []json.RawMessage{timeNano, observedNano} {
+		if n, err := strconv.ParseInt(strings.Trim(string(raw), `"`), 10, 64); err == nil && n > 0 {
+			return time.Unix(0, n).UTC()
+		}
+	}
+	return time.Time{}
 }
 
 func claudeCodeRequest(a otlpAttrs) (requestusage.Request, bool) {

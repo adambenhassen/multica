@@ -6501,6 +6501,7 @@ func (h *Handler) hydrateTaskUsage(ctx context.Context, issueID pgtype.UUID, res
 			row.CacheWriteTokens, row.CostUsdTicks, row.CreditsMicros)
 	}
 	attachTaskUsage(resp, byTask)
+	h.hydrateCarriedOver(ctx, resp)
 }
 
 // hydrateAgentTaskUsage attaches the same per-run accounting shape used by the
@@ -6530,7 +6531,33 @@ func (h *Handler) hydrateAgentTaskUsage(ctx context.Context, agentID pgtype.UUID
 			row.CacheWriteTokens, row.CostUsdTicks, row.CreditsMicros)
 	}
 	attachTaskUsage(resp, byTask)
+	h.hydrateCarriedOver(ctx, resp)
 	return nil
+}
+
+// hydrateCarriedOver attaches the context each resumed run reloaded. Like
+// usage it is display metadata: a failed query is logged and the runs are
+// served without it.
+func (h *Handler) hydrateCarriedOver(ctx context.Context, resp []AgentTaskResponse) {
+	ids := make([]pgtype.UUID, len(resp))
+	for i := range resp {
+		ids[i] = parseUUID(resp[i].ID)
+	}
+	rows, err := h.Queries.ListTaskCarriedOverContext(ctx, ids)
+	if err != nil {
+		slog.Warn("load carried-over context", "error", err)
+		return
+	}
+	byTask := make(map[string]*TaskCarriedOver, len(rows))
+	for _, row := range rows {
+		byTask[uuidToString(row.TaskID)] = &TaskCarriedOver{
+			ContextTokens:  row.ContextTokens,
+			UncachedTokens: row.UncachedTokens,
+		}
+	}
+	for i := range resp {
+		resp[i].CarriedOver = byTask[resp[i].ID]
+	}
 }
 
 func appendTaskUsage(

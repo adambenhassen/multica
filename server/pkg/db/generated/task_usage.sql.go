@@ -129,22 +129,23 @@ func (q *Queries) GetTaskUsage(ctx context.Context, taskID pgtype.UUID) ([]TaskU
 }
 
 const insertTaskRequestUsage = `-- name: InsertTaskRequestUsage :execrows
-INSERT INTO task_request_usage (task_id, request_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cache_write_1h_tokens, cost_usd_ticks)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO task_request_usage (task_id, request_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cache_write_1h_tokens, cost_usd_ticks, requested_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 ON CONFLICT (task_id, request_key) DO NOTHING
 `
 
 type InsertTaskRequestUsageParams struct {
-	TaskID             pgtype.UUID `json:"task_id"`
-	RequestKey         string      `json:"request_key"`
-	Provider           string      `json:"provider"`
-	Model              string      `json:"model"`
-	InputTokens        int64       `json:"input_tokens"`
-	OutputTokens       int64       `json:"output_tokens"`
-	CacheReadTokens    int64       `json:"cache_read_tokens"`
-	CacheWriteTokens   int64       `json:"cache_write_tokens"`
-	CacheWrite1hTokens int64       `json:"cache_write_1h_tokens"`
-	CostUsdTicks       int64       `json:"cost_usd_ticks"`
+	TaskID             pgtype.UUID        `json:"task_id"`
+	RequestKey         string             `json:"request_key"`
+	Provider           string             `json:"provider"`
+	Model              string             `json:"model"`
+	InputTokens        int64              `json:"input_tokens"`
+	OutputTokens       int64              `json:"output_tokens"`
+	CacheReadTokens    int64              `json:"cache_read_tokens"`
+	CacheWriteTokens   int64              `json:"cache_write_tokens"`
+	CacheWrite1hTokens int64              `json:"cache_write_1h_tokens"`
+	CostUsdTicks       int64              `json:"cost_usd_ticks"`
+	RequestedAt        pgtype.Timestamptz `json:"requested_at"`
 }
 
 // A request already stored (telemetry retry, repeated backfill) is ignored.
@@ -160,6 +161,7 @@ func (q *Queries) InsertTaskRequestUsage(ctx context.Context, arg InsertTaskRequ
 		arg.CacheWriteTokens,
 		arg.CacheWrite1hTokens,
 		arg.CostUsdTicks,
+		arg.RequestedAt,
 	)
 	if err != nil {
 		return 0, err
@@ -805,6 +807,77 @@ func (q *Queries) ListIssueTaskUsage(ctx context.Context, issueID pgtype.UUID) (
 			&i.CostUsdTicks,
 			&i.CreditsMicros,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaskCarriedOverContext = `-- name: ListTaskCarriedOverContext :many
+SELECT t.id AS task_id,
+    (f.input_tokens + f.cache_read_tokens + f.cache_write_tokens)::bigint AS context_tokens,
+    (f.input_tokens + f.cache_write_tokens)::bigint AS uncached_tokens
+FROM agent_task_queue t
+CROSS JOIN LATERAL (
+    SELECT r.model
+    FROM task_request_usage r
+    WHERE r.task_id = t.id
+    GROUP BY r.model
+    ORDER BY SUM(r.cost_usd_ticks) DESC, r.model
+    LIMIT 1
+) m
+CROSS JOIN LATERAL (
+    SELECT r.input_tokens, r.cache_read_tokens, r.cache_write_tokens, r.requested_at
+    FROM task_request_usage r
+    WHERE r.task_id = t.id AND r.model = m.model
+    ORDER BY r.requested_at NULLS FIRST, r.created_at, r.id
+    LIMIT 1
+) f
+WHERE t.id = ANY($1::uuid[])
+  AND t.session_id IS NOT NULL
+  AND f.requested_at IS NOT NULL
+  AND (
+    EXISTS (
+        SELECT 1 FROM agent_task_queue p
+        WHERE p.issue_id = t.issue_id AND p.agent_id = t.agent_id
+          AND p.session_id = t.session_id AND p.created_at < t.created_at
+    )
+    OR EXISTS (
+        SELECT 1 FROM agent_task_queue p
+        WHERE p.chat_session_id = t.chat_session_id AND p.agent_id = t.agent_id
+          AND p.session_id = t.session_id AND p.created_at < t.created_at
+    )
+  )
+`
+
+type ListTaskCarriedOverContextRow struct {
+	TaskID         pgtype.UUID `json:"task_id"`
+	ContextTokens  int64       `json:"context_tokens"`
+	UncachedTokens int64       `json:"uncached_tokens"`
+}
+
+// For each listed run that resumed an earlier run's session: the context its
+// first request on its main model loaded, and how much of that the provider did
+// not serve from cache. A run resumed when an earlier run by the same agent on
+// the same issue or chat used the same session. The main model is the one the
+// run spent most on, so cheap subagent or side calls cannot stand in for the
+// resumed conversation. A run whose first such request has no time is skipped:
+// a later request would overstate what was reloaded. Both lookups go through
+// the (task_id, request_key) index, one listed run at a time.
+func (q *Queries) ListTaskCarriedOverContext(ctx context.Context, taskIds []pgtype.UUID) ([]ListTaskCarriedOverContextRow, error) {
+	rows, err := q.db.Query(ctx, listTaskCarriedOverContext, taskIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTaskCarriedOverContextRow{}
+	for rows.Next() {
+		var i ListTaskCarriedOverContextRow
+		if err := rows.Scan(&i.TaskID, &i.ContextTokens, &i.UncachedTokens); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

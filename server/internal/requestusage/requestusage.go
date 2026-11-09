@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -30,6 +31,8 @@ type Request struct {
 	Provider string
 	Model    string
 	Tokens   metrics.RequestTokens
+	// At is when the request was made; zero when the source has no time.
+	At time.Time
 }
 
 // TxStarter begins the transaction that stores requests and reprices rows.
@@ -75,6 +78,7 @@ func Record(ctx context.Context, conn TxStarter, taskID pgtype.UUID, reqs []Requ
 				CacheWriteTokens:   r.Tokens.CacheWrite + r.Tokens.CacheWrite1h,
 				CacheWrite1hTokens: r.Tokens.CacheWrite1h,
 				CostUsdTicks:       ticks,
+				RequestedAt:        pgtype.Timestamptz{Time: r.At, Valid: !r.At.IsZero()},
 			}); err != nil {
 				return false, fmt.Errorf("insert request usage: %w", err)
 			}

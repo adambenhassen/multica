@@ -629,6 +629,10 @@ type AgentTaskResponse struct {
 	// model call, genuinely has no number, and showing 0 would assert it was
 	// free. omitempty keeps both off the wire.
 	Usage []TaskUsageData `json:"usage,omitempty"`
+	// CarriedOver is set on a run that resumed an earlier run's session: the
+	// context its first request reloaded. Hydrated alongside Usage, and only
+	// for runs whose requests carry times.
+	CarriedOver *TaskCarriedOver `json:"carried_over,omitempty"`
 	// AuthToken is the task-scoped `mat_` token the daemon must inject as
 	// MULTICA_TOKEN in the agent process environment. The server binds it to
 	// this (agent_id, task_id) pair at claim time and treats any request
@@ -638,6 +642,13 @@ type AgentTaskResponse struct {
 	// owning user; the daemon must not fall back to its own credential. See
 	// MUL-3292.
 	AuthToken string `json:"auth_token,omitempty"`
+}
+
+// TaskCarriedOver is the earlier context a resumed run reloaded on its first
+// request, and how much of it the provider did not serve from cache.
+type TaskCarriedOver struct {
+	ContextTokens  int64 `json:"context_tokens"`
+	UncachedTokens int64 `json:"uncached_tokens"`
 }
 
 // TaskAttribution is the wire shape of a run's accountable-human provenance

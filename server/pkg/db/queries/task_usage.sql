@@ -341,9 +341,53 @@ ORDER BY atq.agent_id, 2;
 
 -- name: InsertTaskRequestUsage :execrows
 -- A request already stored (telemetry retry, repeated backfill) is ignored.
-INSERT INTO task_request_usage (task_id, request_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cache_write_1h_tokens, cost_usd_ticks)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO task_request_usage (task_id, request_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cache_write_1h_tokens, cost_usd_ticks, requested_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 ON CONFLICT (task_id, request_key) DO NOTHING;
+
+-- name: ListTaskCarriedOverContext :many
+-- For each listed run that resumed an earlier run's session: the context its
+-- first request on its main model loaded, and how much of that the provider did
+-- not serve from cache. A run resumed when an earlier run by the same agent on
+-- the same issue or chat used the same session. The main model is the one the
+-- run spent most on, so cheap subagent or side calls cannot stand in for the
+-- resumed conversation. A run whose first such request has no time is skipped:
+-- a later request would overstate what was reloaded. Both lookups go through
+-- the (task_id, request_key) index, one listed run at a time.
+SELECT t.id AS task_id,
+    (f.input_tokens + f.cache_read_tokens + f.cache_write_tokens)::bigint AS context_tokens,
+    (f.input_tokens + f.cache_write_tokens)::bigint AS uncached_tokens
+FROM agent_task_queue t
+CROSS JOIN LATERAL (
+    SELECT r.model
+    FROM task_request_usage r
+    WHERE r.task_id = t.id
+    GROUP BY r.model
+    ORDER BY SUM(r.cost_usd_ticks) DESC, r.model
+    LIMIT 1
+) m
+CROSS JOIN LATERAL (
+    SELECT r.input_tokens, r.cache_read_tokens, r.cache_write_tokens, r.requested_at
+    FROM task_request_usage r
+    WHERE r.task_id = t.id AND r.model = m.model
+    ORDER BY r.requested_at NULLS FIRST, r.created_at, r.id
+    LIMIT 1
+) f
+WHERE t.id = ANY(@task_ids::uuid[])
+  AND t.session_id IS NOT NULL
+  AND f.requested_at IS NOT NULL
+  AND (
+    EXISTS (
+        SELECT 1 FROM agent_task_queue p
+        WHERE p.issue_id = t.issue_id AND p.agent_id = t.agent_id
+          AND p.session_id = t.session_id AND p.created_at < t.created_at
+    )
+    OR EXISTS (
+        SELECT 1 FROM agent_task_queue p
+        WHERE p.chat_session_id = t.chat_session_id AND p.agent_id = t.agent_id
+          AND p.session_id = t.session_id AND p.created_at < t.created_at
+    )
+  );
 
 -- name: LockTaskUsageRows :many
 -- Row locks serialize request-cost refreshes with daemon usage reports, so the

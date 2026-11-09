@@ -385,7 +385,7 @@ func load(ctx context.Context, path string, execute bool) error {
 		}
 		batch := make([]requestusage.Request, 0, len(rs))
 		for _, r := range rs {
-			batch = append(batch, requestusage.Request{Key: r.Key, Provider: "claude", Model: r.Model, Tokens: r.tokens()})
+			batch = append(batch, requestusage.Request{Key: r.Key, Provider: "claude", Model: r.Model, Tokens: r.tokens(), At: r.Time})
 		}
 		changed, err := requestusage.Record(ctx, pool, util.MustParseUUID(taskID), batch)
 		if err != nil {
