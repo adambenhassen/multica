@@ -20,7 +20,8 @@ export function SearchTrigger() {
       <Search />
       <span>{t(($) => $.trigger.label)}</span>
       {shortcut ? (
-        <ShortcutKeycaps shortcut={shortcut} decorative className="pointer-events-none ml-auto" />
+        // A keyboard shortcut is no use to a touch screen.
+        <ShortcutKeycaps shortcut={shortcut} decorative className="pointer-events-none ml-auto [@media(hover:none)]:hidden" />
       ) : null}
     </SidebarMenuButton>
   );

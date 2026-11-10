@@ -765,7 +765,8 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                 </span>
                 <span>{t(($) => $.sidebar.new_issue)}</span>
                 {createIssueShortcut ? (
-                  <ShortcutKeycaps shortcut={createIssueShortcut} decorative className="pointer-events-none ml-auto" />
+                  // A keyboard shortcut is no use to a touch screen.
+                  <ShortcutKeycaps shortcut={createIssueShortcut} decorative className="pointer-events-none ml-auto [@media(hover:none)]:hidden" />
                 ) : null}
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -813,7 +814,9 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
           </SidebarGroup>
 
           {visiblePinned.length > 0 && (
-            <Collapsible defaultOpen>
+            // In the phone's sheet the pins follow the fixed destinations, so
+            // a long pin list cannot push those off the first screen.
+            <Collapsible defaultOpen className="max-md:order-1">
               <SidebarGroup className="group/pinned">
                 <SidebarGroupLabel
                   render={<CollapsibleTrigger />}

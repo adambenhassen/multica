@@ -335,11 +335,12 @@ function Sidebar({
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
           {/*
-            On a short screen (phone landscape, a foldable's outer display) a
-            pinned header and footer leave the nav list only a few rows, so
-            the whole sheet scrolls as one column instead.
+            The sheet scrolls as one column. A pinned header and footer leave
+            a phone's nav list a window of a few rows, with the rest of the
+            destinations out of sight below it. Where everything fits, the
+            footer still sits at the bottom.
           */}
-          <div className="flex h-full w-full flex-col [@media(max-height:640px)]:overflow-y-auto [@media(max-height:640px)]:[&>[data-slot=sidebar-content]]:flex-none">
+          <div className="flex h-full w-full flex-col overflow-y-auto [&>[data-slot=sidebar-content]]:flex-none [&>[data-slot=sidebar-footer]]:mt-auto">
             {children}
           </div>
         </SheetContent>
