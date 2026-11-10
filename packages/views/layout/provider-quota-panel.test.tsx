@@ -1,7 +1,8 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderQuotaResponse } from "@multica/core/types";
 import { renderWithI18n } from "../test/i18n";
+import { useProviderQuotaPanelStore } from "@multica/core/provider-quota";
 import { ProviderQuotaPanel } from "./provider-quota-panel";
 
 const quota = vi.hoisted(() => ({ current: undefined as ProviderQuotaResponse | undefined }));
@@ -27,6 +28,7 @@ const codex = (label: string, weekly: number) => ({
 beforeEach(() => {
   vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
   quota.current = undefined;
+  useProviderQuotaPanelStore.setState({ collapsed: null });
 });
 
 describe("ProviderQuotaPanel", () => {
@@ -171,5 +173,56 @@ describe("ProviderQuotaPanel", () => {
     renderWithI18n(<ProviderQuotaPanel />);
     expect(screen.getByRole("progressbar", { name: "Claude Session" })).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Claude Weekly" })).toBeInTheDocument();
+  });
+});
+
+describe("ProviderQuotaPanel folding", () => {
+  const toggle = () => screen.getByRole("button", { name: /Provider quota/ });
+
+  it("is open by default, folds on request and remembers the choice", () => {
+    quota.current = { accounts: [claude("a@example.com", 86, 40), codex("main", 21)] };
+    renderWithI18n(<ProviderQuotaPanel />);
+
+    expect(toggle().getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getAllByRole("progressbar")).toHaveLength(3);
+    // Open, the rows carry the numbers; the heading does not repeat them.
+    expect(toggle().textContent).toBe("Provider quota");
+
+    fireEvent.click(toggle());
+    expect(toggle().getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryAllByRole("progressbar")).toHaveLength(0);
+    expect(useProviderQuotaPanelStore.getState().collapsed).toBe(true);
+
+    fireEvent.click(toggle());
+    expect(screen.getAllByRole("progressbar")).toHaveLength(3);
+    expect(useProviderQuotaPanelStore.getState().collapsed).toBe(false);
+  });
+
+  it("names the fullest window across every account while folded", () => {
+    quota.current = { accounts: [claude("a@example.com", 18, 40), claude("b@example.com", 86, 78), codex("main", 21)] };
+    renderWithI18n(<ProviderQuotaPanel defaultCollapsed />);
+
+    expect(toggle().getAttribute("aria-expanded")).toBe("false");
+    // 86% of b's session, which resets at 14:10: 2h 10m from now.
+    expect(toggle().textContent).toBe("Provider quota86%Session2h 10m");
+    expect(screen.getByText("86%").className).toContain("text-warning");
+  });
+
+  it("starts folded where the surface asks, until the viewer chooses", () => {
+    quota.current = { accounts: [codex("main", 21)] };
+    useProviderQuotaPanelStore.setState({ collapsed: false });
+    renderWithI18n(<ProviderQuotaPanel defaultCollapsed />);
+
+    expect(toggle().getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getAllByRole("progressbar")).toHaveLength(1);
+  });
+
+  it("folds to a dash when no account has a window to report", () => {
+    quota.current = {
+      accounts: [{ id: "claude-x", provider: "claude", label: "x", error: "login_expired", updated_at: null, windows: [] }],
+    };
+    renderWithI18n(<ProviderQuotaPanel defaultCollapsed />);
+
+    expect(toggle().textContent).toBe("Provider quota—");
   });
 });

@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { providerQuotaOptions } from "@multica/core/provider-quota";
-import type { ProviderQuotaAccount, QuotaWindow } from "@multica/core/types";
+import { ChevronDown } from "@multica/ui/icons";
+import { providerQuotaOptions, useProviderQuotaPanelStore } from "@multica/core/provider-quota";
+import type { ProviderQuotaAccount, QuotaWindow, QuotaWindowKind } from "@multica/core/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@multica/ui/components/ui/tooltip";
 import { cn } from "@multica/ui/lib/utils";
 import { useLocale, useT } from "../i18n";
@@ -15,11 +16,49 @@ const BAR_CLASS = {
   critical: "bg-destructive",
 } as const;
 
+const LEVEL_TEXT_CLASS = {
+  normal: "text-foreground",
+  warning: "text-warning",
+  critical: "text-destructive",
+} as const;
+
 const ROW_CLASS = "col-span-full grid grid-cols-subgrid items-center rounded-sm focus-visible:outline-2 focus-visible:outline-ring";
 
-export function ProviderQuotaPanel() {
+const percent = (window: QuotaWindow) => Math.min(100, Math.max(0, Math.round(window.used_percent)));
+
+/** A window's name and a time until reset, in the viewer's words. */
+function useQuotaText() {
+  const { t } = useT("layout");
+  return {
+    kind: (kind: QuotaWindowKind) =>
+      kind === "session" ? t(($) => $.quota.session) : kind === "fable" ? t(($) => $.quota.fable) : t(($) => $.quota.weekly),
+    duration: (parts: ResetParts) =>
+      parts === null
+        ? ""
+        : parts === "soon"
+          ? t(($) => $.quota.reset_soon)
+          : "days" in parts
+            ? t(($) => $.quota.reset_days, { days: parts.days })
+            : "hours" in parts
+              ? t(($) => $.quota.reset_hours, { hours: parts.hours, minutes: parts.minutes })
+              : t(($) => $.quota.reset_minutes, { minutes: parts.minutes }),
+  };
+}
+
+export function ProviderQuotaPanel({
+  defaultCollapsed = false,
+}: {
+  /**
+   * Start folded to the summary line until the viewer chooses otherwise. For
+   * the phone's nav sheet, where every row at once crowds out the navigation.
+   */
+  defaultCollapsed?: boolean;
+}) {
   const { t } = useT("layout");
   const { data } = useQuery(providerQuotaOptions());
+  const choice = useProviderQuotaPanelStore((s) => s.collapsed);
+  const setCollapsed = useProviderQuotaPanelStore((s) => s.setCollapsed);
+  const collapsed = choice ?? defaultCollapsed;
   const accounts = data?.accounts ?? [];
   if (accounts.length === 0) return null;
 
@@ -29,7 +68,7 @@ export function ProviderQuotaPanel() {
   // another provider's labelled headers truncates to its first letter.
   const headerRows = [...perProvider.values()].some((n) => n > 1);
 
-  return (
+  const panel = (
     <div
       role="group"
       aria-label={t(($) => $.quota.label)}
@@ -53,6 +92,60 @@ export function ProviderQuotaPanel() {
         ))}
       </div>
     </div>
+  );
+  return (
+    <div>
+      <QuotaSummary accounts={accounts} expanded={!collapsed} onToggle={() => setCollapsed(!collapsed)} />
+      {collapsed ? null : panel}
+    </div>
+  );
+}
+
+/**
+ * The panel's heading and fold control. Folded, it names the fullest window
+ * across every account, since that is the one about to matter; open, the rows
+ * below say it all.
+ */
+function QuotaSummary({
+  accounts,
+  expanded,
+  onToggle,
+}: {
+  accounts: ProviderQuotaAccount[];
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const { t } = useT("layout");
+  const text = useQuotaText();
+  let fullest: QuotaWindow | null = null;
+  for (const account of accounts) {
+    for (const window of account.windows) {
+      if (!fullest || window.used_percent > fullest.used_percent) fullest = window;
+    }
+  }
+  return (
+    <button
+      type="button"
+      aria-expanded={expanded}
+      onClick={onToggle}
+      className="flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-caption text-muted-foreground outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+    >
+      <span className="mr-auto min-w-0 truncate">{t(($) => $.quota.label)}</span>
+      {expanded ? null : fullest ? (
+        <>
+          <span className={cn("tabular-nums", LEVEL_TEXT_CLASS[quotaLevel(percent(fullest))])}>
+            {percent(fullest)}%
+          </span>
+          <span className="whitespace-nowrap">{text.kind(fullest.kind)}</span>
+          <span className="whitespace-nowrap tabular-nums">
+            {text.duration(resetParts(fullest.resets_at, Date.now()))}
+          </span>
+        </>
+      ) : (
+        <span>—</span>
+      )}
+      <ChevronDown aria-hidden="true" className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
+    </button>
   );
 }
 
@@ -120,18 +213,10 @@ function WindowRow({
 }) {
   const { t } = useT("layout");
   const locale = useLocale();
+  const text = useQuotaText();
   const now = Date.now();
-  const pct = Math.min(100, Math.max(0, Math.round(window.used_percent)));
-  const durationText = (parts: ResetParts) =>
-    parts === null
-      ? ""
-      : parts === "soon"
-        ? t(($) => $.quota.reset_soon)
-        : "days" in parts
-          ? t(($) => $.quota.reset_days, { days: parts.days })
-          : "hours" in parts
-            ? t(($) => $.quota.reset_hours, { hours: parts.hours, minutes: parts.minutes })
-            : t(($) => $.quota.reset_minutes, { minutes: parts.minutes });
+  const pct = percent(window);
+  const durationText = text.duration;
   const reset = durationText(resetParts(window.resets_at, now));
   const pace = quotaPace(window, now);
   const paceText = pace
@@ -152,12 +237,7 @@ function WindowRow({
                 }),
       })
     : "";
-  const kindLabel =
-    window.kind === "session"
-      ? t(($) => $.quota.session)
-      : window.kind === "fable"
-        ? t(($) => $.quota.fable)
-        : t(($) => $.quota.weekly);
+  const kindLabel = text.kind(window.kind);
 
   const row = (
     <>
