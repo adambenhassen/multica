@@ -64,11 +64,7 @@
     "ai_team_group": "Équipe IA",
     "show_more_pins": "Afficher {{count}} de plus…",
     "show_fewer_pins": "Afficher moins",
-    "unread_overflow": "99+",
-    "discord_card": {
-      "title": "Rejoignez notre Discord",
-      "dismiss": "Ignorer"
-    }
+    "unread_overflow": "99+"
   },
   "quota": {
     "label": "Quota des fournisseurs",

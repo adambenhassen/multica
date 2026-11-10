@@ -64,11 +64,7 @@
     "ai_team_group": "AI チーム",
     "show_more_pins": "さらに {{count}} 件を表示…",
     "show_fewer_pins": "表示を減らす",
-    "unread_overflow": "99+",
-    "discord_card": {
-      "title": "Discord に参加",
-      "dismiss": "閉じる"
-    }
+    "unread_overflow": "99+"
   },
   "quota": {
     "label": "プロバイダーのクォータ",

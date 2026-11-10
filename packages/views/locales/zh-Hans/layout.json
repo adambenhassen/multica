@@ -64,11 +64,7 @@
     "ai_team_group": "AI 团队",
     "show_more_pins": "再显示 {{count}} 项...",
     "show_fewer_pins": "收起",
-    "unread_overflow": "99+",
-    "discord_card": {
-      "title": "加入 Discord",
-      "dismiss": "关闭"
-    }
+    "unread_overflow": "99+"
   },
   "quota": {
     "label": "服务商额度",

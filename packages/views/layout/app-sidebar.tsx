@@ -7,7 +7,6 @@ import { cn } from "@multica/ui/lib/utils";
 import { useScrollFade } from "@multica/ui/hooks/use-scroll-fade";
 import { AppLink, useNavigation } from "../navigation";
 import { ProviderQuotaPanel } from "./provider-quota-panel";
-import { JoinDiscordCard } from "./join-discord-card";
 import {
   DndContext,
   PointerSensor,
@@ -933,9 +932,6 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
               );
             })}
           </SidebarMenu>
-          <div className="flex items-center gap-1">
-            <JoinDiscordCard />
-          </div>
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
