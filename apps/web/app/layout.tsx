@@ -74,6 +74,10 @@ const sourceSerif = Source_Serif_4({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // The app has its own light and dark themes. Saying so is the documented
+  // way to keep Samsung Internet from darkening the light theme itself, which
+  // turns white glyphs gray and outlined controls solid.
+  colorScheme: "light dark",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#05070b" },
