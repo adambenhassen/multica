@@ -1409,6 +1409,24 @@
       "paused": "Réveil en pause",
       "open": "Voir les réveils"
     },
+    "wait_short": {
+      "status": "{{status}}",
+      "assignee": "{{name}}",
+      "label": "{{label}}",
+      "property": "{{property}} = {{value}}",
+      "children_all": "Sous-tâches",
+      "children_stage": "Étape {{stage}}",
+      "pr_checks": "CI de la PR",
+      "pr_merged": "Fusion de la PR",
+      "pr_conflicts": "Conflits de la PR",
+      "other_done": "{{issue}}",
+      "other_ended": "Fin de {{issue}}",
+      "other_in_review": "Revue de {{issue}}",
+      "other_blocked": "{{issue}} bloqué",
+      "reply": "Réponse",
+      "run_end": "Fin d’exécution",
+      "event": "Déclencheur"
+    },
     "paused": {
       "max_fires": "Arrêté après {{count}} exécutions",
       "loop": "En pause : il réveillait des règles qui le réveillaient à leur tour",

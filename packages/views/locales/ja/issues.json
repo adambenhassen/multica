@@ -1364,6 +1364,24 @@
       "paused": "起動を一時停止中",
       "open": "起動を表示"
     },
+    "wait_short": {
+      "status": "{{status}}",
+      "assignee": "{{name}}",
+      "label": "{{label}}",
+      "property": "{{property}} = {{value}}",
+      "children_all": "サブタスク",
+      "children_stage": "ステージ {{stage}}",
+      "pr_checks": "PR の CI",
+      "pr_merged": "PR のマージ",
+      "pr_conflicts": "PR のコンフリクト",
+      "other_done": "{{issue}}",
+      "other_ended": "{{issue}} の終了",
+      "other_in_review": "{{issue}} のレビュー",
+      "other_blocked": "{{issue}} のブロック",
+      "reply": "返信",
+      "run_end": "実行終了",
+      "event": "トリガー"
+    },
     "paused": {
       "max_fires": "{{count}} 回起動して上限に達したため停止",
       "loop": "一時停止：別のルールと互いに起こし合っていました",

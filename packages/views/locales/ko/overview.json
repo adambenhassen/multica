@@ -80,7 +80,6 @@
     "gate_untimed": "게이트",
     "gate_long_untimed": "{{pr}}이(가) 머지 게이트에서 대기 중",
     "wakeup_in": "{{time}} 후 깨우기",
-    "wakeup_event": "트리거 대기 중",
     "wakeup_due": "깨우기 예정",
     "minutes": "{{minutes}}분",
     "hours": "{{hours}}시간 {{minutes}}분",

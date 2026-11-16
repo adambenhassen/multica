@@ -353,6 +353,12 @@ export function useWakeupText() {
         ? t(($) => $.wakeups.conflict_error)
         : fallback;
   };
+  // What an event rule without a condition waits for.
+  const eventWait = (w: WakeupPreview) => {
+    if (w.event_types.length === 1 && w.event_types[0] === "comment.created") return "reply" as const;
+    if (w.event_types.every((e) => ["task.completed", "task.failed", "task.cancelled"].includes(e))) return "run_end" as const;
+    return "event" as const;
+  };
   // What an issue is waiting for, in a few words, for cards and the header.
   const waiting = (w: WakeupPreview) => {
     if (w.condition) return conditionWait(w.condition);
@@ -361,18 +367,29 @@ export function useWakeupText() {
         ? t(($) => $.wakeups.wait.time, { time: time(w.next_fire_at), agent: w.agent_name })
         : schedule(w);
     }
-    const event = w.event_types[0] ?? "";
-    if (w.event_types.length === 1 && event === "comment.created") {
+    const kind = eventWait(w);
+    if (kind === "reply") {
       return w.filter_actor_type
         ? t(($) => $.wakeups.wait.reply_from, { name: actorName(w) })
         : t(($) => $.wakeups.wait.reply_any);
     }
-    if (w.event_types.every((e) => ["task.completed", "task.failed", "task.cancelled"].includes(e))) {
+    if (kind === "run_end") {
       return w.filter_agent_name
         ? t(($) => $.wakeups.wait.run_end, { agent: w.filter_agent_name })
         : t(($) => $.wakeups.wait.run_end_any);
     }
     return t(($) => $.wakeups.waiting_event);
+  };
+  // Only the awaited thing, for a narrow column already headed "Waiting for".
+  const waitingShort = (w: WakeupPreview) => {
+    if (w.condition) {
+      const { key, values } = conditionParts(w.condition);
+      return String(t(($) => $.wakeups.wait_short[key], values as Record<string, string | number>));
+    }
+    if (w.kind !== "event") return waiting(w);
+    const kind = eventWait(w);
+    if (kind === "reply" && w.filter_actor_type) return actorName(w);
+    return t(($) => $.wakeups.wait_short[kind]);
   };
   // The header reads "<agent> is waiting…"; time rules already name the agent.
   const headline = (w: WakeupPreview) =>
@@ -403,5 +420,5 @@ export function useWakeupText() {
       ? t(($) => $.wakeups.detail.fires_max, { count, max: w.max_fires })
       : t(($) => $.wakeups.detail.fires, { count });
   };
-  return { eventName, eventCondition, actorName, trigger, schedule, frequency, runState, state, error, remaining, ending, summary, source, expiry, condition, conditionWait, waiting, headline, paused, pausedReason, fires };
+  return { eventName, eventCondition, actorName, trigger, schedule, frequency, runState, state, error, remaining, ending, summary, source, expiry, condition, conditionWait, waiting, waitingShort, headline, paused, pausedReason, fires };
 }

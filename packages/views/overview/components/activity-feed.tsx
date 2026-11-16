@@ -747,7 +747,7 @@ function WaitingCell({ reason }: { reason: WaitingReason }) {
     const at = wakeupFireTime(reason.wakeup);
     icon = <Bell className="size-3.5 shrink-0 text-muted-foreground" />;
     short = Number.isNaN(at)
-      ? t(($) => $.waiting.wakeup_event)
+      ? wakeupText.waitingShort(reason.wakeup)
       : at > now
         ? t(($) => $.waiting.wakeup_in, { time: span(at - now) })
         : t(($) => $.waiting.wakeup_due);

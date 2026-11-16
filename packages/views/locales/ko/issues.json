@@ -1364,6 +1364,24 @@
       "paused": "깨우기 일시중지됨",
       "open": "깨우기 보기"
     },
+    "wait_short": {
+      "status": "{{status}}",
+      "assignee": "{{name}}",
+      "label": "{{label}}",
+      "property": "{{property}} = {{value}}",
+      "children_all": "하위 태스크",
+      "children_stage": "{{stage}}단계",
+      "pr_checks": "PR CI",
+      "pr_merged": "PR 병합",
+      "pr_conflicts": "PR 충돌",
+      "other_done": "{{issue}}",
+      "other_ended": "{{issue}} 종료",
+      "other_in_review": "{{issue}} 검토",
+      "other_blocked": "{{issue}} 막힘",
+      "reply": "답글",
+      "run_end": "실행 종료",
+      "event": "트리거"
+    },
     "paused": {
       "max_fires": "{{count}}회 실행해 한도에 도달해 중지됨",
       "loop": "일시중지: 다른 규칙과 서로 깨우고 있었습니다",

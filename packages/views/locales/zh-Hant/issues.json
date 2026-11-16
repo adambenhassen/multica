@@ -1363,6 +1363,24 @@
       "paused": "喚醒已自動暫停",
       "open": "檢視喚醒"
     },
+    "wait_short": {
+      "status": "{{status}}",
+      "assignee": "{{name}}",
+      "label": "{{label}}",
+      "property": "{{property}} = {{value}}",
+      "children_all": "子任務",
+      "children_stage": "第 {{stage}} 階段",
+      "pr_checks": "PR 的 CI",
+      "pr_merged": "PR 合併",
+      "pr_conflicts": "PR 衝突",
+      "other_done": "{{issue}}",
+      "other_ended": "{{issue}} 結束",
+      "other_in_review": "{{issue}} 審查",
+      "other_blocked": "{{issue}} blocked",
+      "reply": "回覆",
+      "run_end": "執行結束",
+      "event": "觸發"
+    },
     "paused": {
       "max_fires": "已觸發 {{count}} 次，達到上限後暫停",
       "loop": "已暫停：與其他喚醒規則互相觸發",

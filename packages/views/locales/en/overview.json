@@ -80,7 +80,6 @@
     "gate_untimed": "Gate",
     "gate_long_untimed": "{{pr}} held by the merge gate",
     "wakeup_in": "Wakes in {{time}}",
-    "wakeup_event": "Waits for trigger",
     "wakeup_due": "Wakeup due",
     "minutes": "{{minutes}}m",
     "hours": "{{hours}}h {{minutes}}m",

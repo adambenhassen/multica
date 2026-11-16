@@ -80,7 +80,6 @@
     "gate_untimed": "ゲート",
     "gate_long_untimed": "{{pr}} はマージゲートで保留中",
     "wakeup_in": "{{time}}後にウェイクアップ",
-    "wakeup_event": "トリガー待ち",
     "wakeup_due": "ウェイクアップ予定時刻",
     "minutes": "{{minutes}}分",
     "hours": "{{hours}}時間{{minutes}}分",

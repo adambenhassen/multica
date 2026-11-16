@@ -80,7 +80,6 @@
     "gate_untimed": "門禁",
     "gate_long_untimed": "{{pr}} 被合併門禁攔住",
     "wakeup_in": "{{time}}後喚醒",
-    "wakeup_event": "等待觸發",
     "wakeup_due": "即將喚醒",
     "minutes": "{{minutes}}分",
     "hours": "{{hours}}小時{{minutes}}分",

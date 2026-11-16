@@ -477,27 +477,30 @@ describe("OverviewPage", () => {
     expect(await within(feed()).findByText("Wakeup due")).toBeTruthy();
   });
 
-  it("never calls a condition wakeup due when its next check time has passed", async () => {
+  it("names what a condition wakeup waits for, never calling it due", async () => {
     apiRef.current.getAgentTaskSnapshot = () => Promise.resolve([]);
     apiRef.current.getIssueCI = () => Promise.resolve({ issues: [] });
     const DOCS = { id: "issue-4", identifier: "MUL-4", title: "Update the docs", status: "todo" };
+    // next_fire_at is the server's next condition check, already passed here.
+    const checked = new Date(Date.now() - 5 * 60_000).toISOString();
+    const rule = { agent_id: "agent-1", agent_name: "Builder", kind: "event", mode: "once", event_types: [],
+      interval_seconds: null, cron_expression: null, timezone: "UTC", next_fire_at: checked, active_count: 1, event_count: 0 };
     apiRef.current.listIssueWakeupSummaries = () =>
       Promise.resolve([
-        {
-          id: "w-1", issue_id: "issue-4", agent_id: "agent-1", agent_name: "Builder", kind: "event", mode: "once",
-          event_types: [], interval_seconds: null, cron_expression: null, timezone: "UTC",
-          condition: { type: "pull_request", event: "merged" },
-          next_fire_at: new Date(Date.now() - 5 * 60_000).toISOString(), active_count: 1, event_count: 0,
-        },
+        { ...rule, id: "w-1", issue_id: "issue-4", condition: { type: "pull_request", event: "merged" } },
+        { ...rule, id: "w-2", issue_id: "issue-2", condition: { type: "other_issue", issue_id: "issue-9", identifier: "MUL-9", state: "ended" } },
       ]);
-    scriptFeed((p) => [move("a-3", DOCS)].filter((e) => !p.issues?.length || p.issues.includes(e.issue.id)));
+    scriptFeed((p) => [move("a-2", FIX), move("a-3", DOCS)].filter((e) => !p.issues?.length || p.issues.includes(e.issue.id)));
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "1 waiting" }));
+    fireEvent.click(await screen.findByRole("button", { name: "2 waiting" }));
     const reasons = await within(feed()).findByRole("group", { name: "Waiting for" });
-    expect(within(reasons).getAllByRole("button").map((b) => b.textContent)).toEqual(["All 1", "Wakeup 1"]);
+    expect(within(reasons).getAllByRole("button").map((b) => b.textContent)).toEqual(["All 2", "Wakeup 2"]);
     const docs = (await within(feed()).findByText("Update the docs")).closest("a")!;
-    expect(within(docs).getByText("Waits for trigger")).toBeTruthy();
-    expect(within(docs).queryByText("Wakeup due")).toBeNull();
+    expect(within(docs).getByText("PR merge")).toBeTruthy();
+    expect(within(docs).getByText("Builder: Waiting for the PR to merge")).toBeTruthy();
+    const fix = within(feed()).getByText("Fix the reconnect").closest("a")!;
+    expect(within(fix).getByText("MUL-9 to end")).toBeTruthy();
+    expect(within(feed()).queryByText("Wakeup due")).toBeNull();
   });
 
   it("says nothing is waiting without asking for every issue", async () => {

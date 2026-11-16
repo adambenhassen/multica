@@ -1364,6 +1364,24 @@
       "paused": "唤醒已自动暂停",
       "open": "查看唤醒"
     },
+    "wait_short": {
+      "status": "{{status}}",
+      "assignee": "{{name}}",
+      "label": "{{label}}",
+      "property": "{{property}} = {{value}}",
+      "children_all": "子任务",
+      "children_stage": "第 {{stage}} 阶段",
+      "pr_checks": "PR 的 CI",
+      "pr_merged": "PR 合并",
+      "pr_conflicts": "PR 冲突",
+      "other_done": "{{issue}}",
+      "other_ended": "{{issue}} 结束",
+      "other_in_review": "{{issue}} 审核",
+      "other_blocked": "{{issue}} blocked",
+      "reply": "回复",
+      "run_end": "运行结束",
+      "event": "触发"
+    },
     "paused": {
       "max_fires": "已触发 {{count}} 次，达到上限后暂停",
       "loop": "已暂停：与其他唤醒规则互相触发",

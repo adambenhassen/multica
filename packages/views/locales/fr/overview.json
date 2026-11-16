@@ -80,7 +80,6 @@
     "gate_untimed": "Gate",
     "gate_long_untimed": "{{pr}} retenue par le merge gate",
     "wakeup_in": "Réveil dans {{time}}",
-    "wakeup_event": "Attend un déclencheur",
     "wakeup_due": "Réveil imminent",
     "minutes": "{{minutes}} min",
     "hours": "{{hours}} h {{minutes}} min",

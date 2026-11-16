@@ -1410,6 +1410,24 @@
       "paused": "Wakeup paused",
       "open": "Show wakeups"
     },
+    "wait_short": {
+      "status": "{{status}}",
+      "assignee": "{{name}}",
+      "label": "{{label}}",
+      "property": "{{property}} = {{value}}",
+      "children_all": "Sub-issues",
+      "children_stage": "Stage {{stage}}",
+      "pr_checks": "PR checks",
+      "pr_merged": "PR merge",
+      "pr_conflicts": "PR conflicts",
+      "other_done": "{{issue}}",
+      "other_ended": "{{issue}} to end",
+      "other_in_review": "{{issue}} review",
+      "other_blocked": "{{issue}} blocked",
+      "reply": "Reply",
+      "run_end": "Run end",
+      "event": "Trigger"
+    },
     "paused": {
       "max_fires": "Stopped after reaching {{count}} runs",
       "loop": "Paused: it kept waking rules that woke it again",
