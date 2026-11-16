@@ -266,7 +266,7 @@ function WakeupListRow({
         <span
           className={cn("flex min-w-0 items-center gap-1.5", row.paused_reason && "text-warning")}
           title={
-            row.next_fire_at && row.enabled
+            row.kind !== "event" && row.next_fire_at && row.enabled
               ? `${new Date(row.next_fire_at).toLocaleString(locale, { timeZone: viewTZ })} · ${viewTZ}`
               : undefined
           }

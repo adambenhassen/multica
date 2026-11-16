@@ -314,6 +314,16 @@ it("shows who created a rule and how often it ran this week", async () => {
   expect(row).toHaveTextContent("4");
 });
 
+it("gives a condition rule no time tooltip, since next_fire_at is only its next check", async () => {
+  rows[0] = { ...rows[0]!, event_types: [], condition: { type: "pull_request", event: "merged" }, next_fire_at: "2026-09-23T14:05:00Z" };
+  rows[1] = { ...rows[1]!, kind: "at", mode: "once", event_types: [], next_fire_at: "2026-09-23T14:05:00Z" };
+  mount();
+  const condition = await screen.findByRole("row", { name: /Issue a/ });
+  expect(condition.querySelector('[title$="· UTC"]')).toBeNull();
+  const timer = screen.getByRole("row", { name: /Issue b/ });
+  expect(timer.querySelector('[title$="· UTC"]')).not.toBeNull();
+});
+
 it("filters by source", async () => {
   const user = userEvent.setup();
   mount();

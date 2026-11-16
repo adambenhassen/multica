@@ -169,6 +169,17 @@ describe("Wakeups sidebar", () => {
       expect(row).not.toHaveTextContent("Today");
     });
   });
+  it("shows no time for a condition rule, whose next_fire_at is only its next check", async () => {
+    wakeup.kind = "event";
+    wakeup.mode = "once";
+    wakeup.interval_seconds = null;
+    wakeup.condition = { type: "pull_request", event: "merged" };
+    wakeup.next_fire_at = "2026-09-23T14:05:00Z";
+    renderWithI18n(<WakeupsSection issueId="issue" />);
+    fireEvent.click(screen.getByRole("button", { name: /Wake Emacs/ }));
+    await waitFor(() => expect(screen.getByText("Check CI")).toBeVisible());
+    expect(screen.queryByText(/· UTC$/)).toBeNull();
+  });
   it("exposes the toggle and reveals the full prompt only on opening details", async () => {
     renderWithI18n(<WakeupsSection issueId="issue" />);
     expect(screen.queryByText("Check CI")).not.toBeVisible();

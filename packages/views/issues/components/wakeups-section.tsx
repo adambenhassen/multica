@@ -295,7 +295,7 @@ function WakeupRow({
               {t(($) => $.wakeups.source_run)}: {wakeup.filter_task_id}
             </p>
           )}
-          {wakeup.next_fire_at && (
+          {wakeup.kind !== "event" && wakeup.next_fire_at && (
             <p className="text-caption text-muted-foreground">
               {new Date(wakeup.next_fire_at).toLocaleString(undefined, {
                 timeZone: viewTZ,
