@@ -159,7 +159,8 @@ const PENDING_TASK = new Set<AgentTask["status"]>(["queued", "dispatched", "defe
  * The issues waiting on something while no agent runs on them: a run queued
  * but not started, CI queued or running on an open PR, failed CI that no run is
  * active or queued to fix, finished CI the merge gate still holds, or an
- * enabled wakeup. Each issue gets the first of
+ * enabled wakeup. Failed or gate-held CI on an issue with a wakeup gives way to
+ * the wakeup: the issue is parked on that, not on the PR. Each issue gets the first of
  * those, in that order. CI on an issue whose status `isClosed` is left out;
  * `wakeups` (earliest first per issue) already leaves closed issues out.
  */
@@ -185,11 +186,14 @@ export function waitingIssues(
   for (const [issueId, since] of queuedSince) {
     if (!running.has(issueId)) out.set(issueId, { kind: "run_queued", since });
   }
+  const parked = new Set(wakeups.map((w) => w.issue_id));
   for (const entry of ci) {
     const id = entry.issue_id;
     if (running.has(id) || out.has(id) || isClosed(entry.issue_status)) continue;
     // Failed CI that a run is lined up to fix is not left unattended.
     if ((entry.state === "failed" || entry.state === "failing") && pending.has(id)) continue;
+    // Settled CI on an issue parked with a wakeup is not what it waits on.
+    if ((entry.state === "failed" || entry.state === "gate") && parked.has(id)) continue;
     out.set(id, {
       kind: CI_KIND[entry.state],
       since: entry.since,

@@ -166,6 +166,21 @@ describe("waitingIssues", () => {
     expect(got.get("c")?.kind).toBe("run_queued");
   });
 
+  it("shows a parked issue's wakeup over its settled CI, but not over CI still in progress", () => {
+    const wake = (issue_id: string) => ({ issue_id, kind: "event", next_fire_at: null }) as WakeupPreview;
+    const got = waitingIssues(
+      [],
+      [ci("a", "failed"), ci("b", "gate"), ci("c", "running"), ci("d", "failing"), ci("e", "failed")],
+      [wake("a"), wake("b"), wake("c"), wake("d")],
+      open,
+    );
+    expect(got.get("a")?.kind).toBe("wakeup");
+    expect(got.get("b")?.kind).toBe("wakeup");
+    expect(got.get("c")?.kind).toBe("ci_running");
+    expect(got.get("d")?.kind).toBe("ci_failing");
+    expect(got.get("e")?.kind).toBe("ci_failed");
+  });
+
   it("prefers a queued run over CI", () => {
     expect(waitingIssues([task("a", "queued")], [ci("a", "running")], [], open).get("a")?.kind).toBe("run_queued");
   });
@@ -189,13 +204,13 @@ describe("waitingIssues", () => {
     const wake = (issue_id: string) => ({ issue_id, kind: "at", next_fire_at: "2026-10-30T09:00:00Z" }) as WakeupPreview;
     const got = waitingIssues(
       [task("b", "queued"), task("d", "running")],
-      [ci("c", "failed")],
+      [ci("c", "running")],
       [wake("a"), wake("b"), wake("c"), wake("d")],
       open,
     );
     expect(got.get("a")).toEqual({ kind: "wakeup", wakeup: wake("a") });
     expect(got.get("b")?.kind).toBe("run_queued");
-    expect(got.get("c")?.kind).toBe("ci_failed");
+    expect(got.get("c")?.kind).toBe("ci_running");
     expect(got.has("d")).toBe(false);
   });
 
