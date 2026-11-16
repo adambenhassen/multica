@@ -216,10 +216,18 @@ export const WAITING_GROUPS = [
 ] as const;
 export type WaitingGroup = (typeof WAITING_GROUPS)[number];
 
+/**
+ * When a scheduled wakeup fires; NaN for an event rule, whose `next_fire_at`
+ * is only the server's next condition check.
+ */
+export function wakeupFireTime(wakeup: Pick<WakeupPreview, "kind" | "next_fire_at">): number {
+  return wakeup.kind !== "event" && wakeup.next_fire_at ? Date.parse(wakeup.next_fire_at) : NaN;
+}
+
 /** A reason's filter group: a wakeup whose fire time has passed is due. */
 export function waitingGroup(reason: WaitingReason, now: number): WaitingGroup {
   if (reason.kind !== "wakeup") return reason.kind;
-  const at = reason.wakeup.next_fire_at ? Date.parse(reason.wakeup.next_fire_at) : NaN;
+  const at = wakeupFireTime(reason.wakeup);
   return !Number.isNaN(at) && at <= now ? "wakeup_due" : "wakeup";
 }
 

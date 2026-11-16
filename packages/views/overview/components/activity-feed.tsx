@@ -43,6 +43,7 @@ import {
   WAITING_GROUPS,
   waitingGroup,
   waitingIssues,
+  wakeupFireTime,
   type WaitingGroup,
   type WaitingReason,
 } from "../utils";
@@ -743,7 +744,7 @@ function WaitingCell({ reason }: { reason: WaitingReason }) {
   let short: string;
   let long: string;
   if (reason.kind === "wakeup") {
-    const at = reason.wakeup.next_fire_at ? Date.parse(reason.wakeup.next_fire_at) : NaN;
+    const at = wakeupFireTime(reason.wakeup);
     icon = <Bell className="size-3.5 shrink-0 text-muted-foreground" />;
     short = Number.isNaN(at)
       ? t(($) => $.waiting.wakeup_event)

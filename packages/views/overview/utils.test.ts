@@ -219,7 +219,8 @@ describe("durationParts", () => {
 describe("waitingGroup", () => {
   const now = Date.parse("2026-10-30T12:00:00Z");
   const pr = { provider: "gitea", repo_owner: "acme", repo_name: "widget", number: 7, html_url: "" };
-  const wake = (next_fire_at: string | null) => ({ kind: "wakeup", wakeup: { next_fire_at } as WakeupPreview }) as const;
+  const wake = (next_fire_at: string | null, kind: WakeupPreview["kind"] = "at") =>
+    ({ kind: "wakeup", wakeup: { kind, next_fire_at } as WakeupPreview }) as const;
   it.each([
     [{ kind: "run_queued", since: "2026-10-30T11:00:00Z" } as const, "run_queued"],
     [{ kind: "ci_failed", since: null, pullRequest: pr } as const, "ci_failed"],
@@ -227,6 +228,8 @@ describe("waitingGroup", () => {
     [wake("2026-10-30T11:59:00Z"), "wakeup_due"],
     [wake("2026-10-30T12:30:00Z"), "wakeup"],
     [wake(null), "wakeup"],
+    // A condition rule's next_fire_at is its next check, not a fire time.
+    [wake("2026-10-30T11:59:30Z", "event"), "wakeup"],
   ])("%j is %s", (reason, want) => {
     expect(waitingGroup(reason, now)).toBe(want);
   });

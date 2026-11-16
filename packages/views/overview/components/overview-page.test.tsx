@@ -477,6 +477,29 @@ describe("OverviewPage", () => {
     expect(await within(feed()).findByText("Wakeup due")).toBeTruthy();
   });
 
+  it("never calls a condition wakeup due when its next check time has passed", async () => {
+    apiRef.current.getAgentTaskSnapshot = () => Promise.resolve([]);
+    apiRef.current.getIssueCI = () => Promise.resolve({ issues: [] });
+    const DOCS = { id: "issue-4", identifier: "MUL-4", title: "Update the docs", status: "todo" };
+    apiRef.current.listIssueWakeupSummaries = () =>
+      Promise.resolve([
+        {
+          id: "w-1", issue_id: "issue-4", agent_id: "agent-1", agent_name: "Builder", kind: "event", mode: "once",
+          event_types: [], interval_seconds: null, cron_expression: null, timezone: "UTC",
+          condition: { type: "pull_request", event: "merged" },
+          next_fire_at: new Date(Date.now() - 5 * 60_000).toISOString(), active_count: 1, event_count: 0,
+        },
+      ]);
+    scriptFeed((p) => [move("a-3", DOCS)].filter((e) => !p.issues?.length || p.issues.includes(e.issue.id)));
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "1 waiting" }));
+    const reasons = await within(feed()).findByRole("group", { name: "Waiting for" });
+    expect(within(reasons).getAllByRole("button").map((b) => b.textContent)).toEqual(["All 1", "Wakeup 1"]);
+    const docs = (await within(feed()).findByText("Update the docs")).closest("a")!;
+    expect(within(docs).getByText("Waits for trigger")).toBeTruthy();
+    expect(within(docs).queryByText("Wakeup due")).toBeNull();
+  });
+
   it("says nothing is waiting without asking for every issue", async () => {
     apiRef.current.getAgentTaskSnapshot = () => Promise.resolve([]);
     apiRef.current.getIssueCI = () => Promise.resolve({ issues: [] });
