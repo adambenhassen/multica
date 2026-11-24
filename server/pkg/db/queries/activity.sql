@@ -75,7 +75,8 @@ LIMIT 1;
 -- (migration 581) serve the ORDER BY without a sort step. @to_statuses keeps
 -- only rows whose details `to` is one of the keys (status changes into them);
 -- @current_status_only also requires the issue to be in one of them now, so a
--- status tab lists the issues still there. @issue_ids, when not empty, keeps
+-- status tab lists the issues still there, and keeps their creation rows too:
+-- an issue created straight into a status has no move into it. @issue_ids, when not empty, keeps
 -- those issues' rows; @project_id, one project's. @hide_recovered drops a
 -- failed run once the same agent completed a later run on the issue; another
 -- agent's run (a reviewer, the gate) does not redo the failed work.
@@ -93,7 +94,8 @@ WHERE a.workspace_id = @workspace_id
   AND (cardinality(@only_actions::text[]) = 0 OR a.action = ANY(@only_actions::text[]))
   AND (NOT @status_moves::bool OR a.action IN ('created', 'status_changed')
        OR (a.action IN ('duplicate_marked', 'duplicate_unmarked') AND a.details ? 'to'))
-  AND (cardinality(@to_statuses::text[]) = 0 OR a.details->>'to' = ANY(@to_statuses::text[]))
+  AND (cardinality(@to_statuses::text[]) = 0 OR a.details->>'to' = ANY(@to_statuses::text[])
+       OR (@current_status_only::bool AND a.action = 'created'))
   AND (NOT @current_status_only::bool OR i.status = ANY(@to_statuses::text[]))
   AND (NOT @hide_recovered::bool OR a.action <> 'task_failed' OR NOT EXISTS (
         SELECT 1 FROM agent_task_queue t

@@ -433,6 +433,47 @@ func TestListWorkspaceActivityCurrentStatusAndRecoveredFailures(t *testing.T) {
 	}
 }
 
+// An issue created straight into a status has no move into it, so its
+// creation stands in on that status's current-status tab. A creation of an
+// issue that has since moved on is no row there.
+func TestListWorkspaceActivityCurrentStatusIncludesIssuesCreatedThere(t *testing.T) {
+	ws := dbfx.Workspace(t, "Feed born", "feed-born-"+uuid.NewString(), testutil.Cols{"issue_prefix": "BRN"})
+	dbfx.Member(t, ws, testUserID, "owner")
+	born := dbfx.Issue(t, "Born in backlog", testutil.Cols{"workspace_id": ws, "status": "backlog"})
+	movedIn := dbfx.Issue(t, "Moved to backlog", testutil.Cols{"workspace_id": ws, "status": "backlog"})
+	left := dbfx.Issue(t, "Left backlog", testutil.Cols{"workspace_id": ws, "status": "todo"})
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
+	insert := func(issue, action, details string, at time.Time) string {
+		return dbfx.Insert(t, "activity_log", testutil.Cols{
+			"workspace_id": ws, "issue_id": issue, "actor_type": "member", "actor_id": testUserID,
+			"action": action, "details": details, "created_at": at,
+		})
+	}
+	read := func(query string) []string {
+		var out WorkspaceActivityResponse
+		testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity"+query, ws, testUserID)).
+			Want(http.StatusOK).JSON(&out)
+		got := make([]string, len(out.Entries))
+		for i, e := range out.Entries {
+			got[i] = e.ID
+		}
+		return got
+	}
+
+	bornCreated := insert(born, "created", `{}`, base)
+	movedCreated := insert(movedIn, "created", `{}`, base.Add(time.Minute))
+	moved := insert(movedIn, "status_changed", `{"from":"todo","to":"backlog"}`, base.Add(2*time.Minute))
+	insert(left, "created", `{}`, base.Add(3*time.Minute))
+	insert(left, "status_changed", `{"from":"backlog","to":"todo"}`, base.Add(4*time.Minute))
+
+	if got := read("?kind=status&to=backlog&current=1"); !slices.Equal(got, []string{moved, movedCreated, bornCreated}) {
+		t.Fatalf("to=backlog&current=1 = %v, want the move into backlog and the creations of issues still there", got)
+	}
+	if got := read("?kind=status&to=backlog"); !slices.Equal(got, []string{moved}) {
+		t.Fatalf("to=backlog = %v, want only moves into backlog", got)
+	}
+}
+
 // A duplicate mark change that moved the status stands in for the status row
 // (MUL-7349), so the status feeds count it as that move. One that left the
 // status alone (a mark moved to another original) is no move.
@@ -468,8 +509,9 @@ func TestListWorkspaceActivityCountsDuplicateMarkMoves(t *testing.T) {
 	if got := read("?kind=status"); !slices.Equal(got, []string{reopenedMove, cancelled, created}) {
 		t.Fatalf("kind=status = %v, want the two mark moves and the creation", got)
 	}
-	if got := read("?kind=status&to=cancelled&current=1"); !slices.Equal(got, []string{cancelled}) {
-		t.Fatalf("to=cancelled&current=1 = %v, want the mark that cancelled the issue", got)
+	// The creation follows; the feed keeps each issue's newest row.
+	if got := read("?kind=status&to=cancelled&current=1"); !slices.Equal(got, []string{cancelled, created}) {
+		t.Fatalf("to=cancelled&current=1 = %v, want the mark that cancelled the issue, then its creation", got)
 	}
 	if got := read("?kind=status&to=todo"); !slices.Equal(got, []string{reopenedMove}) {
 		t.Fatalf("to=todo = %v, want the unmark that reopened the issue", got)
