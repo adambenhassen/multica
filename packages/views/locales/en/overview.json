@@ -59,8 +59,13 @@
       "wakeup_due": "Wakeup due {{count}}",
       "wakeup": "Wakeup {{count}}"
     },
-    "chip": "{{count}} waiting",
-    "chip_unknown": "Waiting: —",
+    "chips": {
+      "ci_running": "{{count}} CI running",
+      "ci_waiting": "{{count}} CI waiting",
+      "blocked": "{{count}} blocked",
+      "gate": "{{count}} at gate",
+      "scheduled": "{{count}} scheduled"
+    },
     "run_queued": "Queued {{time}}",
     "run_queued_long": "Run queued for {{time}}",
     "ci_queued": "CI queued {{time}}",

@@ -59,8 +59,13 @@
       "wakeup_due": "ウェイクアップ予定時刻 {{count}}",
       "wakeup": "ウェイクアップ {{count}}"
     },
-    "chip": "{{count}} 件待機中",
-    "chip_unknown": "待機中: —",
+    "chips": {
+      "ci_running": "{{count}} 件CI実行中",
+      "ci_waiting": "{{count}} 件CI待機",
+      "blocked": "{{count}} 件ブロック中",
+      "gate": "{{count}} 件ゲート",
+      "scheduled": "{{count}} 件予定"
+    },
     "run_queued": "キュー {{time}}",
     "run_queued_long": "実行が{{time}}キューで待機中",
     "ci_queued": "CI待機 {{time}}",

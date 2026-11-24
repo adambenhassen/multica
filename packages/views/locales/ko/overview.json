@@ -59,8 +59,13 @@
       "wakeup_due": "깨우기 예정 {{count}}",
       "wakeup": "깨우기 {{count}}"
     },
-    "chip": "{{count}}개 대기 중",
-    "chip_unknown": "대기 중: —",
+    "chips": {
+      "ci_running": "{{count}}개 CI 실행 중",
+      "ci_waiting": "{{count}}개 CI 대기",
+      "blocked": "{{count}}개 막힘",
+      "gate": "{{count}}개 게이트",
+      "scheduled": "{{count}}개 예약됨"
+    },
     "run_queued": "대기열 {{time}}",
     "run_queued_long": "실행이 {{time}} 동안 대기열에 있음",
     "ci_queued": "CI 대기 {{time}}",

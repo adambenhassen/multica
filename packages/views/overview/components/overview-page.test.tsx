@@ -391,9 +391,14 @@ describe("OverviewPage", () => {
     );
     renderPage();
 
-    const chip = await screen.findByRole("button", { name: "4 waiting" });
+    // One chip per kind of wait; the queued run on issue-1 has none.
+    const chip = await screen.findByRole("button", { name: "1 CI running" });
+    expect([...chip.parentElement!.children].slice(1).map((c) => c.getAttribute("aria-label"))).toEqual([
+      "1 CI running", "1 CI waiting", "1 scheduled",
+    ]);
     fireEvent.click(chip);
     expect(chip.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "1 scheduled" }).getAttribute("aria-pressed")).toBe("false");
     expect(within(feed()).getByRole("button", { name: "Waiting 4", pressed: true })).toBeTruthy();
     expect(await within(feed()).findByText("CI running on acme/widget#7 for 37m")).toBeTruthy();
     expect(within(feed()).getByText("Run queued for 10m")).toBeTruthy();
@@ -461,7 +466,7 @@ describe("OverviewPage", () => {
       [move("a-1", SHIP), move("a-2", FIX), move("a-3", DOCS)].filter((e) => !p.issues?.length || p.issues.includes(e.issue.id)),
     );
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "3 waiting" }));
+    fireEvent.click(await screen.findByRole("button", { name: "1 blocked" }));
     const reasons = await within(feed()).findByRole("group", { name: "Waiting for" });
     expect(within(reasons).getAllByRole("button").map((b) => b.textContent)).toEqual([
       "All 3", "CI running 1", "CI failed 1", "Wakeup due 1",
@@ -492,7 +497,7 @@ describe("OverviewPage", () => {
       ]);
     scriptFeed((p) => [move("a-2", FIX), move("a-3", DOCS)].filter((e) => !p.issues?.length || p.issues.includes(e.issue.id)));
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "2 waiting" }));
+    fireEvent.click(await screen.findByRole("button", { name: "2 scheduled" }));
     const reasons = await within(feed()).findByRole("group", { name: "Waiting for" });
     expect(within(reasons).getAllByRole("button").map((b) => b.textContent)).toEqual(["All 2", "Wakeup 2"]);
     const docs = (await within(feed()).findByText("Update the docs")).closest("a")!;
@@ -510,11 +515,12 @@ describe("OverviewPage", () => {
     const calls = scriptFeed(() => [move("a-1", SHIP)]);
     renderPage();
     await within(feed()).findByText("Ship the dashboard");
-    expect(await screen.findByRole("button", { name: "0 waiting" })).toBeTruthy();
     const before = calls.length;
     fireEvent.click(within(feed()).getByRole("button", { name: /^Waiting/ }));
     expect(await within(feed()).findByText("Nothing is waiting on a run, CI, the merge gate or a wakeup")).toBeTruthy();
     expect(calls.length).toBe(before);
+    // With nothing waiting the header shows no waiting chip.
+    expect(screen.getByRole("button", { name: "0 runs working" }).parentElement!.children).toHaveLength(1);
   });
 
   it("moves the header counts onto the tabs for a phone", async () => {
@@ -524,7 +530,9 @@ describe("OverviewPage", () => {
         { id: "t-2", agent_id: "agent-2", issue_id: "", status: "running", started_at: NOW, created_at: NOW },
         { id: "t-3", agent_id: "agent-3", issue_id: "issue-2", status: "queued", started_at: null, created_at: NOW },
       ]);
-    apiRef.current.getIssueCI = () => Promise.resolve({ issues: [] });
+    const pr = { provider: "gitea", repo_owner: "acme", repo_name: "widget", number: 7, html_url: "" };
+    apiRef.current.getIssueCI = () =>
+      Promise.resolve({ issues: [{ issue_id: "issue-3", issue_status: "in_review", state: "gate", since: NOW, pull_request: pr }] });
     apiRef.current.listIssueWakeupSummaries = () => Promise.resolve([]);
     scriptFeed(() => [move("a-1", SHIP)]);
     renderPage();
@@ -532,8 +540,8 @@ describe("OverviewPage", () => {
     // Below `md` the chips are hidden and each tab's count shows instead.
     const chip = await screen.findByRole("button", { name: "2 runs working" });
     expect(chip.parentElement!.className).toBe("hidden md:contents");
-    expect(screen.getByRole("button", { name: "1 waiting" }).parentElement).toBe(chip.parentElement);
-    for (const [name, count] of [["Active 2", "2"], ["Waiting 1", "1"]] as const) {
+    expect((await screen.findByRole("button", { name: "1 at gate" })).parentElement).toBe(chip.parentElement);
+    for (const [name, count] of [["Active 2", "2"], ["Waiting 2", "2"]] as const) {
       const tab = within(feed()).getByRole("button", { name });
       expect(within(tab).getByText(count).className).toContain("md:hidden");
     }

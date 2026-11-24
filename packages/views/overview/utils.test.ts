@@ -7,6 +7,7 @@ import {
   commentExcerpt,
   currentStatusRows,
   durationParts,
+  waitingChip,
   waitingGroup,
   waitingIssues,
   groupFeedByDay,
@@ -260,6 +261,22 @@ describe("waitingGroup", () => {
     [wake("2026-10-30T11:59:30Z", "event"), "wakeup"],
   ])("%j is %s", (reason, want) => {
     expect(waitingGroup(reason, now)).toBe(want);
+  });
+});
+
+describe("waitingChip", () => {
+  const pr = { provider: "gitea", repo_owner: "acme", repo_name: "widget", number: 7, html_url: "" };
+  const ci = (kind: "ci_queued" | "ci_running" | "ci_failing" | "ci_failed" | "ci_gate") => ({ kind, since: null, pullRequest: pr }) as const;
+  it.each([
+    [{ kind: "run_queued", since: "2026-10-30T11:00:00Z" } as const, null],
+    [ci("ci_queued"), "ci_waiting"],
+    [ci("ci_running"), "ci_running"],
+    [ci("ci_failing"), "ci_running"],
+    [ci("ci_failed"), "blocked"],
+    [ci("ci_gate"), "gate"],
+    [{ kind: "wakeup", wakeup: { kind: "at", next_fire_at: null } as WakeupPreview } as const, "scheduled"],
+  ])("%j counts toward %s", (reason, want) => {
+    expect(waitingChip(reason)).toBe(want);
   });
 });
 

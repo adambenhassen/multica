@@ -59,8 +59,13 @@
       "wakeup_due": "Réveil imminent {{count}}",
       "wakeup": "Réveil {{count}}"
     },
-    "chip": "{{count}} en attente",
-    "chip_unknown": "En attente : —",
+    "chips": {
+      "ci_running": "{{count}} CI en cours",
+      "ci_waiting": "{{count}} CI en attente",
+      "blocked": "{{count}} bloquées",
+      "gate": "{{count}} au gate",
+      "scheduled": "{{count}} planifiées"
+    },
     "run_queued": "En file {{time}}",
     "run_queued_long": "Exécution en file depuis {{time}}",
     "ci_queued": "CI en file {{time}}",

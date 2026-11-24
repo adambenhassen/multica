@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Activity, Hourglass, SlidersHorizontal, X } from "@multica/ui/icons";
+import { Activity, Bell, CircleDashed, GitMerge, Hourglass, SlidersHorizontal, TriangleAlert, X } from "@multica/ui/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@multica/ui/components/ui/button";
 import {
@@ -23,6 +23,7 @@ import { ProjectFilter } from "../../dashboard/components/dashboard-filters";
 import { WorkspaceAgentWorkingChip, chipAppearance, countRuns } from "../../issues/components/workspace-agent-working-chip";
 import { useT } from "../../i18n";
 import { StatusChangesFeed, useRunningTasks, useWaitingIssues, type FeedFocus, type FeedTab, type FeedTabCounts } from "./activity-feed";
+import { WAITING_CHIPS, waitingChip, type WaitingChip } from "../utils";
 import { cn } from "@multica/ui/lib/utils";
 
 export function OverviewPage() {
@@ -35,8 +36,14 @@ export function OverviewPage() {
   const projectId =
     projectValue !== ALL_PROJECTS && projects.some((p) => p.id === projectValue) ? projectValue : null;
   const [tab, setTab] = useState<FeedTab>("all");
+  // The waiting chip that opened the Waiting tab, shown pressed while it stays open.
+  const [openedBy, setOpenedBy] = useState<WaitingChip | null>(null);
+  const changeTab = (next: FeedTab, chip: WaitingChip | null = null) => {
+    setTab(next);
+    setOpenedBy(chip);
+  };
   const workingAgents = useWorkingAgents(wsId, projectId);
-  const waitingCount = useWaitingCount(wsId, projectId);
+  const waiting = useWaitingCounts(wsId, projectId);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -51,15 +58,23 @@ export function OverviewPage() {
               {/* How many agents are running right now; opens the Active tab. */}
               <WorkspaceAgentWorkingChip
                 value={tab === "active"}
-                onToggle={() => setTab(tab === "active" ? "all" : "active")}
+                onToggle={() => changeTab(tab === "active" ? "all" : "active")}
                 agents={workingAgents}
               />
-              {/* How many issues wait on a queued run or CI; opens the Waiting tab. */}
-              <WaitingChip
-                value={tab === "waiting"}
-                onToggle={() => setTab(tab === "waiting" ? "all" : "waiting")}
-                count={waitingCount}
-              />
+              {/* How many issues wait on each kind of thing; each opens the Waiting tab. */}
+              {waiting &&
+                WAITING_CHIPS.filter((chip) => waiting.chips[chip]).map((chip) => {
+                  const pressed = tab === "waiting" && openedBy === chip;
+                  return (
+                    <WaitingChipButton
+                      key={chip}
+                      chip={chip}
+                      count={waiting.chips[chip]!}
+                      value={pressed}
+                      onToggle={() => (pressed ? changeTab("all") : changeTab("waiting", chip))}
+                    />
+                  );
+                })}
             </div>
             <ProjectFilter projects={projects} projectValue={projectValue} onProjectChange={setProjectValue} />
             <DisplayMenu />
@@ -74,8 +89,8 @@ export function OverviewPage() {
             key={projectId ?? ALL_PROJECTS}
             projectId={projectId}
             tab={tab}
-            onTabChange={setTab}
-            tabCounts={{ active: workingAgents && countRuns(workingAgents), waiting: waitingCount }}
+            onTabChange={changeTab}
+            tabCounts={{ active: workingAgents && countRuns(workingAgents), waiting: waiting?.total }}
           />
         </div>
       </div>
@@ -213,25 +228,61 @@ function useWorkingAgents(wsId: string, projectId: string | null): WorkingAgentS
 }
 
 /**
- * How many issues wait on a queued run or CI, narrowed to the header's
+ * How many issues wait, in all and per header chip, narrowed to the header's
  * project like the working chip. `undefined` until known.
  */
-function useWaitingCount(wsId: string, projectId: string | null): number | undefined {
+function useWaitingCounts(
+  wsId: string,
+  projectId: string | null,
+): { total: number; chips: Partial<Record<WaitingChip, number>> } | undefined {
   const waiting = useWaitingIssues(wsId);
   const ids = useMemo(() => [...waiting.byIssue.keys()].sort(), [waiting.byIssue]);
   const { data: projectIssues } = useQuery({
     ...activeIssuesOptions(wsId, ids, projectId),
     enabled: !waiting.pending && projectId !== null,
   });
-  if (waiting.pending) return undefined;
-  if (projectId === null) return ids.length;
-  return projectIssues?.length;
+  return useMemo(() => {
+    if (waiting.pending) return undefined;
+    let inProject: Set<string> | null = null;
+    if (projectId !== null) {
+      if (!projectIssues) return undefined;
+      inProject = new Set(projectIssues.map((i) => i.id));
+    }
+    let total = 0;
+    const chips: Partial<Record<WaitingChip, number>> = {};
+    for (const [id, reason] of waiting.byIssue) {
+      if (inProject && !inProject.has(id)) continue;
+      total += 1;
+      const chip = waitingChip(reason);
+      if (chip) chips[chip] = (chips[chip] ?? 0) + 1;
+    }
+    return { total, chips };
+  }, [waiting, projectId, projectIssues]);
 }
 
-function WaitingChip({ value, onToggle, count }: { value: boolean; onToggle: () => void; count: number | undefined }) {
+const WAITING_CHIP_ICON = {
+  ci_running: CircleDashed,
+  ci_waiting: Hourglass,
+  blocked: TriangleAlert,
+  gate: GitMerge,
+  scheduled: Bell,
+} satisfies Record<WaitingChip, unknown>;
+
+function WaitingChipButton({
+  chip,
+  count,
+  value,
+  onToggle,
+}: {
+  chip: WaitingChip;
+  count: number;
+  value: boolean;
+  onToggle: () => void;
+}) {
   const { t } = useT("overview");
-  const appearance = chipAppearance(value, count === undefined ? "unknown" : count > 0 ? "some" : "none");
-  const label = count === undefined ? t(($) => $.waiting.chip_unknown) : t(($) => $.waiting.chip, { count });
+  const appearance = chipAppearance(value, "some");
+  const label = t(($) => $.waiting.chips[chip], { count });
+  const Icon = WAITING_CHIP_ICON[chip];
   return (
     <Button
       variant={appearance.variant}
@@ -240,9 +291,12 @@ function WaitingChip({ value, onToggle, count }: { value: boolean; onToggle: () 
       onClick={onToggle}
       aria-pressed={value}
       aria-label={label}
+      title={label}
     >
-      <Hourglass aria-hidden="true" />
-      <span className="tabular-nums">{label}</span>
+      <Icon aria-hidden="true" />
+      {/* Five labelled chips outgrow a narrower header: there each shows its count. */}
+      <span className="tabular-nums min-[1400px]:hidden">{count}</span>
+      <span className="hidden tabular-nums min-[1400px]:inline">{label}</span>
     </Button>
   );
 }

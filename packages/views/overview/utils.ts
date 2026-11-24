@@ -229,6 +229,27 @@ export const WAITING_GROUPS = [
 ] as const;
 export type WaitingGroup = (typeof WAITING_GROUPS)[number];
 
+/** The Activity header's waiting chips, in order. */
+export const WAITING_CHIPS = ["ci_running", "ci_waiting", "blocked", "gate", "scheduled"] as const;
+export type WaitingChip = (typeof WAITING_CHIPS)[number];
+
+const CHIP_OF_REASON: Record<WaitingReason["kind"], WaitingChip | null> = {
+  // A queued run is about to start: it gets no chip of its own.
+  run_queued: null,
+  ci_queued: "ci_waiting",
+  ci_running: "ci_running",
+  // A check failed but others still run: CI is not done yet.
+  ci_failing: "ci_running",
+  ci_failed: "blocked",
+  ci_gate: "gate",
+  wakeup: "scheduled",
+};
+
+/** The header chip a reason counts toward, or null when it has none. */
+export function waitingChip(reason: WaitingReason): WaitingChip | null {
+  return CHIP_OF_REASON[reason.kind];
+}
+
 /**
  * When a scheduled wakeup fires; NaN for an event rule, whose `next_fire_at`
  * is only the server's next condition check.

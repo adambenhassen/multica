@@ -59,8 +59,13 @@
       "wakeup_due": "即将唤醒 {{count}}",
       "wakeup": "唤醒 {{count}}"
     },
-    "chip": "{{count}} 个等待中",
-    "chip_unknown": "等待中：—",
+    "chips": {
+      "ci_running": "{{count}} 个 CI 运行中",
+      "ci_waiting": "{{count}} 个 CI 等待中",
+      "blocked": "{{count}} 个已阻塞",
+      "gate": "{{count}} 个门禁",
+      "scheduled": "{{count}} 个已计划"
+    },
     "run_queued": "排队 {{time}}",
     "run_queued_long": "运行已排队 {{time}}",
     "ci_queued": "CI 排队 {{time}}",
