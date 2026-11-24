@@ -79,6 +79,9 @@ LIMIT 1;
 -- those issues' rows; @project_id, one project's. @hide_recovered drops a
 -- failed run once the same agent completed a later run on the issue; another
 -- agent's run (a reviewer, the gate) does not redo the failed work.
+-- @status_moves keeps issue creations and the rows that moved a status: status
+-- changes, and duplicate mark changes that carry the move because they stand
+-- in for the status row (MUL-7349).
 SELECT a.id, a.workspace_id, a.issue_id, a.actor_type, a.actor_id, a.action, a.details, a.created_at,
        i.number AS issue_number, i.title AS issue_title, i.status AS issue_status,
        i.project_id AS issue_project_id
@@ -88,6 +91,8 @@ WHERE a.workspace_id = @workspace_id
   AND a.issue_id IS NOT NULL
   AND NOT (a.action = ANY(@excluded_actions::text[]))
   AND (cardinality(@only_actions::text[]) = 0 OR a.action = ANY(@only_actions::text[]))
+  AND (NOT @status_moves::bool OR a.action IN ('created', 'status_changed')
+       OR (a.action IN ('duplicate_marked', 'duplicate_unmarked') AND a.details ? 'to'))
   AND (cardinality(@to_statuses::text[]) = 0 OR a.details->>'to' = ANY(@to_statuses::text[]))
   AND (NOT @current_status_only::bool OR i.status = ANY(@to_statuses::text[]))
   AND (NOT @hide_recovered::bool OR a.action <> 'task_failed' OR NOT EXISTS (
@@ -103,9 +108,10 @@ LIMIT @row_limit;
 
 -- name: ListIssuesByStatusEnteredAt :many
 -- Issues currently in one of @statuses, newest first by when they entered
--- that status: the latest status_changed activity whose `to` is the issue's
--- current status. Backs the Dashboard's Done / Cancelled tabs, where "recent"
--- means recently completed, not recently touched. An issue with no such row
+-- that status: the latest status move (a status change, or a duplicate mark
+-- change standing in for one) whose `to` is the issue's current status. Backs
+-- the Dashboard's Done / Cancelled tabs, where "recent" means recently
+-- completed, not recently touched. An issue with no such row
 -- (created directly in the status) falls back to its updated_at.
 SELECT i.id, i.number, i.title, i.status,
        COALESCE(entered.created_at, i.updated_at)::timestamptz AS entered_at,
@@ -115,7 +121,7 @@ LEFT JOIN LATERAL (
     SELECT a.created_at, a.actor_type, a.actor_id
     FROM activity_log a
     WHERE a.issue_id = i.id
-      AND a.action = 'status_changed'
+      AND a.action IN ('status_changed', 'duplicate_marked', 'duplicate_unmarked')
       AND a.details->>'to' = i.status
     ORDER BY a.created_at DESC, a.id DESC
     LIMIT 1

@@ -235,7 +235,7 @@ LEFT JOIN LATERAL (
     SELECT a.created_at, a.actor_type, a.actor_id
     FROM activity_log a
     WHERE a.issue_id = i.id
-      AND a.action = 'status_changed'
+      AND a.action IN ('status_changed', 'duplicate_marked', 'duplicate_unmarked')
       AND a.details->>'to' = i.status
     ORDER BY a.created_at DESC, a.id DESC
     LIMIT 1
@@ -264,9 +264,10 @@ type ListIssuesByStatusEnteredAtRow struct {
 }
 
 // Issues currently in one of @statuses, newest first by when they entered
-// that status: the latest status_changed activity whose `to` is the issue's
-// current status. Backs the Dashboard's Done / Cancelled tabs, where "recent"
-// means recently completed, not recently touched. An issue with no such row
+// that status: the latest status move (a status change, or a duplicate mark
+// change standing in for one) whose `to` is the issue's current status. Backs
+// the Dashboard's Done / Cancelled tabs, where "recent" means recently
+// completed, not recently touched. An issue with no such row
 // (created directly in the status) falls back to its updated_at.
 func (q *Queries) ListIssuesByStatusEnteredAt(ctx context.Context, arg ListIssuesByStatusEnteredAtParams) ([]ListIssuesByStatusEnteredAtRow, error) {
 	rows, err := q.db.Query(ctx, listIssuesByStatusEnteredAt,
@@ -311,24 +312,27 @@ WHERE a.workspace_id = $1
   AND a.issue_id IS NOT NULL
   AND NOT (a.action = ANY($2::text[]))
   AND (cardinality($3::text[]) = 0 OR a.action = ANY($3::text[]))
-  AND (cardinality($4::text[]) = 0 OR a.details->>'to' = ANY($4::text[]))
-  AND (NOT $5::bool OR i.status = ANY($4::text[]))
-  AND (NOT $6::bool OR a.action <> 'task_failed' OR NOT EXISTS (
+  AND (NOT $4::bool OR a.action IN ('created', 'status_changed')
+       OR (a.action IN ('duplicate_marked', 'duplicate_unmarked') AND a.details ? 'to'))
+  AND (cardinality($5::text[]) = 0 OR a.details->>'to' = ANY($5::text[]))
+  AND (NOT $6::bool OR i.status = ANY($5::text[]))
+  AND (NOT $7::bool OR a.action <> 'task_failed' OR NOT EXISTS (
         SELECT 1 FROM agent_task_queue t
         WHERE t.issue_id = a.issue_id AND t.agent_id = a.actor_id AND a.actor_type = 'agent'
           AND t.status = 'completed' AND t.completed_at > a.created_at))
-  AND (cardinality($7::uuid[]) = 0 OR a.issue_id = ANY($7::uuid[]))
-  AND ($8::uuid IS NULL OR i.project_id = $8::uuid)
-  AND ($9::timestamptz IS NULL
-       OR (a.created_at, a.id) < ($9::timestamptz, $10::uuid))
+  AND (cardinality($8::uuid[]) = 0 OR a.issue_id = ANY($8::uuid[]))
+  AND ($9::uuid IS NULL OR i.project_id = $9::uuid)
+  AND ($10::timestamptz IS NULL
+       OR (a.created_at, a.id) < ($10::timestamptz, $11::uuid))
 ORDER BY a.created_at DESC, a.id DESC
-LIMIT $11
+LIMIT $12
 `
 
 type ListRecentWorkspaceActivitiesParams struct {
 	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
 	ExcludedActions   []string           `json:"excluded_actions"`
 	OnlyActions       []string           `json:"only_actions"`
+	StatusMoves       bool               `json:"status_moves"`
 	ToStatuses        []string           `json:"to_statuses"`
 	CurrentStatusOnly bool               `json:"current_status_only"`
 	HideRecovered     bool               `json:"hide_recovered"`
@@ -365,11 +369,15 @@ type ListRecentWorkspaceActivitiesRow struct {
 // those issues' rows; @project_id, one project's. @hide_recovered drops a
 // failed run once the same agent completed a later run on the issue; another
 // agent's run (a reviewer, the gate) does not redo the failed work.
+// @status_moves keeps issue creations and the rows that moved a status: status
+// changes, and duplicate mark changes that carry the move because they stand
+// in for the status row (MUL-7349).
 func (q *Queries) ListRecentWorkspaceActivities(ctx context.Context, arg ListRecentWorkspaceActivitiesParams) ([]ListRecentWorkspaceActivitiesRow, error) {
 	rows, err := q.db.Query(ctx, listRecentWorkspaceActivities,
 		arg.WorkspaceID,
 		arg.ExcludedActions,
 		arg.OnlyActions,
+		arg.StatusMoves,
 		arg.ToStatuses,
 		arg.CurrentStatusOnly,
 		arg.HideRecovered,

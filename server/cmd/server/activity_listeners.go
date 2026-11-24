@@ -413,7 +413,15 @@ func recordDuplicateMarkActivities(ctx context.Context, bus *events.Bus, queries
 	}
 	if next != "" {
 		if identifier, ok := lookupIssueIdentifier(ctx, queries, issue.WorkspaceID, next); ok {
-			wroteOwnRow = record(issue.ID, "duplicate_marked", map[string]string{"original_id": next, "original_identifier": identifier}) || wroteOwnRow
+			details := map[string]string{"original_id": next, "original_identifier": identifier}
+			if statusChanged {
+				// Marking cancelled the issue; this row stands in for the
+				// status row, so it carries the move.
+				prevStatus, _ := payload["prev_status"].(string)
+				details["from"] = prevStatus
+				details["to"] = issue.Status
+			}
+			wroteOwnRow = record(issue.ID, "duplicate_marked", details) || wroteOwnRow
 			record(next, "duplicate_added", self)
 		}
 	}

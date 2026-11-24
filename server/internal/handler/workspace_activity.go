@@ -170,9 +170,10 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 	// cardinality(NULL) = 0 is not true, which would filter out every row.
 	onlyActions := []string{}
 	excludedActions := workspaceActivityExcludedActions
+	statusMoves := false
 	switch kind {
 	case "status", "status_comments":
-		onlyActions = []string{"status_changed", "created"}
+		statusMoves = true
 	case "failures":
 		// Failed runs are kept out of the main feed as noise, but a stuck
 		// agent has to be findable, so this tab opts back into them.
@@ -214,6 +215,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 			WorkspaceID:     wsUUID,
 			ExcludedActions: excludedActions,
 			OnlyActions:     onlyActions,
+			StatusMoves:     statusMoves,
 			ToStatuses:      toStatuses,
 			// A failed run the same agent later made good is no longer stuck.
 			CurrentStatusOnly: currentOnly,

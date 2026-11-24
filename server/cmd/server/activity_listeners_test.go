@@ -561,7 +561,7 @@ func newDuplicateTestIssues(t *testing.T, queries *db.Queries) (bus *events.Bus,
 }
 
 // Marking is a status write to cancelled; the mark row replaces the status
-// row rather than sitting beside it.
+// row rather than sitting beside it, so it carries the move.
 func TestActivityIssueUpdated_DuplicateMarked(t *testing.T) {
 	queries := db.New(testPool)
 	bus, duplicateID, originalID := newDuplicateTestIssues(t, queries)
@@ -574,6 +574,9 @@ func TestActivityIssueUpdated_DuplicateMarked(t *testing.T) {
 	marked := activityDetails(t, queries, duplicateID, "duplicate_marked")
 	if marked["original_id"] != originalID {
 		t.Fatalf("original_id = %q, want %q", marked["original_id"], originalID)
+	}
+	if marked["from"] != "todo" || marked["to"] != "cancelled" {
+		t.Fatalf("duplicate_marked move = %q -> %q, want todo -> cancelled", marked["from"], marked["to"])
 	}
 	if want := testIssueIdentifier(t, queries, originalID); marked["original_identifier"] != want {
 		t.Fatalf("original_identifier = %q, want %q", marked["original_identifier"], want)
@@ -628,8 +631,8 @@ func TestActivityIssueUpdated_DuplicateRepointed(t *testing.T) {
 	if unmarked["original_id"] != firstID || unmarked["to"] != "" {
 		t.Fatalf("duplicate_unmarked details = %v", unmarked)
 	}
-	if got := activityDetails(t, queries, duplicateID, "duplicate_marked"); got["original_id"] != secondID {
-		t.Fatalf("duplicate_marked original_id = %q, want %q", got["original_id"], secondID)
+	if got := activityDetails(t, queries, duplicateID, "duplicate_marked"); got["original_id"] != secondID || got["to"] != "" {
+		t.Fatalf("duplicate_marked details = %v", got)
 	}
 	activityDetails(t, queries, firstID, "duplicate_removed")
 	activityDetails(t, queries, secondID, "duplicate_added")

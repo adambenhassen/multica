@@ -432,3 +432,63 @@ func TestListWorkspaceActivityCurrentStatusAndRecoveredFailures(t *testing.T) {
 		t.Fatalf("kind=failures = %v, want only %s (not the recovered %s)", got, stuck, recovered)
 	}
 }
+
+// A duplicate mark change that moved the status stands in for the status row
+// (MUL-7349), so the status feeds count it as that move. One that left the
+// status alone (a mark moved to another original) is no move.
+func TestListWorkspaceActivityCountsDuplicateMarkMoves(t *testing.T) {
+	ws := dbfx.Workspace(t, "Feed duplicates", "feed-duplicates-"+uuid.NewString(), testutil.Cols{"issue_prefix": "DUP"})
+	dbfx.Member(t, ws, testUserID, "owner")
+	marked := dbfx.Issue(t, "Marked duplicate", testutil.Cols{"workspace_id": ws, "status": "cancelled", "updated_at": time.Now().UTC()})
+	reopened := dbfx.Issue(t, "Reopened duplicate", testutil.Cols{"workspace_id": ws, "status": "todo"})
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
+	insert := func(issue, action, details string, at time.Time) string {
+		return dbfx.Insert(t, "activity_log", testutil.Cols{
+			"workspace_id": ws, "issue_id": issue, "actor_type": "member", "actor_id": testUserID,
+			"action": action, "details": details, "created_at": at,
+		})
+	}
+	read := func(query string) []string {
+		var out WorkspaceActivityResponse
+		testutil.Call(t, testHandler.ListWorkspaceActivity, workspaceActivityRequest("/api/activity"+query, ws, testUserID)).
+			Want(http.StatusOK).JSON(&out)
+		got := make([]string, len(out.Entries))
+		for i, e := range out.Entries {
+			got[i] = e.ID
+		}
+		return got
+	}
+
+	created := insert(marked, "created", `{}`, base)
+	cancelled := insert(marked, "duplicate_marked", `{"original_id":"x","original_identifier":"DUP-9","from":"todo","to":"cancelled"}`, base.Add(time.Minute))
+	repointedOff := insert(marked, "duplicate_unmarked", `{"original_id":"x","original_identifier":"DUP-9"}`, base.Add(2*time.Minute))
+	repointedOn := insert(marked, "duplicate_marked", `{"original_id":"y","original_identifier":"DUP-8"}`, base.Add(2*time.Minute))
+	reopenedMove := insert(reopened, "duplicate_unmarked", `{"original_id":"x","original_identifier":"DUP-9","to":"todo"}`, base.Add(3*time.Minute))
+
+	if got := read("?kind=status"); !slices.Equal(got, []string{reopenedMove, cancelled, created}) {
+		t.Fatalf("kind=status = %v, want the two mark moves and the creation", got)
+	}
+	if got := read("?kind=status&to=cancelled&current=1"); !slices.Equal(got, []string{cancelled}) {
+		t.Fatalf("to=cancelled&current=1 = %v, want the mark that cancelled the issue", got)
+	}
+	if got := read("?kind=status&to=todo"); !slices.Equal(got, []string{reopenedMove}) {
+		t.Fatalf("to=todo = %v, want the unmark that reopened the issue", got)
+	}
+	repointed := []string{repointedOn, repointedOff}
+	if repointedOff > repointedOn {
+		repointed = []string{repointedOff, repointedOn}
+	}
+	if got := read("?kind=changes"); !slices.Equal(got, append(append([]string{reopenedMove}, repointed...), cancelled, created)) {
+		t.Fatalf("kind=changes = %v, want every row", got)
+	}
+
+	var closed RecentlyCompletedResponse
+	testutil.Call(t, testHandler.ListRecentlyCompletedIssues, workspaceActivityRequest("/api/activity/completed?category=closed", ws, testUserID)).
+		Want(http.StatusOK).JSON(&closed)
+	if len(closed.Entries) != 1 || closed.Entries[0].ActorID != testUserID {
+		t.Fatalf("closed = %+v, want the marked issue, moved there by its mark", closed.Entries)
+	}
+	if at, err := time.Parse(time.RFC3339, closed.Entries[0].CompletedAt); err != nil || !at.Equal(base.Add(time.Minute).Truncate(time.Second)) {
+		t.Fatalf("closed completed_at = %q, want the mark's time", closed.Entries[0].CompletedAt)
+	}
+}
