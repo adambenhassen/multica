@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Activity, ArrowRight, Bell, CircleDashed, Clock, GitMerge, Hourglass, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, TriangleAlert, UserRound } from "@multica/ui/icons";
-import { useInfiniteQuery, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useActorName } from "@multica/core/workspace/hooks";
@@ -10,7 +10,7 @@ import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { agentTaskSnapshotOptions } from "@multica/core/agents";
 import { workspaceWakeupSummariesOptions } from "@multica/core/issues/wakeups";
-import { activeIssuesOptions, issueCIOptions, useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
+import { activeIssuesOptions, issueCIOptions, issueStatusCountOptions, useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
 import type {
   WorkspaceActivityEntry,
   WorkspaceActivityIssueRef,
@@ -267,11 +267,15 @@ export function StatusChangesFeed({
       (tab !== "active" || (!running.pending && activeIssues.length > 0)) &&
       (tab !== "waiting" || (!waiting.pending && waitingIds.length > 0)),
   });
+  const statusCounts = useStatusCounts(wsId, focus.projectId);
   const tabLabels: Record<FeedTab, string> = {
     all: t(($) => $.status_changes.filters.all),
     active: t(($) => $.status_changes.filters.active),
     waiting: t(($) => $.status_changes.filters.waiting),
+    backlog: t(($) => $.status_changes.filters.backlog),
+    todo: t(($) => $.status_changes.filters.todo),
     in_progress: t(($) => $.status_changes.filters.in_progress),
+    in_review: t(($) => $.status_changes.filters.in_review),
     blocked: t(($) => $.status_changes.filters.blocked),
     done: t(($) => $.status_changes.filters.done),
     cancelled: t(($) => $.status_changes.filters.cancelled),
@@ -293,12 +297,20 @@ export function StatusChangesFeed({
                 label: tabLabels[value],
                 // The space sits outside the span so the tab still reads "Waiting 7"
                 // to a screen reader; trailing, it takes no room once the count hides.
-                badge: tabCounts[value] ? (
-                  <>
-                    {" "}
-                    <span className="tabular-nums md:hidden">{tabCounts[value]}</span>
-                  </>
-                ) : undefined,
+                // A status tab always counts its issues; Active and Waiting count
+                // only on a phone, where the header has no room for its chips.
+                badge:
+                  statusCounts[value] !== undefined ? (
+                    <>
+                      {" "}
+                      <span className="tabular-nums">{statusCounts[value]}</span>
+                    </>
+                  ) : tabCounts[value] ? (
+                    <>
+                      {" "}
+                      <span className="tabular-nums md:hidden">{tabCounts[value]}</span>
+                    </>
+                  ) : undefined,
               }))}
             />
           </TabStrip>
@@ -348,6 +360,29 @@ export function StatusChangesFeed({
       )}
     </section>
   );
+}
+
+const STATUS_TABS = STATUS_CHANGE_FILTERS.filter((f) => f !== "all");
+
+/**
+ * How many issues each status tab's statuses hold now, narrowed to the
+ * header's project. A tab is missing until its count is known.
+ */
+function useStatusCounts(wsId: string, projectId: string | null): Partial<Record<FeedTab, number>> {
+  const catalog = useIssueStatuses(wsId);
+  const targets = STATUS_TABS.map((tab) => statusChangeTargets(tab, catalog));
+  const results = useQueries({
+    queries: STATUS_TABS.map((_, i) => ({
+      ...issueStatusCountOptions(wsId, targets[i] ?? [], projectId),
+      enabled: targets[i] !== null,
+    })),
+  });
+  const counts: Partial<Record<FeedTab, number>> = {};
+  STATUS_TABS.forEach((tab, i) => {
+    const count = results[i]!.data;
+    if (count !== undefined) counts[tab] = count;
+  });
+  return counts;
 }
 
 /** A paged feed grouped under day headings, with its loading, error and empty states. */

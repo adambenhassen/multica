@@ -169,6 +169,39 @@ describe("OverviewPage", () => {
     await waitFor(() => expect(calls.at(-1)?.to).toEqual(["done"]));
   });
 
+  it("counts the issues in each status on its tab", async () => {
+    const status = (key: string, category: string, position: number) => ({
+      id: key, workspace_id: "ws-1", key, name: key, description: "", category, color: "#888888",
+      icon: null, is_system: false, position, archived_at: null, created_at: "", updated_at: "",
+    });
+    apiRef.current.listIssueStatuses = () =>
+      Promise.resolve({
+        statuses: [
+          status("backlog", "unstarted", 0),
+          status("todo", "unstarted", 1),
+          status("in_progress", "started", 2),
+          status("in_review", "started", 3),
+          status("qa", "started", 4),
+          status("blocked", "started", 5),
+          status("done", "done", 6),
+          status("cancelled", "closed", 7),
+        ],
+        categories: ["unstarted", "started", "done", "closed"],
+        total: 8,
+      });
+    const inStatus: Record<string, number> = { todo: 8, in_progress: 4, qa: 1, in_review: 3, blocked: 2, done: 240 };
+    apiRef.current.listIssues = ((params: { statuses: string[] }) =>
+      Promise.resolve({ issues: [], total: params.statuses.reduce((n, key) => n + (inStatus[key] ?? 0), 0) })) as never;
+    scriptFeed(() => []);
+    renderPage();
+
+    for (const name of ["Backlog 0", "Todo 8", "In progress 5", "In review 3", "Blocked 2", "Done 240", "Cancelled 0"]) {
+      expect(await within(feed()).findByRole("button", { name })).toBeTruthy();
+    }
+    // A status tab's count shows at every width, unlike the phone-only counts.
+    expect(within(within(feed()).getByRole("button", { name: "Done 240" })).getByText("240").className).not.toContain("md:hidden");
+  });
+
   it("lists only the issues still in a status tab's status, once each", async () => {
     const STILL = { id: "issue-5", identifier: "MUL-5", title: "Still blocked", status: "blocked" };
     const MOVED = { id: "issue-6", identifier: "MUL-6", title: "Unblocked since", status: "todo" };

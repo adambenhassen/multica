@@ -65,8 +65,11 @@ describe("statusChangeTargets", () => {
   const entry = (key: string, category: string, archived = false) =>
     ({ key, category, archived_at: archived ? "2026-10-01T00:00:00Z" : null }) as IssueStatusEntry;
   const catalog = buildIssueStatusCatalog([
+    entry("backlog", "unstarted"),
     entry("todo", "unstarted"),
+    entry("triage", "unstarted"),
     entry("in_progress", "started"),
+    entry("in_review", "started"),
     entry("qa", "started"),
     entry("blocked", "started"),
     entry("done", "done"),
@@ -74,8 +77,11 @@ describe("statusChangeTargets", () => {
     entry("cancelled", "closed"),
   ]);
 
-  it("narrows by the category a change went into, keeping Blocked separate", () => {
+  it("narrows by the category a change went into, keeping Backlog, In review and Blocked separate", () => {
     expect(statusChangeTargets("all", catalog)).toEqual([]);
+    expect(statusChangeTargets("backlog", catalog)).toEqual(["backlog"]);
+    expect(statusChangeTargets("todo", catalog)).toEqual(["todo", "triage"]);
+    expect(statusChangeTargets("in_review", catalog)).toEqual(["in_review"]);
     expect(statusChangeTargets("blocked", catalog)).toEqual(["blocked"]);
     expect(statusChangeTargets("in_progress", catalog)).toEqual(["in_progress", "qa"]);
     expect(statusChangeTargets("done", catalog)).toEqual(["done", "shipped"]);
@@ -86,7 +92,8 @@ describe("statusChangeTargets", () => {
     expect(statusChangeTargets("in_progress", buildIssueStatusCatalog(undefined))).toBeNull();
     expect(statusChangeTargets("blocked", buildIssueStatusCatalog(undefined))).toEqual(["blocked"]);
     const failed = buildIssueStatusCatalog(undefined, { isError: true });
-    expect(statusChangeTargets("in_progress", failed)).toEqual(["in_progress", "in_review"]);
+    expect(statusChangeTargets("in_progress", failed)).toEqual(["in_progress"]);
+    expect(statusChangeTargets("todo", failed)).toEqual(["todo"]);
     expect(statusChangeTargets("cancelled", failed)).toEqual(["cancelled"]);
   });
 });

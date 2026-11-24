@@ -113,23 +113,35 @@ export function groupFeedByDay(
 }
 
 /** Tabs on the Dashboard's status-changes feed, by the status a change went into. */
-export const STATUS_CHANGE_FILTERS = ["all", "in_progress", "blocked", "done", "cancelled"] as const;
+export const STATUS_CHANGE_FILTERS = [
+  "all",
+  "backlog",
+  "todo",
+  "in_progress",
+  "in_review",
+  "blocked",
+  "done",
+  "cancelled",
+] as const;
 export type StatusChangeFilter = (typeof STATUS_CHANGE_FILTERS)[number];
 
-const STATUS_CHANGE_CATEGORY = { in_progress: "started", done: "done", cancelled: "closed" } as const;
+// Built-in statuses with a tab of their own, left out of their category's tab.
+const OWN_TAB = new Set<string>(["backlog", "in_review", "blocked"]);
+const STATUS_CHANGE_CATEGORY = { todo: "unstarted", in_progress: "started", done: "done", cancelled: "closed" } as const;
 
 /**
  * The status keys a filter's changes went into, or null while the workspace
- * catalog is still loading. In progress is every started status except
- * Blocked, which has its own tab; custom statuses count by their category.
- * Archived statuses stay in, so changes into them before archiving still show.
+ * catalog is still loading. Backlog, In review and Blocked have tabs of their
+ * own; Todo is every other unstarted status and In progress every other
+ * started one, so custom statuses count by their category. Archived statuses
+ * stay in, so changes into them before archiving still show.
  */
 export function statusChangeTargets(
   filter: StatusChangeFilter,
   catalog: Pick<IssueStatusCatalog, "statuses" | "categoryOf" | "isLoaded" | "isError">,
 ): string[] | null {
   if (filter === "all") return [];
-  if (filter === "blocked") return ["blocked"];
+  if (filter === "backlog" || filter === "in_review" || filter === "blocked") return [filter];
   // A catalog that cannot be read falls back to the built-in statuses.
   const keys = catalog.isLoaded
     ? catalog.statuses.map((s) => s.key)
@@ -138,7 +150,7 @@ export function statusChangeTargets(
       : null;
   if (!keys) return null;
   const category = STATUS_CHANGE_CATEGORY[filter];
-  return keys.filter((key) => key !== "blocked" && catalog.categoryOf(key) === category);
+  return keys.filter((key) => !OWN_TAB.has(key) && catalog.categoryOf(key) === category);
 }
 
 /** Why an issue nobody is running on is waiting, and since (or until) when. */

@@ -24,6 +24,9 @@ export const overviewKeys = {
   // Under the feed prefix, so the same activity events refresh it.
   activeIssues: (wsId: string, ids: readonly string[], project: string | null) =>
     [...overviewKeys.activityAll(wsId), "active-issues", project, ...ids] as const,
+  // Under the feed prefix, so a status change's activity refreshes it.
+  statusCount: (wsId: string, statuses: readonly string[], project: string | null) =>
+    [...overviewKeys.activityAll(wsId), "status-count", project, ...statuses] as const,
   // Outside the feed prefix: pull request events refresh it, not activity.
   issueCI: (wsId: string) => [...overviewKeys.all(wsId), "issue-ci"] as const,
 };
@@ -80,6 +83,24 @@ export function activeIssuesOptions(wsId: string, ids: readonly string[], projec
         : api
             .listIssues({ ids: [...ids], project_ids: project ? [project] : undefined, limit: ids.length })
             .then((res) => res.issues),
+    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * How many issues are in any of these statuses now, optionally in one project.
+ * No statuses counts none, not every issue.
+ */
+export function issueStatusCountOptions(wsId: string, statuses: readonly string[], project: string | null) {
+  return queryOptions({
+    queryKey: overviewKeys.statusCount(wsId, statuses, project),
+    queryFn: () =>
+      statuses.length === 0
+        ? Promise.resolve(0)
+        : api
+            .listIssues({ statuses: [...statuses], project_ids: project ? [project] : undefined, limit: 1 })
+            .then((res) => res.total),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   });
