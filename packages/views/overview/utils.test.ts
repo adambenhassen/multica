@@ -272,7 +272,7 @@ describe("waitingChip", () => {
     [ci("ci_queued"), "ci_waiting"],
     [ci("ci_running"), "ci_running"],
     [ci("ci_failing"), "ci_running"],
-    [ci("ci_failed"), "blocked"],
+    [ci("ci_failed"), "ci_failed"],
     [ci("ci_gate"), "gate"],
     [{ kind: "wakeup", wakeup: { kind: "at", next_fire_at: null } as WakeupPreview } as const, "scheduled"],
   ])("%j counts toward %s", (reason, want) => {

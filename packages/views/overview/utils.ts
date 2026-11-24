@@ -230,7 +230,7 @@ export const WAITING_GROUPS = [
 export type WaitingGroup = (typeof WAITING_GROUPS)[number];
 
 /** The Activity header's waiting chips, in order. */
-export const WAITING_CHIPS = ["ci_running", "ci_waiting", "blocked", "gate", "scheduled"] as const;
+export const WAITING_CHIPS = ["ci_running", "ci_waiting", "ci_failed", "gate", "scheduled"] as const;
 export type WaitingChip = (typeof WAITING_CHIPS)[number];
 
 const CHIP_OF_REASON: Record<WaitingReason["kind"], WaitingChip | null> = {
@@ -240,7 +240,7 @@ const CHIP_OF_REASON: Record<WaitingReason["kind"], WaitingChip | null> = {
   ci_running: "ci_running",
   // A check failed but others still run: CI is not done yet.
   ci_failing: "ci_running",
-  ci_failed: "blocked",
+  ci_failed: "ci_failed",
   ci_gate: "gate",
   wakeup: "scheduled",
 };

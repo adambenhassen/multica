@@ -36,7 +36,8 @@ export function OverviewPage() {
   const projectId =
     projectValue !== ALL_PROJECTS && projects.some((p) => p.id === projectValue) ? projectValue : null;
   const [tab, setTab] = useState<FeedTab>("all");
-  // The waiting chip that opened the Waiting tab, shown pressed while it stays open.
+  // The waiting chip that opened the Waiting tab: it stays pressed and narrows
+  // the tab to its issues until the tab changes.
   const [openedBy, setOpenedBy] = useState<WaitingChip | null>(null);
   const changeTab = (next: FeedTab, chip: WaitingChip | null = null) => {
     setTab(next);
@@ -44,6 +45,8 @@ export function OverviewPage() {
   };
   const workingAgents = useWorkingAgents(wsId, projectId);
   const waiting = useWaitingCounts(wsId, projectId);
+  // A chip whose last issue stopped waiting no longer narrows the Waiting tab.
+  const chip = tab === "waiting" && openedBy && waiting?.chips[openedBy] ? openedBy : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -63,18 +66,15 @@ export function OverviewPage() {
               />
               {/* How many issues wait on each kind of thing; each opens the Waiting tab. */}
               {waiting &&
-                WAITING_CHIPS.filter((chip) => waiting.chips[chip]).map((chip) => {
-                  const pressed = tab === "waiting" && openedBy === chip;
-                  return (
-                    <WaitingChipButton
-                      key={chip}
-                      chip={chip}
-                      count={waiting.chips[chip]!}
-                      value={pressed}
-                      onToggle={() => (pressed ? changeTab("all") : changeTab("waiting", chip))}
-                    />
-                  );
-                })}
+                WAITING_CHIPS.filter((c) => waiting.chips[c]).map((c) => (
+                  <WaitingChipButton
+                    key={c}
+                    chip={c}
+                    count={waiting.chips[c]!}
+                    value={chip === c}
+                    onToggle={() => (chip === c ? changeTab("all") : changeTab("waiting", c))}
+                  />
+                ))}
             </div>
             <ProjectFilter projects={projects} projectValue={projectValue} onProjectChange={setProjectValue} />
             <DisplayMenu />
@@ -91,6 +91,7 @@ export function OverviewPage() {
             tab={tab}
             onTabChange={changeTab}
             tabCounts={{ active: workingAgents && countRuns(workingAgents), waiting: waiting?.total }}
+            chip={chip}
           />
         </div>
       </div>
@@ -108,11 +109,13 @@ function ActivityList({
   tab,
   onTabChange,
   tabCounts,
+  chip,
 }: {
   projectId: string | null;
   tab: FeedTab;
   onTabChange: (tab: FeedTab) => void;
   tabCounts: FeedTabCounts;
+  chip: WaitingChip | null;
 }) {
   const { t } = useT("overview");
   const [hoveredIssueId, setHoveredIssueId] = useState<string | null>(null);
@@ -150,7 +153,7 @@ function ActivityList({
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col">
-        <StatusChangesFeed focus={focus} tab={tab} onTabChange={onTabChange} tabCounts={tabCounts} />
+        <StatusChangesFeed focus={focus} tab={tab} onTabChange={onTabChange} tabCounts={tabCounts} chip={chip} />
       </div>
     </div>
   );
@@ -263,7 +266,7 @@ function useWaitingCounts(
 const WAITING_CHIP_ICON = {
   ci_running: CircleDashed,
   ci_waiting: Hourglass,
-  blocked: TriangleAlert,
+  ci_failed: TriangleAlert,
   gate: GitMerge,
   scheduled: Bell,
 } satisfies Record<WaitingChip, unknown>;

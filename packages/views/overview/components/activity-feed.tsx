@@ -42,9 +42,11 @@ import {
   latestStatusChangePerIssue,
   statusChangeTargets,
   WAITING_GROUPS,
+  waitingChip,
   waitingGroup,
   waitingIssues,
   wakeupFireTime,
+  type WaitingChip,
   type WaitingGroup,
   type WaitingReason,
 } from "../utils";
@@ -164,12 +166,15 @@ export function StatusChangesFeed({
   tab,
   onTabChange,
   tabCounts = {},
+  chip = null,
 }: {
   focus: FeedFocus;
   /** Owned by the page, so its header can open the Active tab. */
   tab: FeedTab;
   onTabChange: (tab: FeedTab) => void;
   tabCounts?: FeedTabCounts;
+  /** The header chip the Waiting tab is narrowed to, if any. */
+  chip?: WaitingChip | null;
 }) {
   const { t } = useT("overview");
   const wsId = useWorkspaceId();
@@ -189,13 +194,22 @@ export function StatusChangesFeed({
     return focus.issue ? ids.filter((id) => id === focus.issue!.id) : ids;
   }, [running.byIssue, focus.issue]);
   // Waiting is the All feed for the issues waiting on a run, CI, the merge
-  // gate or a wakeup, narrowed by the reason filter above the list.
+  // gate or a wakeup, narrowed by a header chip and by the reason filter above
+  // the list.
   const waiting = useWaitingIssues(wsId);
   const [waitingFilter, setWaitingFilter] = useState<WaitingGroup | "all">("all");
+  // Another chip starts from all of its reasons.
+  const [filterChip, setFilterChip] = useState(chip);
+  if (filterChip !== chip) {
+    setFilterChip(chip);
+    setWaitingFilter("all");
+  }
   const allWaitingIds = useMemo(() => {
-    const ids = [...waiting.byIssue.keys()].sort();
-    return focus.issue ? ids.filter((id) => id === focus.issue!.id) : ids;
-  }, [waiting.byIssue, focus.issue]);
+    let ids = [...waiting.byIssue.keys()].sort();
+    if (focus.issue) ids = ids.filter((id) => id === focus.issue!.id);
+    if (chip) ids = ids.filter((id) => waitingChip(waiting.byIssue.get(id)!) === chip);
+    return ids;
+  }, [waiting.byIssue, focus.issue, chip]);
   // The counts follow the header's project, as the feed rows do.
   const { data: projectIssues } = useQuery({
     ...activeIssuesOptions(wsId, allWaitingIds, focus.projectId),

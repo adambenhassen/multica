@@ -62,7 +62,7 @@
     "chips": {
       "ci_running": "{{count}} CI running",
       "ci_waiting": "{{count}} CI waiting",
-      "blocked": "{{count}} blocked",
+      "ci_failed": "{{count}} CI failed",
       "gate": "{{count}} at gate",
       "scheduled": "{{count}} scheduled"
     },

@@ -62,7 +62,7 @@
     "chips": {
       "ci_running": "{{count}} 件CI実行中",
       "ci_waiting": "{{count}} 件CI待機",
-      "blocked": "{{count}} 件ブロック中",
+      "ci_failed": "{{count}} 件CI失敗",
       "gate": "{{count}} 件ゲート",
       "scheduled": "{{count}} 件予定"
     },

@@ -396,12 +396,19 @@ describe("OverviewPage", () => {
     expect([...chip.parentElement!.children].slice(1).map((c) => c.getAttribute("aria-label"))).toEqual([
       "1 CI running", "1 CI waiting", "1 scheduled",
     ]);
+    // A chip opens the Waiting tab narrowed to its issues.
     fireEvent.click(chip);
     expect(chip.getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: "1 scheduled" }).getAttribute("aria-pressed")).toBe("false");
-    expect(within(feed()).getByRole("button", { name: "Waiting 4", pressed: true })).toBeTruthy();
-    expect(await within(feed()).findByText("CI running on acme/widget#7 for 37m")).toBeTruthy();
-    expect(within(feed()).getByText("Run queued for 10m")).toBeTruthy();
+    const waitingTab = within(feed()).getByRole("button", { name: "Waiting 4", pressed: true });
+    await waitFor(() => expect(calls.at(-1)).toMatchObject({ issues: ["issue-2"] }));
+    const reasons = await within(feed()).findByRole("group", { name: "Waiting for" });
+    expect(within(reasons).getAllByRole("button").map((b) => b.textContent)).toEqual(["All 1", "CI running 1"]);
+    // The Waiting tab itself shows every waiting issue.
+    fireEvent.click(waitingTab);
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    expect(await within(feed()).findByText("Run queued for 10m")).toBeTruthy();
+    expect(within(feed()).getByText("CI running on acme/widget#7 for 37m")).toBeTruthy();
     const docs = within(feed()).getByText("Update the docs").closest("a")!;
     expect(docs.querySelector("[data-waiting]")!.getAttribute("data-waiting")).toBe("wakeup");
     expect(within(docs).getByText("Wakes in 2h 4m")).toBeTruthy();
@@ -466,7 +473,8 @@ describe("OverviewPage", () => {
       [move("a-1", SHIP), move("a-2", FIX), move("a-3", DOCS)].filter((e) => !p.issues?.length || p.issues.includes(e.issue.id)),
     );
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "1 blocked" }));
+    await screen.findByRole("button", { name: "1 CI failed" });
+    fireEvent.click(within(feed()).getByRole("button", { name: /^Waiting/ }));
     const reasons = await within(feed()).findByRole("group", { name: "Waiting for" });
     expect(within(reasons).getAllByRole("button").map((b) => b.textContent)).toEqual([
       "All 3", "CI running 1", "CI failed 1", "Wakeup due 1",
