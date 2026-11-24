@@ -96,6 +96,7 @@ describe("latestStatusChangePerIssue", () => {
       type: "activity",
       id,
       action: "status_changed",
+      details: { from: "todo", to: "done" },
       actor_type: "agent",
       actor_id: "a",
       created_at: "",
@@ -115,6 +116,18 @@ describe("latestStatusChangePerIssue", () => {
     ];
     // i1's creation is an earlier move; i3 never moved, so its creation stays.
     expect(latestStatusChangePerIssue(entries).map((e) => e.id)).toEqual(["s3", "c1", "a1", "s2", "k3"]);
+  });
+
+  it("counts a duplicate mark change that moved the status as a move", () => {
+    const entries = [
+      row("m2", "i1", { action: "duplicate_marked", details: { original_identifier: "X-2" } }),
+      row("m1", "i1", { action: "duplicate_marked", details: { from: "todo", to: "cancelled" } }),
+      row("s1", "i1"),
+      row("u1", "i2", { action: "duplicate_unmarked", details: { to: "todo" } }),
+      row("k2", "i2", { action: "created" }),
+    ];
+    // A mark moved to another original (no `to`) moved nothing, so it passes through.
+    expect(latestStatusChangePerIssue(entries).map((e) => e.id)).toEqual(["m2", "m1", "u1"]);
   });
 
   it("keeps each issue's newest row of any kind for one-row-per-issue lists", () => {

@@ -37,6 +37,7 @@ import {
   currentStatusRows,
   durationParts,
   groupFeedByDay,
+  isStatusMove,
   latestRowPerIssue,
   latestStatusChangePerIssue,
   statusChangeTargets,
@@ -513,7 +514,7 @@ const FeedRow = memo(function FeedRow({
 
   const details = (entry.details ?? {}) as Record<string, string>;
   const isComment = entry.type === "comment";
-  const isMove = entry.action === "status_changed" && !!details.to;
+  const isMove = isStatusMove(entry);
   const isCreated = entry.type === "activity" && entry.action === "created";
   const actorName = entry.actor_name || getActorName(entry.actor_type, entry.actor_id);
   const excerpt = isComment ? commentExcerpt(entry.content ?? "") : "";
@@ -527,9 +528,12 @@ const FeedRow = memo(function FeedRow({
     const status = catalog.labelOf(details.to!);
     const category = catalog.categoryOf(details.to!);
     phrase =
-      category === "done" || category === "closed"
-        ? t(($) => $.activity.marked, { status })
-        : t(($) => $.activity.moved, { status });
+      entry.action !== "status_changed"
+        ? // A duplicate mark change standing in for the move names the other issue.
+          formatActivity(entry, tIssues, locale, getActorName, catalog.labelOf)
+        : category === "done" || category === "closed"
+          ? t(($) => $.activity.marked, { status })
+          : t(($) => $.activity.moved, { status });
     lead = (
       <StatusIcon
         status={details.to!}

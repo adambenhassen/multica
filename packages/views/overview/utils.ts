@@ -45,6 +45,15 @@ export function coalesceFeed(entries: WorkspaceActivityEntry[]): WorkspaceActivi
   return out;
 }
 
+// A duplicate mark change that moved the status stands in for the status row
+// and carries the move.
+const STATUS_MOVE_ACTIONS = new Set(["status_changed", "duplicate_marked", "duplicate_unmarked"]);
+
+/** Whether a feed row moved its issue's status, and so carries `to`. */
+export function isStatusMove(entry: WorkspaceActivityEntry): boolean {
+  return entry.type === "activity" && STATUS_MOVE_ACTIONS.has(entry.action ?? "") && !!entry.details?.to;
+}
+
 /**
  * Keeps each issue's newest move and drops its older ones, so an issue that
  * moved several times shows once, at its latest move. Its creation counts as
@@ -54,7 +63,7 @@ export function coalesceFeed(entries: WorkspaceActivityEntry[]): WorkspaceActivi
 export function latestStatusChangePerIssue(entries: WorkspaceActivityEntry[]): WorkspaceActivityEntry[] {
   const seen = new Set<string>();
   return entries.filter((entry) => {
-    if (entry.type !== "activity" || (entry.action !== "status_changed" && entry.action !== "created")) return true;
+    if (!isStatusMove(entry) && !(entry.type === "activity" && entry.action === "created")) return true;
     if (seen.has(entry.issue.id)) return false;
     seen.add(entry.issue.id);
     return true;

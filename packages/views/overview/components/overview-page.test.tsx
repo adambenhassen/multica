@@ -607,6 +607,23 @@ describe("OverviewPage", () => {
     expect(row.querySelector('[title="Done"]')).not.toBeNull();
   });
 
+  it("shows a duplicate mark that cancelled an issue as its move, naming the original on hover", async () => {
+    const dropped = { id: "issue-3", identifier: "MUL-3", title: "Drop the duplicate", status: "cancelled" };
+    scriptFeed(() => [
+      {
+        type: "activity", id: "d-1", actor_type: "agent", actor_id: "agent-1", created_at: NOW, action: "duplicate_marked",
+        details: { original_id: "issue-1", original_identifier: "MUL-1", from: "todo", to: "cancelled" }, issue: dropped,
+      },
+    ]);
+    renderPage();
+
+    const row = (await within(feed()).findByText("Drop the duplicate")).closest("a")!;
+    expect(within(row).getByLabelText("→")).toBeTruthy();
+    expect(row.querySelector('[title="Todo"]')).not.toBeNull();
+    expect(row.querySelector('[title="Cancelled"]')).not.toBeNull();
+    expect(row.querySelector('[title="marked this issue as a duplicate of MUL-1"]')).not.toBeNull();
+  });
+
   it("labels rows with their project and filters to a project", async () => {
     apiRef.current.listProjects = () =>
       Promise.resolve({ projects: [{ id: "project-1", title: "Teagram server", icon: null }], total: 1 });
