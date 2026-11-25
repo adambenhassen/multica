@@ -44,6 +44,11 @@
       "failures": "Exécutions échouées"
     }
   },
+  "pin": {
+    "heading": "Épinglés",
+    "pin": "Épingler en haut",
+    "unpin": "Détacher"
+  },
   "issue_filter": {
     "label": "Filtré sur",
     "filter": "Afficher uniquement cette tâche",

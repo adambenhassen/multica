@@ -93,12 +93,47 @@ describe("workspace activity API", () => {
     expect(result.entries.map((e) => e.id)).toEqual(["act-1"]);
   });
 
+  it("keeps a row whose priority is malformed, without the priority", async () => {
+    const { result } = await read({
+      entries: [{ ...entry, issue: { ...entry.issue, priority: "high" } }, { ...entry, id: "act-2", issue: { ...entry.issue, priority: 3 } }],
+    });
+    expect(result.entries.map((e) => e.issue.priority)).toEqual(["high", undefined]);
+  });
+
   it.each([null, [], "nope", { entries: "nope" }])(
     "falls back to an empty feed for %j",
     async (body) => {
       expect((await read(body)).result).toEqual({ entries: [], next_cursor: null });
     },
   );
+});
+
+describe("activity pins API", () => {
+  async function listPins(body: unknown) {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 })));
+    return new ApiClient("https://api.example.test").listActivityPins();
+  }
+
+  it("reads the pinned issue ids and drops non-string ones", async () => {
+    expect(await listPins({ issue_ids: ["issue-1", 2, null, "issue-2"] })).toEqual(["issue-1", "issue-2"]);
+  });
+
+  it.each([null, [], "nope", { issue_ids: "nope" }])("falls back to no pins for %j", async (body) => {
+    expect(await listPins(body)).toEqual([]);
+  });
+
+  it("pins with PUT and unpins with DELETE on the issue's path", async () => {
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+    vi.stubGlobal("fetch", fetch);
+    const client = new ApiClient("https://api.example.test");
+    await client.pinActivityIssue("issue-1");
+    await client.unpinActivityIssue("issue-1");
+    const calls = fetch.mock.calls.map(([url, init]) => [new URL(String(url)).pathname, (init as RequestInit).method]);
+    expect(calls).toEqual([
+      ["/api/activity/pins/issue-1", "PUT"],
+      ["/api/activity/pins/issue-1", "DELETE"],
+    ]);
+  });
 });
 
 // The issue-list buckets depend on this filter reaching the server. Without it

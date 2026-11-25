@@ -1144,6 +1144,7 @@ const WorkspaceActivityEntrySchema = TimelineEntrySchema.extend({
     identifier: z.string(),
     title: z.string(),
     status: z.string(),
+    priority: z.string().optional().catch(undefined),
     project_id: z.string().nullable().optional().catch(null),
   }).loose(),
 });
@@ -1161,6 +1162,12 @@ export const WorkspaceActivityResponseSchema = z.object({
 }).loose();
 
 export const EMPTY_WORKSPACE_ACTIVITY: WorkspaceActivityResponse = { entries: [], next_cursor: null };
+
+// GET /api/activity/pins — the issues the member pinned to the top of the
+// Activity feed. A non-string id is dropped.
+export const ActivityPinsResponseSchema = z.object({
+  issue_ids: z.array(z.unknown()).transform((ids) => ids.filter((id): id is string => typeof id === "string")),
+});
 
 const OptionalStringSchema = z.preprocess(
   (value) => (typeof value === "string" ? value : undefined),

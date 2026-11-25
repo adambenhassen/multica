@@ -729,3 +729,54 @@ describe("OverviewPage", () => {
     expect(await within(feed()).findByText("Fix the reconnect")).toBeTruthy();
   });
 });
+
+describe("OverviewPage pins and priority", () => {
+  /** Serves the feed, narrowed to the issues a call asks for. */
+  function scriptIssues(rows: ReturnType<typeof move>[]) {
+    return scriptFeed((p) => (p.issues?.length ? rows.filter((r) => p.issues!.includes(r.issue.id)) : rows));
+  }
+
+  it("leads each row with its issue's priority", async () => {
+    scriptFeed(() => [move("a-1", { ...SHIP, priority: "high" } as typeof SHIP)]);
+    renderPage();
+
+    const row = (await within(feed()).findByText("Ship the dashboard")).closest("a")!;
+    expect(within(row).getByTitle("High")).toBeTruthy();
+  });
+
+  it("lifts pinned issues above the day groups, once each", async () => {
+    apiRef.current.listActivityPins = () => Promise.resolve(["issue-2"]);
+    const calls = scriptIssues([move("a-1", SHIP), move("a-2", FIX)]);
+    renderPage();
+
+    const pinned = await within(feed()).findByText("Pinned");
+    expect(within(feed()).getAllByText("Fix the reconnect")).toHaveLength(1);
+    // The pinned row comes first, under its own heading.
+    const titles = within(feed()).getAllByText(/Ship the dashboard|Fix the reconnect/).map((el) => el.textContent);
+    expect(titles).toEqual(["Fix the reconnect", "Ship the dashboard"]);
+    expect(pinned.compareDocumentPosition(within(feed()).getByText("Fix the reconnect")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(calls.some((c) => c.issues?.join() === "issue-2")).toBe(true);
+  });
+
+  it("pins and unpins from a row's button", async () => {
+    let pins = ["issue-2"];
+    apiRef.current.listActivityPins = () => Promise.resolve([...pins]);
+    const pin = vi.fn((id: string) => ((pins = [...pins, id]), Promise.resolve()));
+    const unpin = vi.fn((id: string) => ((pins = pins.filter((p) => p !== id)), Promise.resolve()));
+    apiRef.current.pinActivityIssue = pin as unknown as () => Promise<unknown>;
+    apiRef.current.unpinActivityIssue = unpin as unknown as () => Promise<unknown>;
+    scriptIssues([move("a-1", SHIP), move("a-2", FIX)]);
+    renderPage();
+
+    await within(feed()).findByText("Pinned");
+    fireEvent.click(within(feed()).getByRole("button", { name: "Unpin" }));
+    await waitFor(() => expect(unpin).toHaveBeenCalledWith("issue-2"));
+    await waitFor(() => expect(within(feed()).queryByText("Pinned")).toBeNull());
+    expect(within(feed()).getAllByText("Fix the reconnect")).toHaveLength(1);
+
+    const shipRow = within(feed()).getByText("Ship the dashboard").closest("a")!.parentElement!;
+    fireEvent.click(within(shipRow).getByRole("button", { name: "Pin to top" }));
+    await waitFor(() => expect(pin).toHaveBeenCalledWith("issue-1"));
+    expect(await within(feed()).findByText("Pinned")).toBeTruthy();
+  });
+});

@@ -44,6 +44,11 @@
       "failures": "失敗的執行"
     }
   },
+  "pin": {
+    "heading": "已置頂",
+    "pin": "置頂",
+    "unpin": "取消置頂"
+  },
   "issue_filter": {
     "label": "已篩選",
     "filter": "僅顯示此任務",

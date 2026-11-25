@@ -44,6 +44,11 @@
       "failures": "Failed runs"
     }
   },
+  "pin": {
+    "heading": "Pinned",
+    "pin": "Pin to top",
+    "unpin": "Unpin"
+  },
   "issue_filter": {
     "label": "Filtered to",
     "filter": "Show only this issue",

@@ -56,6 +56,8 @@ export interface WorkspaceActivityIssueRef {
   identifier: string;
   title: string;
   status: string;
+  /** Absent from older servers. */
+  priority?: string;
   /** The issue's project; absent when it has none (and from older servers). */
   project_id?: string | null;
 }

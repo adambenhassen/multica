@@ -44,6 +44,11 @@
       "failures": "失敗した実行"
     }
   },
+  "pin": {
+    "heading": "ピン留め",
+    "pin": "上部にピン留め",
+    "unpin": "ピン留めを解除"
+  },
   "issue_filter": {
     "label": "絞り込み中",
     "filter": "このタスクのみ表示",

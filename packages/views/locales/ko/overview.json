@@ -44,6 +44,11 @@
       "failures": "실패한 실행"
     }
   },
+  "pin": {
+    "heading": "고정됨",
+    "pin": "맨 위에 고정",
+    "unpin": "고정 해제"
+  },
   "issue_filter": {
     "label": "필터 적용됨",
     "filter": "이 태스크만 보기",

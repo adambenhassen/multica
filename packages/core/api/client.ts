@@ -375,6 +375,7 @@ import {
   TaskMessageListSchema,
   TimelineEntriesSchema,
   WorkspaceActivityResponseSchema,
+  ActivityPinsResponseSchema,
   UserSchema,
   WebhookDeliveryResponseSchema,
   BillingBalanceSchema,
@@ -1798,6 +1799,22 @@ export class ApiClient {
     return parseWithFallback(raw, WorkspaceActivityResponseSchema, EMPTY_WORKSPACE_ACTIVITY, {
       endpoint: "GET /api/activity",
     });
+  }
+
+  // The issues the member pinned to the top of the Activity feed, oldest pin first.
+  async listActivityPins(): Promise<string[]> {
+    const raw = await this.fetch<unknown>("/api/activity/pins");
+    return parseWithFallback(raw, ActivityPinsResponseSchema, { issue_ids: [] }, {
+      endpoint: "GET /api/activity/pins",
+    }).issue_ids;
+  }
+
+  async pinActivityIssue(issueId: string): Promise<void> {
+    await this.fetch(`/api/activity/pins/${issueId}`, { method: "PUT" });
+  }
+
+  async unpinActivityIssue(issueId: string): Promise<void> {
+    await this.fetch(`/api/activity/pins/${issueId}`, { method: "DELETE" });
   }
 
   async getAssigneeFrequency(): Promise<AssigneeFrequencyEntry[]> {

@@ -29,6 +29,8 @@ export const overviewKeys = {
     [...overviewKeys.activityAll(wsId), "status-count", project, ...statuses] as const,
   // Outside the feed prefix: pull request events refresh it, not activity.
   issueCI: (wsId: string) => [...overviewKeys.all(wsId), "issue-ci"] as const,
+  // The caller's own pins; outside the feed prefix, activity does not change them.
+  pins: (wsId: string) => [...overviewKeys.all(wsId), "pins"] as const,
 };
 
 // The feed endpoint caps a page at 50; the Dashboard list scrolls inside it.
@@ -112,5 +114,14 @@ export function issueCIOptions(wsId: string) {
     queryKey: overviewKeys.issueCI(wsId),
     queryFn: () => api.getIssueCI().then((res) => res.issues),
     staleTime: 30 * 1000,
+  });
+}
+
+/** The issues the member pinned to the top of the Activity feed, oldest pin first. */
+export function activityPinsOptions(wsId: string) {
+  return queryOptions({
+    queryKey: overviewKeys.pins(wsId),
+    queryFn: () => api.listActivityPins(),
+    staleTime: 5 * 60 * 1000,
   });
 }

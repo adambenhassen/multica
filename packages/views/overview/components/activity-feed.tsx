@@ -1,17 +1,27 @@
 "use client";
 
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Activity, ArrowRight, Bell, CircleDashed, Clock, GitMerge, Hourglass, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, TriangleAlert, UserRound } from "@multica/ui/icons";
+import { Activity, ArrowRight, Bell, CircleDashed, Clock, GitMerge, Hourglass, ListFilter, CirclePlus, CircleX, MessageSquare, Pencil, Pin, PinOff, TriangleAlert, UserRound } from "@multica/ui/icons";
 import { useInfiniteQuery, useQueries, useQuery, type UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { projectListOptions } from "@multica/core/projects/queries";
+import { PRIORITY_CONFIG } from "@multica/core/issues/config";
 import { agentTaskSnapshotOptions } from "@multica/core/agents";
 import { workspaceWakeupSummariesOptions } from "@multica/core/issues/wakeups";
-import { activeIssuesOptions, issueCIOptions, issueStatusCountOptions, useOverviewLayoutStore, workspaceActivityOptions } from "@multica/core/overview";
+import {
+  activeIssuesOptions,
+  activityPinsOptions,
+  issueCIOptions,
+  issueStatusCountOptions,
+  useOverviewLayoutStore,
+  useSetActivityPin,
+  workspaceActivityOptions,
+} from "@multica/core/overview";
 import type {
+  IssuePriority,
   WorkspaceActivityEntry,
   WorkspaceActivityIssueRef,
   WorkspaceActivityKind,
@@ -252,13 +262,11 @@ export function StatusChangesFeed({
   // A status tab lists where issues are now: the issues still in its
   // statuses, each at its latest move in, not every move ever made into them.
   const statusTab = !allLike && tab !== "failures";
+  const filters = { kind, to: targets ?? [], current: statusTab, project: focus.projectId };
   const query = useInfiniteQuery({
     ...workspaceActivityOptions(wsId, {
-      kind,
-      to: targets ?? [],
-      current: statusTab,
+      ...filters,
       issues: tab === "active" ? activeIssues : tab === "waiting" ? waitingIds : focus.issue ? [focus.issue.id] : [],
-      project: focus.projectId,
     }),
     // With nobody working, Active has no issues to ask for: an empty filter
     // would mean every issue.
@@ -266,6 +274,23 @@ export function StatusChangesFeed({
       targets !== null &&
       (tab !== "active" || (!running.pending && activeIssues.length > 0)) &&
       (tab !== "waiting" || (!waiting.pending && waitingIds.length > 0)),
+  });
+  // The reader's pinned issues sit above the day groups, each at its newest
+  // row this tab lists. Filtered to one issue, the feed has nothing to lift.
+  const { data: pins = NO_PINS } = useQuery(activityPinsOptions(wsId));
+  const { mutate: setPin } = useSetActivityPin(wsId);
+  const pinnedSet = useMemo(() => new Set(pins), [pins]);
+  const pinnedIds = useMemo(() => {
+    if (focus.issue) return NO_PINS;
+    const ids = [...pins].sort();
+    if (tab === "active") return ids.filter((id) => activeIssues.includes(id));
+    if (tab === "waiting") return ids.filter((id) => waitingIds.includes(id));
+    return ids;
+  }, [pins, focus.issue, tab, activeIssues, waitingIds]);
+  const pinnedQuery = useInfiniteQuery({
+    ...workspaceActivityOptions(wsId, { ...filters, issues: pinnedIds }),
+    // No pinned issues would mean every issue.
+    enabled: targets !== null && pinnedIds.length > 0,
   });
   const statusCounts = useStatusCounts(wsId, focus.projectId);
   const tabLabels: Record<FeedTab, string> = {
@@ -356,6 +381,9 @@ export function StatusChangesFeed({
           // An issue whose runs keep failing shows once, at its latest failure.
           latestPerIssue={tab === "failures"}
           waiting={tab === "waiting" || showWaiting ? waiting.byIssue : undefined}
+          pinned={pinnedIds.length > 0 ? { ids: pinnedIds, query: pinnedQuery } : undefined}
+          pinnedSet={pinnedSet}
+          onSetPin={setPin}
         />
       )}
     </section>
@@ -363,6 +391,10 @@ export function StatusChangesFeed({
 }
 
 const STATUS_TABS = STATUS_CHANGE_FILTERS.filter((f) => f !== "all");
+
+const NO_PINS: string[] = [];
+
+type SetPin = (vars: { issueId: string; pinned: boolean }) => void;
 
 /**
  * How many issues each status tab's statuses hold now, narrowed to the
@@ -394,6 +426,9 @@ function FeedBody({
   currentIn,
   latestPerIssue,
   waiting,
+  pinned,
+  pinnedSet,
+  onSetPin,
 }: {
   query: UseInfiniteQueryResult<WorkspaceActivityEntry[]>;
   focus: FeedFocus;
@@ -413,6 +448,15 @@ function FeedBody({
    * Waiting tab, and on every tab when the Display menu asks for it.
    */
   waiting?: ReadonlyMap<string, WaitingReason>;
+  /**
+   * The pinned issues this tab lists and their feed: one row per issue, its
+   * newest, above the day groups, which leave them out. Pages load until
+   * every pinned issue has its row.
+   */
+  pinned?: { ids: readonly string[]; query: UseInfiniteQueryResult<WorkspaceActivityEntry[]> };
+  /** Every issue the reader pinned, for each row's pin button. */
+  pinnedSet: ReadonlySet<string>;
+  onSetPin: SetPin;
 }) {
   const { t } = useT("overview");
   const locale = useLocale();
@@ -438,14 +482,34 @@ function FeedBody({
           : latestOnly
           ? latestStatusChangePerIssue(entries ?? [])
           : (entries ?? []);
-    return groupFeedByDay(coalesceFeed(rows), tz);
-  }, [entries, tz, latestOnly, onePerIssue, currentIn, latestPerIssue]);
+    const lifted = new Set(pinned?.ids);
+    return groupFeedByDay(coalesceFeed(rows.filter((e) => !lifted.has(e.issue.id))), tz);
+  }, [entries, tz, latestOnly, onePerIssue, currentIn, latestPerIssue, pinned?.ids]);
+  const pinnedEntries = pinned?.query.data;
+  const pinnedRows = useMemo(() => {
+    if (!pinned || !pinnedEntries) return [];
+    // A previous pin set's rows can linger as placeholder data.
+    const ids = new Set(pinned.ids);
+    const own = pinnedEntries.filter((e) => ids.has(e.issue.id));
+    return currentIn ? currentStatusRows(own, currentIn) : latestRowPerIssue(coalesceFeed(own));
+  }, [pinned, pinnedEntries, currentIn]);
+  const pinnedCovered = useMemo(() => new Set((pinnedEntries ?? []).map((e) => e.issue.id)).size, [pinnedEntries]);
+  useEffect(() => {
+    if (!pinned) return;
+    const { hasNextPage: more, isFetchingNextPage: fetching, fetchNextPage: next } = pinned.query;
+    if (more && !fetching && pinnedCovered < pinned.ids.length) void next();
+  }, [pinned, pinnedCovered]);
   const covered = useMemo(() => new Set((entries ?? []).map((e) => e.issue.id)).size, [entries]);
   // Identifiers are monospace, so sizing their column to the longest one in
   // `ch` lines titles up down the list.
   const idWidth = useMemo(
-    () => Math.max(0, ...groups.flatMap((g) => g.entries.map((e) => e.issue.identifier.length))),
-    [groups],
+    () =>
+      Math.max(
+        0,
+        ...pinnedRows.map((e) => e.issue.identifier.length),
+        ...groups.flatMap((g) => g.entries.map((e) => e.issue.identifier.length)),
+      ),
+    [groups, pinnedRows],
   );
   useEffect(() => {
     if (onePerIssueOf && hasNextPage && !isFetchingNextPage && covered < onePerIssueOf.length) {
@@ -467,30 +531,35 @@ function FeedBody({
 
   if (isPending) return <ListSkeleton />;
   if (isError) return <ErrorBox onRetry={() => void refetch()} />;
-  if (groups.length === 0) return <EmptyBox>{empty}</EmptyBox>;
+  if (groups.length === 0 && pinnedRows.length === 0) return <EmptyBox>{empty}</EmptyBox>;
+  const row = (entry: WorkspaceActivityEntry) => (
+    <FeedRow
+      key={entry.id}
+      entry={entry}
+      project={entry.issue.project_id ? projects.get(entry.issue.project_id) : undefined}
+      workingAgentIds={working.get(entry.issue.id)?.agentIds}
+      showWaiting={waiting !== undefined}
+      waitingReason={waiting?.get(entry.issue.id)}
+      // Filtered to one issue, every row is that issue: no tint, no filter button.
+      highlighted={!focus.issue && focus.hoveredIssueId === entry.issue.id}
+      onHoverIssue={focus.onHoverIssue}
+      onFilterIssue={focus.issue ? undefined : focus.onFilterIssue}
+      pinned={pinnedSet.has(entry.issue.id)}
+      onSetPin={onSetPin}
+    />
+  );
   return (
     <div className={cn(LIST_CLASS, "@container")} style={{ "--feed-id-width": `${idWidth}ch` } as CSSProperties}>
+      {pinnedRows.length > 0 && (
+        <div>
+          <div className={DAY_HEADING_CLASS}>{t(($) => $.pin.heading)}</div>
+          <div className="divide-y">{pinnedRows.map(row)}</div>
+        </div>
+      )}
       {groups.map((group) => (
         <div key={group.day}>
-          <div className="sticky top-0 z-10 border-b bg-card px-4 py-1.5 text-micro font-medium uppercase tracking-wide text-muted-foreground">
-            {dayLabel(group.day)}
-          </div>
-          <div className="divide-y">
-            {group.entries.map((entry) => (
-              <FeedRow
-                key={entry.id}
-                entry={entry}
-                project={entry.issue.project_id ? projects.get(entry.issue.project_id) : undefined}
-                workingAgentIds={working.get(entry.issue.id)?.agentIds}
-                showWaiting={waiting !== undefined}
-                waitingReason={waiting?.get(entry.issue.id)}
-                // Filtered to one issue, every row is that issue: no tint, no filter button.
-                highlighted={!focus.issue && focus.hoveredIssueId === entry.issue.id}
-                onHoverIssue={focus.onHoverIssue}
-                onFilterIssue={focus.issue ? undefined : focus.onFilterIssue}
-              />
-            ))}
-          </div>
+          <div className={DAY_HEADING_CLASS}>{dayLabel(group.day)}</div>
+          <div className="divide-y">{group.entries.map(row)}</div>
         </div>
       ))}
       {hasNextPage && !onePerIssue && (
@@ -508,6 +577,9 @@ function FeedBody({
     </div>
   );
 }
+
+const DAY_HEADING_CLASS =
+  "sticky top-0 z-10 border-b bg-card px-4 py-1.5 text-micro font-medium uppercase tracking-wide text-muted-foreground";
 
 /** The project a row's label names. */
 type RowProject = { id: string; title: string; icon: string | null };
@@ -536,6 +608,8 @@ const FeedRow = memo(function FeedRow({
   highlighted,
   onHoverIssue,
   onFilterIssue,
+  pinned,
+  onSetPin,
 }: {
   entry: WorkspaceActivityEntry;
   /** The issue's project; its column stays (empty) without one. */
@@ -551,6 +625,9 @@ const FeedRow = memo(function FeedRow({
   onHoverIssue: (issueId: string | null) => void;
   /** Absent while the feeds are already filtered to one issue. */
   onFilterIssue?: (issue: WorkspaceActivityIssueRef) => void;
+  /** The reader pinned the issue to the top of the feed. */
+  pinned: boolean;
+  onSetPin: SetPin;
 }) {
   const { t } = useT("overview");
   const { t: tIssues } = useT("issues");
@@ -567,6 +644,9 @@ const FeedRow = memo(function FeedRow({
   const isCreated = entry.type === "activity" && entry.action === "created";
   const actorName = entry.actor_name || getActorName(entry.actor_type, entry.actor_id);
   const excerpt = isComment ? commentExcerpt(entry.content ?? "") : "";
+  // Older servers send no priority.
+  const priority =
+    entry.issue.priority && entry.issue.priority in PRIORITY_CONFIG ? (entry.issue.priority as IssuePriority) : null;
 
   let phrase: string;
   let lead: ReactNode;
@@ -651,6 +731,16 @@ const FeedRow = memo(function FeedRow({
           {entry.issue.title}
         </span>
         <span className="col-start-2 flex min-w-0 items-center gap-2 @lg:contents">
+          {/* Ahead of the event's icon on a one-line row. */}
+          {priority && (
+            <span
+              className="flex size-4 shrink-0 items-center justify-center @lg:order-[-10000]"
+              title={tIssues(($) => $.priority[priority])}
+            >
+              <PriorityIcon priority={priority} />
+              <span className="sr-only">{tIssues(($) => $.priority[priority])}</span>
+            </span>
+          )}
           <span className="w-(--feed-id-width) shrink-0 font-mono text-caption text-muted-foreground @lg:-order-1">
             {entry.issue.identifier}
           </span>
@@ -742,9 +832,8 @@ const FeedRow = memo(function FeedRow({
           <span
             className={cn(
               "w-16 shrink-0 text-right text-caption text-muted-foreground @max-lg:w-auto",
-              // The filter button takes the time's place while the row is hovered.
-              onFilterIssue &&
-                "[@media(hover:hover)]:group-hover:invisible [@media(hover:hover)]:group-focus-within:invisible",
+              // The pin and filter buttons take the time's place while the row is hovered.
+              "[@media(hover:hover)]:group-hover:invisible [@media(hover:hover)]:group-focus-within:invisible",
             )}
           >
             {timeAgo(entry.created_at)}
@@ -768,6 +857,21 @@ const FeedRow = memo(function FeedRow({
           <ListFilter aria-hidden="true" />
         </Button>
       )}
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-label={pinned ? t(($) => $.pin.unpin) : t(($) => $.pin.pin)}
+        aria-pressed={pinned}
+        title={pinned ? t(($) => $.pin.unpin) : t(($) => $.pin.pin)}
+        // Placed like the filter button, to its left when there is one.
+        className={cn(
+          "absolute inset-y-0 my-auto opacity-0 group-hover:opacity-100 focus-visible:opacity-100 @max-lg:top-auto @max-lg:bottom-2 @max-lg:my-0 [@media(hover:none)]:hidden",
+          onFilterIssue ? "right-10" : "right-3",
+        )}
+        onClick={() => onSetPin({ issueId: entry.issue.id, pinned: !pinned })}
+      >
+        {pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
+      </Button>
     </div>
   );
 });
