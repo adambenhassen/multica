@@ -109,6 +109,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"notification_preference":            workspaceDelete,
 	"personal_access_token":              workspaceDeleteKeep,
 	"pinned_item":                        workspaceDelete,
+	"activity_pin":                       workspaceDelete,
 	"plugin_installation":                workspaceDelete,
 	"plugin_hook_schedule":               workspaceDelete,
 	"plugin_invocation":                  workspaceDelete,
