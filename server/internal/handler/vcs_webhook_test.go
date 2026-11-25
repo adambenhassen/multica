@@ -526,6 +526,72 @@ func TestVCSWebhook_CommitStatusMirrors(t *testing.T) {
 	}
 }
 
+// Gitea stamps statuses to the second, so a job that starts and fails within
+// one second sends pending and failure with the same updated_at. Gitea may
+// deliver them out of order; the late pending must not overwrite the failure,
+// or the PR reads as CI running forever. A pending from a later second (a
+// rerun) still replaces it.
+func TestVCSWebhook_CommitStatusSameSecondPendingKeepsTerminal(t *testing.T) {
+	ctx := context.Background()
+	box := withVCSBox(t)
+	connID := seedVCSConnection(t, ctx, box, "forgejo", "https://forgejo.test")
+	issue := newVCSIssue(t, "Forgejo CI status race")
+	t.Cleanup(func() { cleanupVCS(ctx, issue.ID) })
+
+	prRaw, _ := json.Marshal(map[string]any{
+		"action": "opened",
+		"pull_request": map[string]any{
+			"number": 12, "html_url": "https://forgejo.test/acme/widget/pulls/12",
+			"title": issue.Identifier + " feature", "state": "open",
+			"created_at": "2026-04-28T00:00:00Z", "updated_at": "2026-04-28T00:00:00Z",
+			"head": map[string]any{"ref": "feat", "sha": "cafef00d"},
+			"user": map[string]any{"username": "octo"},
+		},
+		"repository": map[string]any{"name": "widget", "owner": map[string]any{"username": "acme"}},
+	})
+	w := httptest.NewRecorder()
+	testHandler.HandleVCSWebhook(w, vcsWebhookReq(connID, map[string]string{
+		"X-Gitea-Event": "pull_request", "X-Gitea-Signature": giteaSig(prRaw),
+	}, prRaw))
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("pr: expected 202, got %d", w.Code)
+	}
+
+	sendStatus := func(state, updatedAt string) {
+		t.Helper()
+		raw, _ := json.Marshal(map[string]any{
+			"sha": "cafef00d", "context": "CI / ci (pull_request)", "state": state,
+			"created_at": updatedAt, "updated_at": updatedAt,
+		})
+		w := httptest.NewRecorder()
+		testHandler.HandleVCSWebhook(w, vcsWebhookReq(connID, map[string]string{
+			"X-Gitea-Event": "status", "X-Gitea-Signature": giteaSig(raw),
+		}, raw))
+		if w.Code != http.StatusAccepted {
+			t.Fatalf("status %s: expected 202, got %d", state, w.Code)
+		}
+	}
+	checks := func() (failed, pending int64) {
+		t.Helper()
+		rows, err := testHandler.Queries.ListVCSPullRequestsByIssue(ctx, parseUUID(issue.ID))
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("ListVCSPullRequestsByIssue: rows=%+v err=%v", rows, err)
+		}
+		return rows[0].ChecksFailed, rows[0].ChecksPending
+	}
+
+	sendStatus("failure", "2026-04-28T00:00:53Z")
+	sendStatus("pending", "2026-04-28T00:00:53Z") // delivered late, same second
+	if failed, pending := checks(); failed != 1 || pending != 0 {
+		t.Fatalf("same-second late pending: expected failed=1 pending=0, got failed=%d pending=%d", failed, pending)
+	}
+
+	sendStatus("pending", "2026-04-28T00:01:10Z") // rerun
+	if failed, pending := checks(); failed != 0 || pending != 1 {
+		t.Fatalf("later pending: expected failed=0 pending=1, got failed=%d pending=%d", failed, pending)
+	}
+}
+
 func TestVCSWebhook_BadSignature(t *testing.T) {
 	ctx := context.Background()
 	box := withVCSBox(t)

@@ -662,7 +662,9 @@ ON CONFLICT (connection_id, sha, context) DO UPDATE SET
     target_url  = EXCLUDED.target_url,
     description = EXCLUDED.description,
     updated_at  = EXCLUDED.updated_at
-WHERE EXCLUDED.updated_at >= vcs_commit_status.updated_at
+WHERE EXCLUDED.updated_at > vcs_commit_status.updated_at
+   OR (EXCLUDED.updated_at = vcs_commit_status.updated_at
+       AND (EXCLUDED.state <> 'pending' OR vcs_commit_status.state = 'pending'))
 `
 
 type UpsertVCSCommitStatusParams struct {
@@ -681,6 +683,9 @@ type UpsertVCSCommitStatusParams struct {
 // One row per (connection, sha, context); a redelivery or state transition
 // overwrites in place. updated_at guards against an older event overwriting a
 // newer one for the same context. state is normalized (passed/failed/pending).
+// Gitea stamps statuses to the second, so a job's pending and failure can share
+// one updated_at and arrive out of order: on a tie, pending never replaces a
+// finished state, or the PR reads as CI running forever.
 func (q *Queries) UpsertVCSCommitStatus(ctx context.Context, arg UpsertVCSCommitStatusParams) error {
 	_, err := q.db.Exec(ctx, upsertVCSCommitStatus,
 		arg.ConnectionID,

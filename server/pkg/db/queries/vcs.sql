@@ -190,6 +190,9 @@ WHERE pr.workspace_id = sqlc.arg('workspace_id') AND pr.state IN ('open', 'draft
 -- One row per (connection, sha, context); a redelivery or state transition
 -- overwrites in place. updated_at guards against an older event overwriting a
 -- newer one for the same context. state is normalized (passed/failed/pending).
+-- Gitea stamps statuses to the second, so a job's pending and failure can share
+-- one updated_at and arrive out of order: on a tie, pending never replaces a
+-- finished state, or the PR reads as CI running forever.
 INSERT INTO vcs_commit_status (
     connection_id, sha, context, state, target_url, description, updated_at
 ) VALUES (
@@ -200,7 +203,9 @@ ON CONFLICT (connection_id, sha, context) DO UPDATE SET
     target_url  = EXCLUDED.target_url,
     description = EXCLUDED.description,
     updated_at  = EXCLUDED.updated_at
-WHERE EXCLUDED.updated_at >= vcs_commit_status.updated_at;
+WHERE EXCLUDED.updated_at > vcs_commit_status.updated_at
+   OR (EXCLUDED.updated_at = vcs_commit_status.updated_at
+       AND (EXCLUDED.state <> 'pending' OR vcs_commit_status.state = 'pending'));
 
 -- name: ListIssueIDsForVCSPRHead :many
 -- Issues linked to any PR whose head sha matches the given status, so a
