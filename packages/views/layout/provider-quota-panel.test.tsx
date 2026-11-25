@@ -183,16 +183,15 @@ describe("ProviderQuotaPanel Claude limit", () => {
     level, efficiency, measured_at: "2026-10-29T08:00:00Z",
   });
 
-  it("adds today's Claude limit below the accounts", () => {
+  it("adds today's Claude limit above the accounts", () => {
     quota.current = { accounts: [claude("personal", 42, 18), codex("personal", 61)], claude_limit: limit("tight", 84.6) };
     renderWithI18n(<ProviderQuotaPanel />);
 
     expect(screen.getByText("Claude limit today")).toBeInTheDocument();
     const value = screen.getByText("Tight 85%");
     expect(value.closest('[tabindex="0"]')).toBeInTheDocument();
-    // The row sits after every account row, Codex included.
     const rows = screen.getByRole("group").querySelectorAll('[tabindex="0"]');
-    expect(rows[rows.length - 1]).toHaveTextContent("Claude limit todayTight 85%");
+    expect(rows[0]).toHaveTextContent("Claude limit todayTight 85%");
   });
 
   it.each([

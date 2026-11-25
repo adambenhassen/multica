@@ -83,6 +83,7 @@ export function ProviderQuotaPanel({
             : "grid-cols-[minmax(0.75rem,auto)_auto_minmax(1.5rem,1fr)_auto] @min-[13rem]:grid-cols-[minmax(0.75rem,auto)_auto_minmax(1.5rem,1fr)_auto_auto]",
         )}
       >
+        {claudeLimit ? <ClaudeLimitRow limit={claudeLimit} /> : null}
         {sortQuotaAccounts(accounts).map((account) => (
           <AccountRows
             key={account.id}
@@ -91,7 +92,6 @@ export function ProviderQuotaPanel({
             headerRow={headerRows}
           />
         ))}
-        {claudeLimit ? <ClaudeLimitRow limit={claudeLimit} /> : null}
       </div>
     </div>
   );
