@@ -84,6 +84,17 @@
     "pace_reserve": "余量 {{percent}}%",
     "runs_out_in": "{{time}}后用尽",
     "runs_out_now": "已用尽",
-    "lasts_until_reset": "可撑到重置"
+    "lasts_until_reset": "可撑到重置",
+    "limit_today": "今日 Claude 额度",
+    "limit_level": {
+      "brutal": "极差",
+      "harsh": "很差",
+      "tight": "偏紧",
+      "fair": "一般",
+      "good": "良好",
+      "great": "极佳"
+    },
+    "limit_reach": "额度可用量为平常的 {{percent}}%",
+    "limit_source": "usage.report · {{time}}测量"
   }
 }

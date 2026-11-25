@@ -382,5 +382,5 @@ export type {
 export type { IssueWakeup, IssueWakeupInput, SystemWakeup, WorkspaceSystemWakeup, WakeupPreview, IssueWakeupSummaryRow, WakeupCondition, WakeupPausedReason, WakeupRun, PausedWakeup, WakeupSource } from "./issue-wakeup";
 
 export type { WorkspaceWakeup, WorkspaceWakeupPage, WorkspaceWakeupFilters, WakeupScope } from "./issue-wakeup";
-export type { QuotaProvider, QuotaWindowKind, QuotaWindow, ProviderQuotaAccount, ProviderQuotaResponse } from "./provider-quota";
+export type { QuotaProvider, QuotaWindowKind, QuotaWindow, ProviderQuotaAccount, ProviderQuotaResponse, ClaudeLimit, ClaudeLimitLevel } from "./provider-quota";
 export type { IssueCIState, IssueCIPullRequest, IssueCIEntry, IssueCIResponse } from "./issue-ci";

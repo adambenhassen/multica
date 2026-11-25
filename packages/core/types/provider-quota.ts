@@ -18,6 +18,18 @@ export interface ProviderQuotaAccount {
   updated_at: string | null;
 }
 
+export type ClaudeLimitLevel = "brutal" | "harsh" | "tight" | "fair" | "good" | "great";
+
+/** usage.report's reading of how far Claude quota goes today. */
+export interface ClaudeLimit {
+  level: ClaudeLimitLevel;
+  /** Percent of a usual day's reach; 100 is typical. */
+  efficiency: number;
+  measured_at: string;
+}
+
 export interface ProviderQuotaResponse {
   accounts: ProviderQuotaAccount[];
+  /** `null` when no Claude account is listed or the tracker has no recent reading. */
+  claude_limit: ClaudeLimit | null;
 }

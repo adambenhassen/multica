@@ -84,6 +84,17 @@
     "pace_reserve": "{{percent}}% in reserve",
     "runs_out_in": "Runs out in {{time}}",
     "runs_out_now": "Runs out now",
-    "lasts_until_reset": "Lasts until reset"
+    "lasts_until_reset": "Lasts until reset",
+    "limit_today": "Claude limit today",
+    "limit_level": {
+      "brutal": "Brutal",
+      "harsh": "Harsh",
+      "tight": "Tight",
+      "fair": "Fair",
+      "good": "Good",
+      "great": "Great"
+    },
+    "limit_reach": "Quota goes {{percent}}% as far as usual",
+    "limit_source": "usage.report · measured {{time}}"
   }
 }

@@ -84,6 +84,17 @@
     "pace_reserve": "{{percent}} % de réserve",
     "runs_out_in": "Épuisé dans {{time}}",
     "runs_out_now": "Épuisé maintenant",
-    "lasts_until_reset": "Tient jusqu'à la réinitialisation"
+    "lasts_until_reset": "Tient jusqu'à la réinitialisation",
+    "limit_today": "Limite Claude aujourd'hui",
+    "limit_level": {
+      "brutal": "Brutale",
+      "harsh": "Rude",
+      "tight": "Serrée",
+      "fair": "Correcte",
+      "good": "Bonne",
+      "great": "Excellente"
+    },
+    "limit_reach": "Le quota couvre {{percent}} % de l'usage habituel",
+    "limit_source": "usage.report · mesuré {{time}}"
   }
 }

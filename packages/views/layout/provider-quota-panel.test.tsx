@@ -1,11 +1,13 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ProviderQuotaResponse } from "@multica/core/types";
+import type { ClaudeLimit, ProviderQuotaResponse } from "@multica/core/types";
 import { renderWithI18n } from "../test/i18n";
 import { useProviderQuotaPanelStore } from "@multica/core/provider-quota";
 import { ProviderQuotaPanel } from "./provider-quota-panel";
 
-const quota = vi.hoisted(() => ({ current: undefined as ProviderQuotaResponse | undefined }));
+// Most cases predate claude_limit and leave it out, as an older backend does.
+type QuotaData = Omit<ProviderQuotaResponse, "claude_limit"> & { claude_limit?: ClaudeLimit | null };
+const quota = vi.hoisted(() => ({ current: undefined as QuotaData | undefined }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
@@ -173,6 +175,46 @@ describe("ProviderQuotaPanel", () => {
     renderWithI18n(<ProviderQuotaPanel />);
     expect(screen.getByRole("progressbar", { name: "Claude Session" })).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Claude Weekly" })).toBeInTheDocument();
+  });
+});
+
+describe("ProviderQuotaPanel Claude limit", () => {
+  const limit = (level: ClaudeLimit["level"], efficiency: number): ClaudeLimit => ({
+    level, efficiency, measured_at: "2026-10-29T08:00:00Z",
+  });
+
+  it("adds today's Claude limit below the accounts", () => {
+    quota.current = { accounts: [claude("personal", 42, 18), codex("personal", 61)], claude_limit: limit("tight", 84.6) };
+    renderWithI18n(<ProviderQuotaPanel />);
+
+    expect(screen.getByText("Claude limit today")).toBeInTheDocument();
+    const value = screen.getByText("Tight 85%");
+    expect(value.closest('[tabindex="0"]')).toBeInTheDocument();
+    // The row sits after every account row, Codex included.
+    const rows = screen.getByRole("group").querySelectorAll('[tabindex="0"]');
+    expect(rows[rows.length - 1]).toHaveTextContent("Claude limit todayTight 85%");
+  });
+
+  it.each([
+    ["brutal", 60, "Brutal 60%"],
+    ["tight", 85, "Tight 85%"],
+    ["great", 115, "Great 115%"],
+  ] as const)("keeps a %s day in the panel's neutral text", (level, efficiency, text) => {
+    quota.current = { accounts: [claude("personal", 1, 1)], claude_limit: limit(level, efficiency) };
+    renderWithI18n(<ProviderQuotaPanel />);
+    expect(screen.getByText(text).className).not.toMatch(/text-(destructive|warning|success|foreground)/);
+  });
+
+  it("leaves the row out without a reading", () => {
+    quota.current = { accounts: [claude("personal", 1, 1)], claude_limit: null };
+    renderWithI18n(<ProviderQuotaPanel />);
+    expect(screen.queryByText("Claude limit today")).not.toBeInTheDocument();
+  });
+
+  it("leaves the row out while folded", () => {
+    quota.current = { accounts: [claude("personal", 1, 1)], claude_limit: limit("good", 105) };
+    renderWithI18n(<ProviderQuotaPanel defaultCollapsed />);
+    expect(screen.queryByText("Claude limit today")).not.toBeInTheDocument();
   });
 });
 

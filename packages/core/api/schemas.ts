@@ -3729,6 +3729,13 @@ const ProviderQuotaAccountSchema = z.object({
   updated_at: z.string().nullable().default(null).catch(null),
 }).loose();
 
+// An unknown level hides the hint rather than guessing its colour.
+const ClaudeLimitSchema = z.object({
+  level: z.enum(["brutal", "harsh", "tight", "fair", "good", "great"]),
+  efficiency: z.number().positive(),
+  measured_at: z.string(),
+}).loose();
+
 export const ProviderQuotaResponseSchema = z.object({
   accounts: z.array(z.unknown()).transform((accounts) =>
     accounts.flatMap((account) => {
@@ -3736,9 +3743,10 @@ export const ProviderQuotaResponseSchema = z.object({
       return parsed.success ? [parsed.data as ProviderQuotaAccount] : [];
     }),
   ),
+  claude_limit: ClaudeLimitSchema.nullable().default(null).catch(null),
 }).loose();
 
-export const EMPTY_PROVIDER_QUOTA: ProviderQuotaResponse = { accounts: [] };
+export const EMPTY_PROVIDER_QUOTA: ProviderQuotaResponse = { accounts: [], claude_limit: null };
 
 // An entry with an unknown CI state or no issue id is dropped instead of
 // failing the list.

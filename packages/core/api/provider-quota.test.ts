@@ -26,11 +26,11 @@ const account = {
 
 describe("provider quota API", () => {
   it("keeps a well-formed account", async () => {
-    expect(await read({ accounts: [account] })).toEqual({ accounts: [account] });
+    expect(await read({ accounts: [account] })).toEqual({ accounts: [account], claude_limit: null });
   });
 
   it("drops accounts with an unknown provider", async () => {
-    expect(await read({ accounts: [{ ...account, provider: "gemini" }] })).toEqual({ accounts: [] });
+    expect(await read({ accounts: [{ ...account, provider: "gemini" }] })).toEqual({ accounts: [], claude_limit: null });
   });
 
   it("keeps a fable window", async () => {
@@ -60,12 +60,26 @@ describe("provider quota API", () => {
   });
 
   it.each([[null], [[]], ["x"], [{ accounts: "nope" }]])("falls back to an empty list for %j", async (bad) => {
-    expect(await read(bad)).toEqual({ accounts: [] });
+    expect(await read(bad)).toEqual({ accounts: [], claude_limit: null });
+  });
+
+  it("keeps a well-formed Claude limit", async () => {
+    const claude_limit = { level: "tight", efficiency: 85, measured_at: "2026-11-24T18:57:00Z" };
+    expect((await read({ accounts: [account], claude_limit })).claude_limit).toEqual(claude_limit);
+  });
+
+  it.each([
+    ["an unknown level", { level: "meh", efficiency: 85, measured_at: "2026-11-24T18:57:00Z" }],
+    ["a zero efficiency", { level: "fair", efficiency: 0, measured_at: "2026-11-24T18:57:00Z" }],
+    ["no measured_at", { level: "fair", efficiency: 100 }],
+    ["a string", "tight"],
+  ])("drops a Claude limit with %s but keeps the accounts", async (_, claude_limit) => {
+    expect(await read({ accounts: [account], claude_limit })).toEqual({ accounts: [account], claude_limit: null });
   });
 
   it("returns an empty list when the backend predates the route (404)", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("not found", { status: 404 })));
-    expect(await new ApiClient("https://api.example.test").getProviderQuota()).toEqual({ accounts: [] });
+    expect(await new ApiClient("https://api.example.test").getProviderQuota()).toEqual({ accounts: [], claude_limit: null });
   });
 
   it("still throws on other HTTP errors", async () => {

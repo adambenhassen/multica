@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "@multica/ui/icons";
 import { providerQuotaOptions, useProviderQuotaPanelStore } from "@multica/core/provider-quota";
-import type { ProviderQuotaAccount, QuotaWindow, QuotaWindowKind } from "@multica/core/types";
+import type { ClaudeLimit, ProviderQuotaAccount, QuotaWindow, QuotaWindowKind } from "@multica/core/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@multica/ui/components/ui/tooltip";
 import { cn } from "@multica/ui/lib/utils";
-import { useLocale, useT } from "../i18n";
+import { useLocale, useT, useTimeAgo } from "../i18n";
 import { quotaLevel, quotaPace, resetParts, sortQuotaAccounts, type ResetParts } from "./provider-quota-format";
 
 const PROVIDER_NAME = { claude: "Claude", codex: "Codex" } as const;
@@ -60,6 +60,7 @@ export function ProviderQuotaPanel({
   const setCollapsed = useProviderQuotaPanelStore((s) => s.setCollapsed);
   const collapsed = choice ?? defaultCollapsed;
   const accounts = data?.accounts ?? [];
+  const claudeLimit = data?.claude_limit ?? null;
   if (accounts.length === 0) return null;
 
   const perProvider = new Map<string, number>();
@@ -90,6 +91,7 @@ export function ProviderQuotaPanel({
             headerRow={headerRows}
           />
         ))}
+        {claudeLimit ? <ClaudeLimitRow limit={claudeLimit} /> : null}
       </div>
     </div>
   );
@@ -146,6 +148,38 @@ function QuotaSummary({
       )}
       <ChevronDown aria-hidden="true" className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
     </button>
+  );
+}
+
+/**
+ * usage.report's reading of how far Claude quota goes today, so a window that
+ * drains faster than usual reads as the day's cost rather than heavier use.
+ * A flex row, not subgrid: its text would otherwise widen the reset column.
+ */
+function ClaudeLimitRow({ limit }: { limit: ClaudeLimit }) {
+  const { t } = useT("layout");
+  const timeAgo = useTimeAgo();
+  const efficiency = Math.round(limit.efficiency);
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <div
+            tabIndex={0}
+            className="col-span-full flex items-center gap-1.5 rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+          />
+        }
+      >
+        <span className="mr-auto min-w-0 truncate">{t(($) => $.quota.limit_today)}</span>
+        <span className="whitespace-nowrap tabular-nums">
+          {t(($) => $.quota.limit_level[limit.level])} {efficiency}%
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="flex-col items-start gap-0.5">
+        <p>{t(($) => $.quota.limit_reach, { percent: efficiency })}</p>
+        <p>{t(($) => $.quota.limit_source, { time: timeAgo(limit.measured_at) })}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

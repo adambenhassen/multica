@@ -84,6 +84,17 @@
     "pace_reserve": "{{percent}}% 余裕",
     "runs_out_in": "{{time}}後に上限到達",
     "runs_out_now": "上限に到達",
-    "lasts_until_reset": "リセットまで持ちます"
+    "lasts_until_reset": "リセットまで持ちます",
+    "limit_today": "今日の Claude 上限",
+    "limit_level": {
+      "brutal": "過酷",
+      "harsh": "厳しい",
+      "tight": "やや厳しい",
+      "fair": "普通",
+      "good": "良好",
+      "great": "非常に良好"
+    },
+    "limit_reach": "クォータで通常の {{percent}}% 分の作業ができます",
+    "limit_source": "usage.report · {{time}}に計測"
   }
 }

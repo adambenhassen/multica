@@ -84,6 +84,17 @@
     "pace_reserve": "{{percent}}% 여유",
     "runs_out_in": "{{time}} 후 소진",
     "runs_out_now": "지금 소진",
-    "lasts_until_reset": "재설정까지 유지"
+    "lasts_until_reset": "재설정까지 유지",
+    "limit_today": "오늘의 Claude 한도",
+    "limit_level": {
+      "brutal": "매우 나쁨",
+      "harsh": "나쁨",
+      "tight": "빠듯함",
+      "fair": "보통",
+      "good": "좋음",
+      "great": "매우 좋음"
+    },
+    "limit_reach": "할당량으로 평소의 {{percent}}%만큼 작업할 수 있습니다",
+    "limit_source": "usage.report · {{time}} 측정"
   }
 }
