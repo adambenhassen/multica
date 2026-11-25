@@ -1353,7 +1353,7 @@ const listRecentWorkspaceComments = `-- name: ListRecentWorkspaceComments :many
 SELECT c.id, c.issue_id, c.author_type, c.author_id, c.parent_id, c.created_at,
        LEFT(c.content, $1::int)::text AS excerpt,
        i.number AS issue_number, i.title AS issue_title, i.status AS issue_status,
-       i.project_id AS issue_project_id
+       i.project_id AS issue_project_id, i.priority AS issue_priority
 FROM comment c
 JOIN issue i ON i.id = c.issue_id AND i.workspace_id = c.workspace_id
 WHERE c.workspace_id = $2
@@ -1389,6 +1389,7 @@ type ListRecentWorkspaceCommentsRow struct {
 	IssueTitle     string             `json:"issue_title"`
 	IssueStatus    string             `json:"issue_status"`
 	IssueProjectID pgtype.UUID        `json:"issue_project_id"`
+	IssuePriority  string             `json:"issue_priority"`
 }
 
 // The newest user-written comments across a workspace, for the Dashboard feed.
@@ -1425,6 +1426,7 @@ func (q *Queries) ListRecentWorkspaceComments(ctx context.Context, arg ListRecen
 			&i.IssueTitle,
 			&i.IssueStatus,
 			&i.IssueProjectID,
+			&i.IssuePriority,
 		); err != nil {
 			return nil, err
 		}

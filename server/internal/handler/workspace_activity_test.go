@@ -23,7 +23,7 @@ func workspaceActivityRequest(path, workspaceID, userID string) *http.Request {
 func TestListWorkspaceActivity(t *testing.T) {
 	ws := dbfx.Workspace(t, "Activity feed", "activity-feed-"+uuid.NewString(), testutil.Cols{"issue_prefix": "FEED"})
 	dbfx.Member(t, ws, testUserID, "owner")
-	issue := dbfx.Issue(t, "Feed issue", testutil.Cols{"workspace_id": ws, "status": "in_progress"})
+	issue := dbfx.Issue(t, "Feed issue", testutil.Cols{"workspace_id": ws, "status": "in_progress", "priority": "high"})
 
 	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
 	insert := func(issueID any, action string, at time.Time) string {
@@ -63,7 +63,7 @@ func TestListWorkspaceActivity(t *testing.T) {
 		}
 	}
 	first := got.Entries[0]
-	wantIssue := WorkspaceActivityIssueRef{ID: issue, Identifier: fmt.Sprintf("FEED-%d", 1), Title: "Feed issue", Status: "in_progress"}
+	wantIssue := WorkspaceActivityIssueRef{ID: issue, Identifier: fmt.Sprintf("FEED-%d", 1), Title: "Feed issue", Status: "in_progress", Priority: "high"}
 	if first.Issue != wantIssue {
 		t.Fatalf("issue ref = %+v, want %+v", first.Issue, wantIssue)
 	}

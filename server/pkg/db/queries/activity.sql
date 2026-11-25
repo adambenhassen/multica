@@ -85,7 +85,7 @@ LIMIT 1;
 -- in for the status row (MUL-7349).
 SELECT a.id, a.workspace_id, a.issue_id, a.actor_type, a.actor_id, a.action, a.details, a.created_at,
        i.number AS issue_number, i.title AS issue_title, i.status AS issue_status,
-       i.project_id AS issue_project_id
+       i.project_id AS issue_project_id, i.priority AS issue_priority
 FROM activity_log a
 JOIN issue i ON i.id = a.issue_id AND i.workspace_id = a.workspace_id
 WHERE a.workspace_id = @workspace_id

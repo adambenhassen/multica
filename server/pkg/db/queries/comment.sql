@@ -928,7 +928,7 @@ FOR UPDATE OF c;
 SELECT c.id, c.issue_id, c.author_type, c.author_id, c.parent_id, c.created_at,
        LEFT(c.content, @excerpt_length::int)::text AS excerpt,
        i.number AS issue_number, i.title AS issue_title, i.status AS issue_status,
-       i.project_id AS issue_project_id
+       i.project_id AS issue_project_id, i.priority AS issue_priority
 FROM comment c
 JOIN issue i ON i.id = c.issue_id AND i.workspace_id = c.workspace_id
 WHERE c.workspace_id = @workspace_id

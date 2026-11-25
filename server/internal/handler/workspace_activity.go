@@ -66,6 +66,7 @@ type WorkspaceActivityIssueRef struct {
 	Identifier string `json:"identifier"`
 	Title      string `json:"title"`
 	Status     string `json:"status"`
+	Priority   string `json:"priority"`
 	// The issue's project; absent when it has none.
 	ProjectID *string `json:"project_id,omitempty"`
 }
@@ -256,12 +257,13 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 		issue WorkspaceActivityIssueRef
 	}
 	prefix := h.getIssuePrefix(ctx, wsUUID)
-	issueRef := func(id pgtype.UUID, number int32, title, status string, projectID pgtype.UUID) WorkspaceActivityIssueRef {
+	issueRef := func(id pgtype.UUID, number int32, title, status, priority string, projectID pgtype.UUID) WorkspaceActivityIssueRef {
 		return WorkspaceActivityIssueRef{
 			ID:         uuidToString(id),
 			Identifier: prefix + "-" + strconv.Itoa(int(number)),
 			Title:      title,
 			Status:     status,
+			Priority:   priority,
 			ProjectID:  uuidToPtr(projectID),
 		}
 	}
@@ -279,7 +281,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 				Details:     a.Details,
 				CreatedAt:   a.CreatedAt,
 			}),
-			issue: issueRef(a.IssueID, a.IssueNumber, a.IssueTitle, a.IssueStatus, a.IssueProjectID),
+			issue: issueRef(a.IssueID, a.IssueNumber, a.IssueTitle, a.IssueStatus, a.IssuePriority, a.IssueProjectID),
 		})
 	}
 	for _, c := range comments {
@@ -295,7 +297,7 @@ func (h *Handler) ListWorkspaceActivity(w http.ResponseWriter, r *http.Request) 
 				ParentID:  uuidToPtr(c.ParentID),
 				CreatedAt: timestampToString(c.CreatedAt),
 			},
-			issue: issueRef(c.IssueID, c.IssueNumber, c.IssueTitle, c.IssueStatus, c.IssueProjectID),
+			issue: issueRef(c.IssueID, c.IssueNumber, c.IssueTitle, c.IssueStatus, c.IssuePriority, c.IssueProjectID),
 		})
 	}
 	// Each source is already newest-first and capped at limit, so the merged

@@ -305,7 +305,7 @@ func (q *Queries) ListIssuesByStatusEnteredAt(ctx context.Context, arg ListIssue
 const listRecentWorkspaceActivities = `-- name: ListRecentWorkspaceActivities :many
 SELECT a.id, a.workspace_id, a.issue_id, a.actor_type, a.actor_id, a.action, a.details, a.created_at,
        i.number AS issue_number, i.title AS issue_title, i.status AS issue_status,
-       i.project_id AS issue_project_id
+       i.project_id AS issue_project_id, i.priority AS issue_priority
 FROM activity_log a
 JOIN issue i ON i.id = a.issue_id AND i.workspace_id = a.workspace_id
 WHERE a.workspace_id = $1
@@ -357,6 +357,7 @@ type ListRecentWorkspaceActivitiesRow struct {
 	IssueTitle     string             `json:"issue_title"`
 	IssueStatus    string             `json:"issue_status"`
 	IssueProjectID pgtype.UUID        `json:"issue_project_id"`
+	IssuePriority  string             `json:"issue_priority"`
 }
 
 // The newest issue activity across a workspace, for the Dashboard feed.
@@ -409,6 +410,7 @@ func (q *Queries) ListRecentWorkspaceActivities(ctx context.Context, arg ListRec
 			&i.IssueTitle,
 			&i.IssueStatus,
 			&i.IssueProjectID,
+			&i.IssuePriority,
 		); err != nil {
 			return nil, err
 		}
