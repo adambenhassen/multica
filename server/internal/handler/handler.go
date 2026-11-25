@@ -41,6 +41,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/seatcapacity"
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/storage"
+	"github.com/multica-ai/multica/server/internal/usagereport"
 	"github.com/multica-ai/multica/server/internal/util"
 	"github.com/multica-ai/multica/server/internal/util/secretbox"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
@@ -318,6 +319,9 @@ type Handler struct {
 	// ProviderQuota serves the sidecar's Claude/Codex subscription usage.
 	// Nil when ProviderQuotaURL is unset; a nil client serves an empty list.
 	ProviderQuota *providerquota.Client
+	// UsageReport reads today's Claude limit from usage.report for the quota
+	// panel. A nil client reports no reading.
+	UsageReport *usagereport.Client
 	// Composio integration (MUL-3720). Nil when COMPOSIO_API_KEY is unset;
 	// the composio HTTP handlers return 403 in that case. Wired in
 	// cmd/server/router.go after handler.New.
@@ -556,6 +560,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		}),
 		LLM:           llmClient,
 		ProviderQuota: providerquota.New(cfg.ProviderQuotaURL),
+		UsageReport:   usagereport.New(usagereport.DefaultURL),
 		cfg:           cfg,
 	}
 	h.WebhookDeliveryWorker = NewWebhookDeliveryWorker(h)
